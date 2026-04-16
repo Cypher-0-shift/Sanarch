@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Blood Sugar Detail - Sanarch Healthcare</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-dim": "#005c2d",
+                        "surface-container": "#e5e9ea",
+                        "on-primary": "#cdffd4",
+                        "on-tertiary-fixed": "#00333d",
+                        "inverse-primary": "#6bfe9c",
+                        "on-surface": "#2c2f30",
+                        "background": "#f5f7f8",
+                        "secondary-fixed": "#72fbbd",
+                        "on-secondary-container": "#005e3e",
+                        "on-secondary": "#c9ffdf",
+                        "on-primary-fixed": "#004a23",
+                        "secondary": "#006946",
+                        "error-container": "#fb5151",
+                        "on-tertiary": "#ddf7ff",
+                        "on-primary-container": "#005f2f",
+                        "primary-fixed-dim": "#5bef90",
+                        "on-error": "#ffefee",
+                        "tertiary-dim": "#005867",
+                        "inverse-on-surface": "#9a9d9e",
+                        "secondary-fixed-dim": "#63ecaf",
+                        "surface-container-high": "#dfe3e4",
+                        "on-secondary-fixed-variant": "#006946",
+                        "on-tertiary-fixed-variant": "#005361",
+                        "tertiary": "#006576",
+                        "surface-container-highest": "#d9dddf",
+                        "surface-dim": "#d0d5d7",
+                        "outline": "#747778",
+                        "tertiary-container": "#00dcff",
+                        "on-secondary-fixed": "#004930",
+                        "on-tertiary-container": "#004956",
+                        "surface-container-low": "#eef1f2",
+                        "outline-variant": "#abadae",
+                        "surface-variant": "#d9dddf",
+                        "error-dim": "#9f0519",
+                        "on-surface-variant": "#595c5d",
+                        "tertiary-fixed-dim": "#00cdee",
+                        "surface": "#f5f7f8",
+                        "on-error-container": "#570008",
+                        "on-primary-fixed-variant": "#006a35",
+                        "primary-fixed": "#6bfe9c",
+                        "primary-container": "#6bfe9c",
+                        "surface-bright": "#f5f7f8",
+                        "surface-tint": "#006a35",
+                        "on-background": "#2c2f30",
+                        "primary": "#006a35",
+                        "error": "#b31b25",
+                        "secondary-dim": "#005c3d",
+                        "secondary-container": "#72fbbd",
+                        "tertiary-fixed": "#00dcff",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-surface": "#0b0f10"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7f8;
+        }
+        .headline-font {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#f5f7f8]/80 backdrop-blur-xl shadow-[0_40px_40px_0_rgba(0,0,0,0.06)]">
+<div class="flex items-center px-6 h-16 w-full justify-between">
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#eef1f2] transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-on-surface" data-icon="arrow_back">arrow_back</span>
+</button>
+</div>
+<h1 class="font-['Plus_Jakarta_Sans'] font-bold text-lg text-[#006a35]">Blood Sugar</h1>
+<div class="flex items-center">
+<button class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden border-2 border-primary/20">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Close up of a professional user profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOu3kY_Y27bMj3kOl0RZjJe9ewDHQWs-ADN-WIgOd9U7unMHLhFJhDMXSNsQPr361PNGT3ZB4_XnMd7Feku1Q25mNuRmUUrgE4LRUeufqfN2EQWsnsg9YV1PHE6iprrldMTU96MbxMSwa8V9HGe3q13G3En2ryNaQ8Hged6WnhlQU8jSssdSvGY6fmUfxxig9WKHwVFZIUaQIEn6kEU2Ghe0HYZ247CKUX34POjrYxatWa1aVl0-W9EYcruyo_3wKRjIRyMGyP"/>
+</button>
+</div>
+</div>
+</header>
+<main class="pt-24 px-6 max-w-2xl mx-auto space-y-8">
+<!-- Main Reading Card (Editorial Focus) -->
+<section class="relative overflow-hidden bg-surface-container-lowest rounded-[2rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.04)]">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+<div class="flex flex-col items-center text-center space-y-2">
+<span class="inline-flex items-center px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold tracking-wider uppercase">
+                    Normal
+                </span>
+<div class="flex items-baseline gap-2 mt-4">
+<span class="text-7xl font-extrabold headline-font tracking-tighter text-on-surface">98</span>
+<span class="text-xl font-semibold text-on-surface-variant">mg/dL</span>
+</div>
+<p class="text-on-surface-variant text-sm font-medium mt-2">Last checked 1 hour ago</p>
+</div>
+</section>
+<!-- Primary Action -->
+<button class="w-full flex items-center justify-center gap-3 py-5 px-8 rounded-full bg-gradient-to-r from-[#006a35] to-[#6bfe9c] text-white shadow-xl shadow-primary/20 active:scale-[0.98] transition-all hover:brightness-110">
+<span class="material-symbols-outlined" data-icon="add" style="font-variation-settings: 'wght' 600;">add</span>
+<span class="font-headline font-bold text-lg">Add New Reading</span>
+</button>
+<!-- Insight Card (Vital Serenity Aesthetic) -->
+<section class="bg-tertiary-container/10 border border-tertiary/5 rounded-[1.5rem] p-6 flex gap-4 items-start">
+<div class="bg-tertiary-container/30 p-3 rounded-xl text-tertiary">
+<span class="material-symbols-outlined" data-icon="auto_awesome" data-weight="fill" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div>
+<h3 class="font-headline font-bold text-on-surface mb-1">Health Insight</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">
+                    Your glucose levels have been stable for the last 48 hours. <span class="text-primary font-semibold">Excellent work!</span> Keep maintaining your current diet.
+                </p>
+</div>
+</section>
+<!-- Trends Section -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-extrabold text-xl text-on-surface tracking-tight">Trends (Last 7 days)</h2>
+<span class="text-xs font-bold text-primary px-3 py-1 bg-primary/10 rounded-full">Avg: 102 mg/dL</span>
+</div>
+<!-- Frameless Vitality Graph -->
+<div class="bg-surface-container-low rounded-[1.5rem] p-6 h-48 flex items-end justify-between gap-2">
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary/20 rounded-t-lg" style="height: 60%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Mon</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary/40 rounded-t-lg" style="height: 75%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Tue</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary/60 rounded-t-lg" style="height: 55%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Wed</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary rounded-t-lg" style="height: 90%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Thu</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary/70 rounded-t-lg" style="height: 65%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Fri</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary/50 rounded-t-lg" style="height: 80%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Sat</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full bg-primary/30 rounded-t-lg" style="height: 70%;"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">Sun</span>
+</div>
+</div>
+</section>
+<!-- History Section (No Divider approach) -->
+<section class="space-y-4">
+<h2 class="font-headline font-extrabold text-xl text-on-surface tracking-tight">Recent History</h2>
+<div class="space-y-3">
+<!-- History Item 1 -->
+<div class="flex items-center justify-between p-5 bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="water_drop" data-weight="fill" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+</div>
+<div>
+<p class="font-headline font-bold text-on-surface">98 mg/dL</p>
+<p class="text-xs text-on-surface-variant font-medium">Today, 4:30 PM</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- History Item 2 -->
+<div class="flex items-center justify-between p-5 bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="water_drop" data-weight="fill" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+</div>
+<div>
+<p class="font-headline font-bold text-on-surface">102 mg/dL</p>
+<p class="text-xs text-on-surface-variant font-medium">Yesterday, 9:00 AM</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- History Item 3 -->
+<div class="flex items-center justify-between p-5 bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="water_drop" data-weight="fill" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+</div>
+<div>
+<p class="font-headline font-bold text-on-surface">115 mg/dL</p>
+<p class="text-xs text-on-surface-variant font-medium">Yesterday, 8:15 PM</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Custom Shell Implementation) -->
+</body></html>

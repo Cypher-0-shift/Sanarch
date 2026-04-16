@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Heart Rate - Sanarch Healthcare</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-dim": "#005c2d",
+              "on-secondary-fixed-variant": "#006946",
+              "background": "#f5f7f8",
+              "inverse-primary": "#6bfe9c",
+              "primary-fixed": "#6bfe9c",
+              "on-surface": "#2c2f30",
+              "primary-container": "#6bfe9c",
+              "surface-dim": "#d0d5d7",
+              "tertiary-container": "#00dcff",
+              "surface-tint": "#006a35",
+              "outline-variant": "#abadae",
+              "inverse-surface": "#0b0f10",
+              "inverse-on-surface": "#9a9d9e",
+              "primary": "#006a35",
+              "secondary-dim": "#005c3d",
+              "on-tertiary-container": "#004956",
+              "secondary-container": "#72fbbd",
+              "outline": "#747778",
+              "error": "#b31b25",
+              "on-error-container": "#570008",
+              "on-tertiary": "#ddf7ff",
+              "tertiary-dim": "#005867",
+              "tertiary": "#006576",
+              "surface-container-low": "#eef1f2",
+              "secondary-fixed-dim": "#63ecaf",
+              "tertiary-fixed-dim": "#00cdee",
+              "on-tertiary-fixed-variant": "#005361",
+              "surface-container-lowest": "#ffffff",
+              "on-tertiary-fixed": "#00333d",
+              "secondary-fixed": "#72fbbd",
+              "on-secondary-container": "#005e3e",
+              "on-error": "#ffefee",
+              "error-container": "#fb5151",
+              "on-primary-fixed-variant": "#006a35",
+              "surface": "#f5f7f8",
+              "surface-bright": "#f5f7f8",
+              "surface-container-highest": "#d9dddf",
+              "secondary": "#006946",
+              "on-secondary": "#c9ffdf",
+              "tertiary-fixed": "#00dcff",
+              "on-surface-variant": "#595c5d",
+              "surface-container-high": "#dfe3e4",
+              "on-primary-container": "#005f2f",
+              "surface-variant": "#d9dddf",
+              "on-secondary-fixed": "#004930",
+              "surface-container": "#e5e9ea",
+              "on-primary": "#cdffd4",
+              "primary-fixed-dim": "#5bef90",
+              "error-dim": "#9f0519",
+              "on-background": "#2c2f30",
+              "on-primary-fixed": "#004a23"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vital-gradient {
+            background: linear-gradient(135deg, #006a35 0%, #6bfe9c 100%);
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface min-h-screen pb-12">
+<!-- TopAppBar -->
+<header class="sticky top-0 w-full z-50 no-border bg-surface-container-low bg-white/60 dark:bg-neutral-900/60 backdrop-blur-xl shadow-sm dark:shadow-none">
+<div class="flex items-center justify-between px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="text-emerald-700 dark:text-emerald-400 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-['Plus_Jakarta_Sans'] font-bold text-lg text-emerald-800 dark:text-emerald-200">Heart Rate</h1>
+</div>
+<button class="text-neutral-500 hover:bg-neutral-100/50 p-2 rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</header>
+<main class="px-6 pt-6 space-y-8 max-w-2xl mx-auto">
+<!-- Current Stat Card -->
+<section class="relative overflow-hidden bg-surface-container-lowest rounded-[2rem] p-8 shadow-sm">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-10 -mt-10"></div>
+<div class="flex flex-col items-center text-center space-y-4">
+<span class="px-4 py-1 bg-secondary-container text-on-secondary-container text-xs font-bold rounded-full uppercase tracking-wider">Normal</span>
+<div class="flex items-baseline gap-2">
+<span class="text-7xl font-headline font-extrabold text-on-surface tracking-tighter">72</span>
+<span class="text-xl font-bold text-primary">BPM</span>
+</div>
+<p class="text-on-surface-variant text-sm font-medium">Last checked 2 hours ago</p>
+</div>
+<!-- Measure Now Button -->
+<div class="mt-8">
+<button class="vital-gradient w-full py-5 rounded-full flex items-center justify-center gap-3 text-on-primary font-headline font-bold text-lg shadow-lg active:scale-[0.98] transition-all group">
+<span class="material-symbols-outlined text-2xl group-hover:animate-pulse" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+                    Measure Now
+                </button>
+</div>
+</section>
+<!-- Trend Chart Section -->
+<section class="bg-surface-container-low rounded-[2rem] p-6 space-y-6">
+<div class="flex items-center justify-between">
+<div>
+<h2 class="font-headline font-bold text-xl text-on-surface">Trends</h2>
+<p class="text-on-surface-variant text-sm">Last 7 days</p>
+</div>
+<div class="bg-surface-container-lowest px-4 py-2 rounded-xl">
+<span class="text-xs text-on-surface-variant font-medium block">Avg</span>
+<span class="text-primary font-bold">74 BPM</span>
+</div>
+</div>
+<!-- Custom Visualization (Line Graph Placeholder) -->
+<div class="h-40 w-full flex items-end justify-between gap-2 px-2">
+<!-- Data bars with different heights for visual interest -->
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[60%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[40%] rounded-t-lg"></div>
+</div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[45%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[35%] rounded-t-lg"></div>
+</div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[80%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[60%] rounded-t-lg"></div>
+</div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[70%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[50%] rounded-t-lg"></div>
+</div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[55%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[30%] rounded-t-lg"></div>
+</div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[90%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[70%] rounded-t-lg"></div>
+</div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[65%] relative group cursor-pointer hover:bg-primary/20 transition-all">
+<div class="absolute bottom-0 w-full bg-primary h-[45%] rounded-t-lg"></div>
+</div>
+</div>
+<div class="flex justify-between px-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+<span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+</div>
+</section>
+<!-- History List -->
+<section class="space-y-4 pb-4">
+<h2 class="font-headline font-bold text-xl text-on-surface px-2">History</h2>
+<div class="space-y-3">
+<!-- History Item -->
+<div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center justify-between group hover:bg-surface-container-low transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+<div>
+<p class="font-headline font-bold text-on-surface">72 BPM</p>
+<p class="text-sm text-on-surface-variant">Today, 2:30 PM</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- History Item -->
+<div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center justify-between group hover:bg-surface-container-low transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+<div>
+<p class="font-headline font-bold text-on-surface">75 BPM</p>
+<p class="text-sm text-on-surface-variant">Today, 9:15 AM</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- History Item -->
+<div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center justify-between group hover:bg-surface-container-low transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+<div>
+<p class="font-headline font-bold text-on-surface">68 BPM</p>
+<p class="text-sm text-on-surface-variant">Yesterday, 11:45 PM</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Back to Home Button -->
+</main>
+</body></html>

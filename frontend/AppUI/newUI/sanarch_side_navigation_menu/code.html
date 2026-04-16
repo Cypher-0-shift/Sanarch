@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "inverse-primary": "#6bfe9c",
+                        "surface-variant": "#d9dddf",
+                        "on-tertiary-fixed": "#00333d",
+                        "tertiary-container": "#00dcff",
+                        "surface-container": "#e5e9ea",
+                        "on-secondary-fixed": "#004930",
+                        "on-tertiary": "#ddf7ff",
+                        "tertiary": "#006576",
+                        "primary-dim": "#005c2d",
+                        "background": "#f5f7f8",
+                        "on-surface-variant": "#595c5d",
+                        "error-container": "#fb5151",
+                        "inverse-surface": "#0b0f10",
+                        "secondary-fixed-dim": "#63ecaf",
+                        "surface-tint": "#006a35",
+                        "on-error-container": "#570008",
+                        "on-secondary-container": "#005e3e",
+                        "secondary-dim": "#005c3d",
+                        "error": "#b31b25",
+                        "on-secondary": "#c9ffdf",
+                        "surface-dim": "#d0d5d7",
+                        "surface-container-high": "#dfe3e4",
+                        "on-primary-fixed-variant": "#006a35",
+                        "tertiary-dim": "#005867",
+                        "error-dim": "#9f0519",
+                        "secondary-fixed": "#72fbbd",
+                        "tertiary-fixed": "#00dcff",
+                        "surface-bright": "#f5f7f8",
+                        "secondary-container": "#72fbbd",
+                        "primary-fixed-dim": "#5bef90",
+                        "on-tertiary-fixed-variant": "#005361",
+                        "on-background": "#2c2f30",
+                        "inverse-on-surface": "#9a9d9e",
+                        "primary-container": "#6bfe9c",
+                        "surface-container-highest": "#d9dddf",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#2c2f30",
+                        "secondary": "#006946",
+                        "primary": "#006a35",
+                        "on-primary-container": "#005f2f",
+                        "on-primary-fixed": "#004a23",
+                        "on-primary": "#cdffd4",
+                        "tertiary-fixed-dim": "#00cdee",
+                        "on-tertiary-container": "#004956",
+                        "on-error": "#ffefee",
+                        "surface-container-low": "#eef1f2",
+                        "outline-variant": "#abadae",
+                        "outline": "#747778",
+                        "surface": "#f5f7f8",
+                        "primary-fixed": "#6bfe9c",
+                        "on-secondary-fixed-variant": "#006946"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen overflow-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-40 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl shadow-sm flex items-center justify-between px-6 py-4">
+<div class="flex items-center gap-4">
+<button class="text-emerald-700 p-2 hover:bg-emerald-50 rounded-xl transition-colors">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="text-xl font-extrabold text-emerald-800 tracking-tight">Sanarch Healthcare</h1>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-slate-600 hover:bg-emerald-50 rounded-xl transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<img alt="Alex Rivera" class="w-8 h-8 rounded-full border-2 border-emerald-100" data-alt="User profile picture of Alex Rivera" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYrFUu2BQ47Cp5Tcljw4JmnfTFBaDFC4sCqYGoBPtQsoeqhW2RrZh7HzGmdDYcxtbu5oZBpCkqowBgjL0BmQXJEyv62Qsg-lopNFvOYM8SNiqJ3IjTVrPY_pI5bkDnEf-uZGHBuqqYTRxkMA9hqCnxSEvkuQj87JJN2KnzHQCeBPfKpXDnuUl7XdbKIOJjhCgap7ElqUi0NMGkaAUx-w1rfNEha9sCGaVMIVyyXbqzak9Hm9oAi6fiUAgaKg3Rh-aXhyVD1hco"/>
+</div>
+</header>
+<!-- Overlay / Dimmer for NavigationDrawer -->
+<div class="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"></div>
+<!-- NavigationDrawer -->
+<aside class="fixed inset-y-0 left-0 z-50 flex flex-col h-full w-80 bg-slate-50 shadow-2xl rounded-r-[2.5rem] overflow-hidden transition-all duration-300 transform translate-x-0">
+<!-- Drawer Header -->
+<div class="p-8 pb-6 flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<div class="text-2xl font-bold text-emerald-900">Sanarch</div>
+<button class="p-2 text-slate-400 hover:bg-slate-200/50 rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+</div>
+<!-- Drawer Content (Menu List) -->
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto pb-20">
+<!-- Home (Active) -->
+<a class="flex items-center gap-4 bg-emerald-100 text-emerald-800 rounded-2xl px-5 py-4 font-headline font-semibold text-sm transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span>Home</span>
+</a>
+<!-- Add Family Members -->
+<a class="flex items-center gap-4 text-slate-600 hover:bg-slate-200/50 rounded-2xl px-5 py-4 font-headline font-semibold text-sm transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-emerald-700 transition-colors" data-icon="group_add">group_add</span>
+<span>Add Family Members</span>
+</a>
+<!-- Medication (Collapsible Parent) -->
+<a class="flex items-center gap-4 text-slate-600 hover:bg-slate-200/50 rounded-2xl px-5 py-4 font-headline font-semibold text-sm transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-emerald-700 transition-colors" data-icon="pill">pill</span>
+<span>My Medication</span>
+</a>
+<!-- Other Generic Items to show depth -->
+<a class="flex items-center gap-4 text-slate-600 hover:bg-slate-200/50 rounded-2xl px-5 py-4 font-headline font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<!-- Drawer Footer -->
+<div class="p-6 bg-slate-100/50 backdrop-blur-md">
+<button class="flex items-center justify-center gap-3 w-full py-4 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm shadow-sm hover:bg-error-container hover:text-on-error-container hover:border-transparent transition-all">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Sign Out</span>
+</button>
+</div>
+</aside>
+<!-- Background Content (Simulated Main Dashboard) -->
+<main class="pt-24 px-6 pb-32 max-w-5xl mx-auto space-y-8 blur-[2px]">
+<!-- Welcome Hero Section -->
+<section class="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary-dim p-8 text-white relative overflow-hidden">
+<div class="relative z-10">
+<h2 class="text-3xl font-extrabold tracking-tight mb-2">Hello, Alex</h2>
+<p class="text-emerald-100/80 font-medium">Your health journey is looking vibrant today.</p>
+<div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+<p class="text-xs text-emerald-100/60 uppercase font-bold tracking-widest">Heart Rate</p>
+<p class="text-2xl font-bold mt-1">72 <span class="text-sm font-normal opacity-60">bpm</span></p>
+</div>
+<div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+<p class="text-xs text-emerald-100/60 uppercase font-bold tracking-widest">Sleep</p>
+<p class="text-2xl font-bold mt-1">7h 45m</p>
+</div>
+</div>
+</div>
+<!-- Decorative background element -->
+<div class="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-white/5 rounded-full blur-3xl"></div>
+</section>
+<!-- Bento Grid Section -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="md:col-span-2 bg-surface-container-low rounded-[2rem] p-8 border border-transparent">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-lg font-bold text-on-surface">Weekly Vitality</h3>
+<div class="bg-surface-container-highest px-4 py-1.5 rounded-full text-xs font-bold text-emerald-800 uppercase tracking-widest">Stable</div>
+</div>
+<div class="h-48 bg-white/40 rounded-3xl flex items-center justify-center border border-dashed border-emerald-200">
+<p class="text-slate-400 font-medium text-sm">Vitality Chart Area</p>
+</div>
+</div>
+<div class="bg-tertiary-container rounded-[2rem] p-8 text-on-tertiary-container flex flex-col justify-between">
+<div>
+<span class="material-symbols-outlined text-4xl mb-4" data-icon="pill">pill</span>
+<h3 class="text-xl font-bold">Upcoming Medication</h3>
+<p class="text-sm opacity-80 mt-2">Lipitor 20mg • Take with water</p>
+</div>
+<div class="mt-6 flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="schedule">schedule</span>
+<span class="text-sm font-bold">09:00 AM</span>
+</div>
+</div>
+</section>
+<section class="bg-white rounded-[2rem] p-8 shadow-sm">
+<h3 class="text-lg font-bold text-on-surface mb-6">Recent Reports</h3>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+<div class="flex items-center gap-4">
+<div class="bg-emerald-100 p-3 rounded-xl text-emerald-700">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<div>
+<p class="font-bold text-sm">Full Blood Count</p>
+<p class="text-xs text-slate-400">Oct 12, 2023 • LabCorp</p>
+</div>
+</div>
+<button class="text-emerald-600 font-bold text-sm hover:underline">View</button>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-30 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.06)] rounded-t-[2.5rem] border-t border-emerald-50/10 blur-[1px]">
+<div class="flex flex-col items-center justify-center bg-emerald-50 text-emerald-700 rounded-2xl px-5 py-2">
+<span class="material-symbols-outlined" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+<span class="font-label text-[10px] font-medium tracking-wide mt-1">Health</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 px-5 py-2">
+<span class="material-symbols-outlined" data-icon="medical_services">medical_services</span>
+<span class="font-label text-[10px] font-medium tracking-wide mt-1">Care</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 px-5 py-2">
+<span class="material-symbols-outlined" data-icon="medication">medication</span>
+<span class="font-label text-[10px] font-medium tracking-wide mt-1">Medication</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 px-5 py-2">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label text-[10px] font-medium tracking-wide mt-1">Profile</span>
+</div>
+</nav>
+</body></html>

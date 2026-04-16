@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sanarch Healthcare - Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-on-surface": "#9a9d9e",
+              "surface-variant": "#d9dddf",
+              "on-error": "#ffefee",
+              "on-secondary-fixed-variant": "#006946",
+              "error-dim": "#9f0519",
+              "tertiary-fixed": "#00dcff",
+              "secondary-container": "#72fbbd",
+              "on-secondary": "#c9ffdf",
+              "secondary": "#006946",
+              "primary": "#006a35",
+              "tertiary": "#006576",
+              "primary-dim": "#005c2d",
+              "on-tertiary-container": "#004956",
+              "surface-container": "#e5e9ea",
+              "secondary-fixed-dim": "#63ecaf",
+              "on-secondary-container": "#005e3e",
+              "primary-fixed-dim": "#5bef90",
+              "surface-container-high": "#dfe3e4",
+              "primary-container": "#6bfe9c",
+              "surface-container-low": "#eef1f2",
+              "surface-tint": "#006a35",
+              "on-background": "#2c2f30",
+              "inverse-primary": "#6bfe9c",
+              "on-error-container": "#570008",
+              "tertiary-dim": "#005867",
+              "outline": "#747778",
+              "on-secondary-fixed": "#004930",
+              "surface-bright": "#f5f7f8",
+              "on-primary-container": "#005f2f",
+              "primary-fixed": "#6bfe9c",
+              "on-tertiary": "#ddf7ff",
+              "on-primary": "#cdffd4",
+              "inverse-surface": "#0b0f10",
+              "on-tertiary-fixed-variant": "#005361",
+              "on-tertiary-fixed": "#00333d",
+              "surface-container-highest": "#d9dddf",
+              "tertiary-container": "#00dcff",
+              "error-container": "#fb5151",
+              "on-surface-variant": "#595c5d",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2c2f30",
+              "surface": "#f5f7f8",
+              "secondary-fixed": "#72fbbd",
+              "surface-dim": "#d0d5d7",
+              "tertiary-fixed-dim": "#00cdee",
+              "error": "#b31b25",
+              "on-primary-fixed-variant": "#006a35",
+              "secondary-dim": "#005c3d",
+              "background": "#f5f7f8",
+              "outline-variant": "#abadae",
+              "on-primary-fixed": "#004a23"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f5f7f8; }
+        .font-plus-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-nav { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        body {
+          min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="text-on-surface bg-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl shadow-sm shadow-black/5">
+<div class="flex items-center justify-between px-4 py-3 w-full relative h-[56px]">
+<!-- Hamburger Menu (Left) -->
+<button class="text-neutral-500 dark:text-neutral-400 active:scale-95 duration-200 flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-size: 26px;">menu</span>
+</button>
+<!-- Title (Center) -->
+<h1 class="font-plus-jakarta text-[20px] font-semibold tracking-tight text-[#143832] absolute left-1/2 -translate-x-1/2">Home</h1>
+<!-- Avatar (Right) -->
+<div class="flex items-center justify-center">
+<div class="h-[32px] w-[32px] rounded-full bg-surface-container-highest overflow-hidden border border-neutral-100 shadow-sm">
+<img alt="Doctor Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDG1eZMX0lFYcll3JuXe9P4AI7aRY-wA23AbMcg1VHhg03NbteY4LOlcO68VwVRhLfCX2z3aaTIBYFtKkYoKPQjCGyROv7e_ajgCwfopYRTnuQiatOpwQz0tpTwk5KHIl9uFLIPHzCsYSGh8JaMN8-KvnPUp_5ISrtmIDWfKawbv7DsGHI3WxtnieyQpGtUEDh4FO7eUGHR4tddogZBX0O6YFVVObkxy94xMkzNr76cf9NIyy97akKBNWtcTKWD7j5ENahraulq"/>
+</div>
+</div>
+</div>
+</header>
+<main class="px-6 pt-6 space-y-8 max-w-5xl mx-auto">
+<!-- Welcome Section (Asymmetric Editorial Style) -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<div class="md:col-span-8 bg-gradient-to-br from-primary to-primary-dim rounded-[2rem] p-8 text-white relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-on-primary/80 font-medium mb-2 uppercase tracking-widest text-xs">Vital Statistics</p>
+<h2 class="font-plus-jakarta text-4xl font-extrabold mb-4 leading-tight">Your health is <br/>reaching a new peak.</h2>
+<div class="flex gap-4 mt-6">
+<button class="bg-primary-container text-on-primary-container px-6 py-3 rounded-full font-bold text-sm active:scale-95 transition-transform">View Records</button>
+<button class="bg-white/20 backdrop-blur-md border border-white/10 px-6 py-3 rounded-full font-bold text-sm active:scale-95 transition-transform">Share Status</button>
+</div>
+</div>
+<!-- Abstract decorative element -->
+<div class="absolute -right-10 -bottom-10 w-64 h-64 bg-primary-container opacity-20 rounded-full blur-3xl"></div>
+</div>
+<div class="md:col-span-4 space-y-6">
+<div class="bg-surface-container-low rounded-[2rem] p-6 flex flex-col justify-between h-full">
+<div>
+<span class="material-symbols-outlined text-primary text-4xl mb-4" data-icon="favorite">favorite</span>
+<h3 class="text-on-surface-variant font-semibold">Average Heart Rate</h3>
+</div>
+<div>
+<span class="text-5xl font-plus-jakarta font-extrabold text-on-surface tracking-tighter">72</span>
+<span class="text-on-surface-variant font-medium ml-1">BPM</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Trackers Section -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="font-plus-jakarta text-xl font-bold text-on-surface">Quick Trackers</h3>
+<button class="text-primary font-bold text-sm">View All</button>
+</div>
+<!-- 2x2 Grid of Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<!-- Heart Rate -->
+<div class="bg-surface-container-lowest p-6 rounded-[2rem] shadow-sm flex flex-col items-center justify-center text-center">
+<div class="w-12 h-12 bg-secondary-container/30 rounded-2xl flex items-center justify-center mb-4 text-primary">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Heart Rate</p>
+<p class="text-2xl font-plus-jakarta font-extrabold text-primary">72 <span class="text-xs font-bold uppercase">BPM</span></p>
+</div>
+<!-- Blood Sugar -->
+<div class="bg-surface-container-lowest p-6 rounded-[2rem] shadow-sm flex flex-col items-center justify-center text-center border-2 border-dashed border-surface-container-high group hover:border-primary/30 transition-colors">
+<div class="w-12 h-12 bg-tertiary-container/20 rounded-2xl flex items-center justify-center mb-4 text-tertiary">
+<span class="material-symbols-outlined" data-icon="glucose">water_drop</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Blood Sugar</p>
+<button class="text-sm font-bold text-primary mt-1">Add reading</button>
+</div>
+<!-- Blood Pressure -->
+<div class="bg-surface-container-lowest p-6 rounded-[2rem] shadow-sm flex flex-col items-center justify-center text-center">
+<div class="w-12 h-12 bg-primary-container/30 rounded-2xl flex items-center justify-center mb-4 text-primary">
+<span class="material-symbols-outlined" data-icon="monitor_heart">monitor_heart</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Blood Pressure</p>
+<p class="text-2xl font-plus-jakarta font-extrabold text-primary-dim">120/80</p>
+</div>
+<!-- Weight -->
+<div class="bg-surface-container-lowest p-6 rounded-[2rem] shadow-sm flex flex-col items-center justify-center text-center border-2 border-dashed border-surface-container-high group hover:border-primary/30 transition-colors">
+<div class="w-12 h-12 bg-secondary-container/20 rounded-2xl flex items-center justify-center mb-4 text-secondary">
+<span class="material-symbols-outlined" data-icon="scale">scale</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Weight</p>
+<button class="text-sm font-bold text-primary mt-1">Add reading</button>
+</div>
+</div>
+<!-- Recently Tracked Widget -->
+<div class="bg-surface-container-low rounded-[2rem] p-6">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="history">history</span>
+</div>
+<h4 class="font-bold text-on-surface">Recently Tracked</h4>
+</div>
+<span class="text-xs font-medium text-on-surface-variant">Heart Rate</span>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl p-4 flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-4">
+<div class="flex flex-col">
+<span class="text-lg font-plus-jakarta font-bold text-on-surface">74 <span class="text-xs">BPM</span></span>
+<span class="text-[10px] text-on-surface-variant font-medium">Today, 08:30 AM</span>
+</div>
+</div>
+<!-- Mini trend visualization (SVG) -->
+<div class="h-8 w-24">
+<svg class="w-full h-full text-primary" fill="none" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 25C10 25 15 10 25 10C35 10 40 20 50 20C60 20 65 5 75 5C85 5 90 15 100 15" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex items-center text-primary text-xs font-bold gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="trending_up">trending_up</span>
+<span>2%</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Dynamic Appointment Card -->
+<section class="bg-surface-container-low rounded-[2.5rem] p-1">
+<div class="bg-surface-container-lowest rounded-[2.4rem] p-8 flex flex-col md:flex-row items-center gap-8">
+<div class="relative flex-shrink-0">
+<img alt="Doctor" class="w-32 h-32 rounded-[2rem] object-cover shadow-xl rotate-3" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBup50Msj1UMIqwmHruNAmy8GJ_HCqkucNso8TBFMCyWKBgN20llw60OhF5w2vJ_ZM_glFQQ8dhv22DlVZuFat1MH4zmCLBJw8559SyQgzk4KohbtBZF4MbVPhR96yp5Il8FcHD5bffmLTgjScG5CZheavmYR6cgk3krJutba77nFLWwPFxZN4UCa7_OMprm_m3Ba8FEESFH7UfP5apoaX5osNM7_vZGfcu48iTWSq3MeCXEDsPAs9Ej0G1Cqv1XMHBRoHKsAwq"/>
+<div class="absolute -bottom-2 -right-2 bg-primary w-10 h-10 rounded-full flex items-center justify-center border-4 border-white">
+<span class="material-symbols-outlined text-white text-lg" data-icon="verified">verified</span>
+</div>
+</div>
+<div class="flex-grow text-center md:text-left">
+<h3 class="font-plus-jakarta text-2xl font-extrabold text-on-surface">Next Consultation</h3>
+<p class="text-on-surface-variant mb-6">Dr. Sarah Jenkins • Cardiologist</p>
+<div class="flex flex-wrap justify-center md:justify-start gap-4">
+<div class="flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-full">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="calendar_today">calendar_today</span>
+<span class="text-sm font-semibold">Tomorrow, 10:30 AM</span>
+</div>
+<div class="flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-full">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="location_on">location_on</span>
+<span class="text-sm font-semibold">Green Valley Clinic</span>
+</div>
+</div>
+</div>
+<button class="w-full md:w-auto bg-primary text-on-primary px-8 py-4 rounded-full font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all">
+                Remind Me
+            </button>
+</div>
+</section>
+</main>
+<!-- Floating Action Button (FAB) -->
+<div class="fixed bottom-28 right-6 z-50">
+<button class="w-[70px] h-[40px] rounded-[20px] bg-gradient-to-br from-green-700 to-green-400 text-white shadow-lg shadow-green-500/20 flex items-center justify-center active:scale-90 duration-300 ease-out">
+<span class="material-symbols-outlined text-2xl" data-icon="add" style='font-variation-settings: "FILL" 0, "wght" 600;'>add</span>
+</button>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[24px] bg-white/90 dark:bg-neutral-900/90 backdrop-blur-2xl shadow-[0_-4px_40px_rgba(0,0,0,0.06)]">
+<div class="flex justify-around items-center px-4 pt-3 pb-8 w-full">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center w-[70px] h-[40px] rounded-[20px] bg-gradient-to-br from-green-700 to-green-400 text-white shadow-lg shadow-green-500/20 active:scale-90 duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" data-icon="home" style='font-variation-settings: "FILL" 1;'>home</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Home</span>
+</a>
+<!-- Services -->
+<a class="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 w-[70px] h-[40px] hover:text-green-600 dark:hover:text-green-300 transition-all active:scale-90 duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" data-icon="medical_services">medical_services</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Services</span>
+</a>
+<!-- Records -->
+<a class="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 w-[70px] h-[40px] hover:text-green-600 dark:hover:text-green-300 transition-all active:scale-90 duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Records</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 w-[70px] h-[40px] hover:text-green-600 dark:hover:text-green-300 transition-all active:scale-90 duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

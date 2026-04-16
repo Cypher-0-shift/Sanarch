@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec
+venv/
+.venv/
+env/
+.env/
+
+# Environment variables (secrets)
+.env
+*.env
+.env.*
+
+# Compiled files
+*.pyc
+*.pyo
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+dist/
+build/
+.next/
+out/
+
+# IDE / OS
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/

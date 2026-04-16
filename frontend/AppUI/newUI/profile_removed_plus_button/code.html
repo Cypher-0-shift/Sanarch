@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sanarch Healthcare - Profile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "inverse-on-surface": "#9a9d9e",
+                        "surface-variant": "#d9dddf",
+                        "on-error": "#ffefee",
+                        "on-secondary-fixed-variant": "#006946",
+                        "error-dim": "#9f0519",
+                        "tertiary-fixed": "#00dcff",
+                        "secondary-container": "#72fbbd",
+                        "on-secondary": "#c9ffdf",
+                        "secondary": "#006946",
+                        "primary": "#006a35",
+                        "tertiary": "#006576",
+                        "primary-dim": "#005c2d",
+                        "on-tertiary-container": "#004956",
+                        "surface-container": "#e5e9ea",
+                        "secondary-fixed-dim": "#63ecaf",
+                        "on-secondary-container": "#005e3e",
+                        "primary-fixed-dim": "#5bef90",
+                        "surface-container-high": "#dfe3e4",
+                        "primary-container": "#6bfe9c",
+                        "surface-container-low": "#eef1f2",
+                        "surface-tint": "#006a35",
+                        "on-background": "#2c2f30",
+                        "inverse-primary": "#6bfe9c",
+                        "on-error-container": "#570008",
+                        "tertiary-dim": "#005867",
+                        "outline": "#747778",
+                        "on-secondary-fixed": "#004930",
+                        "surface-bright": "#f5f7f8",
+                        "on-primary-container": "#005f2f",
+                        "primary-fixed": "#6bfe9c",
+                        "on-tertiary": "#ddf7ff",
+                        "on-primary": "#cdffd4",
+                        "inverse-surface": "#0b0f10",
+                        "on-tertiary-fixed-variant": "#005361",
+                        "on-tertiary-fixed": "#00333d",
+                        "surface-container-highest": "#d9dddf",
+                        "tertiary-container": "#00dcff",
+                        "error-container": "#fb5151",
+                        "on-surface-variant": "#595c5d",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#2c2f30",
+                        "surface": "#f5f7f8",
+                        "secondary-fixed": "#72fbbd",
+                        "surface-dim": "#d0d5d7",
+                        "tertiary-fixed-dim": "#00cdee",
+                        "error": "#b31b25",
+                        "on-primary-fixed-variant": "#006a35",
+                        "secondary-dim": "#005c3d",
+                        "background": "#f5f7f8",
+                        "outline-variant": "#abadae",
+                        "on-primary-fixed": "#004a23"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7f8;
+            color: #2c2f30;
+        }
+        h1, h2, h3, .font-jakarta {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased selection:bg-primary-container">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl shadow-sm shadow-black/5">
+<div class="flex items-center justify-between px-4 py-3 w-full max-w-3xl mx-auto relative">
+<!-- Left: Menu Icon -->
+<button class="material-symbols-outlined text-[26px] text-on-surface hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-1 rounded-full active:scale-95 duration-200 flex items-center justify-center">
+        menu
+    </button>
+<!-- Center: Title -->
+<h1 class="font-headline text-[18px] font-semibold tracking-tight text-[#143832] absolute left-1/2 -translate-x-1/2">
+        Profile
+    </h1>
+<!-- Right: Profile Avatar -->
+<div class="rounded-full bg-surface-container-high overflow-hidden border border-neutral-200 w-[32px] h-[32px]">
+<img alt="User Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDseqdgU_Nz05itsnBZlnV4oOZaxMTIX34DWy6kFZeSrVRk0P7lnudhkykuGktiv8IZFJouO4tGEF7_quvgvxAW5gB4RDLmBFRwlRhxFVtPwImDqXfvKCy7ctizVzlnVzSrsSbXsYCM7NaThx_XEmuj5tNIgT0Vx44atDW0nRAe5uBp1ig6s2UPLe3pfeID0cih8s5YpidE-ieUmjrn9jprWtIrodc3g8kS2iexmkNw9TwQxPyPO3ABECL6vHWr6yty52W8jfbH"/>
+</div>
+</div></header>
+<main class="max-w-3xl mx-auto px-6 pt-8 pb-32 space-y-8">
+<!-- Hero Section / Identity Card -->
+<section class="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-primary to-primary-dim p-8 text-white shadow-xl shadow-primary/10">
+<div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+<div class="relative z-10 flex flex-col md:flex-row items-center gap-6">
+<div class="relative">
+<div class="w-24 h-24 rounded-full border-4 border-white/20 p-1">
+<img alt="Avatar" class="w-full h-full object-cover rounded-full" data-alt="Close up portrait of a young professional woman" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJDZZm5a2EZipp1esFEnjvcEBApzniTmpqn0Rx07GcLVzc_BnZ8-86TaPgzqBF9pXpitCJV4sQxuusbac9ims-ddrkpFXNzb7kizBWglGVUOH8L6X49Laz2VQf9F-QSgTKW0eKs3tbIMAEPQaITKYCe2P-S1yuQnQ6iFjPj2wFcFnrJ1qJBaRrJ0k9MYQ9S7x6PBiZ83oiyx4keuxabt7kJ7nTM-TJEvlTOQe04VRQWKYMRIqeL1HX80YymedR4wO3-XUsCYms"/>
+</div>
+<div class="absolute bottom-0 right-0 bg-secondary-container text-on-secondary-container p-1.5 rounded-full shadow-lg">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+<div class="text-center md:text-left flex-1">
+<h2 class="text-2xl font-extrabold font-headline mb-1">Sarah Henderson</h2>
+<p class="text-on-primary/80 font-medium">Patient ID: #SAN-992-881</p>
+<div class="mt-4 flex flex-wrap justify-center md:justify-start gap-2">
+<span class="bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase">Blood Type: O+</span>
+<span class="bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase">Age: 29</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Bento Grid Stats -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-5 rounded-3xl shadow-sm border-b border-black/5">
+<span class="material-symbols-outlined text-primary mb-2">favorite</span>
+<p class="text-xs text-on-surface-variant font-medium">Heart Rate</p>
+<h3 class="text-xl font-bold font-headline">72 <span class="text-sm font-normal text-on-surface-variant">bpm</span></h3>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-3xl shadow-sm border-b border-black/5">
+<span class="material-symbols-outlined text-tertiary mb-2">blood_pressure</span>
+<p class="text-xs text-on-surface-variant font-medium">Blood Pressure</p>
+<h3 class="text-xl font-bold font-headline">120/80</h3>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-3xl shadow-sm border-b border-black/5">
+<span class="material-symbols-outlined text-orange-500 mb-2">fitness_center</span>
+<p class="text-xs text-on-surface-variant font-medium">Weight</p>
+<h3 class="text-xl font-bold font-headline">64.5 <span class="text-sm font-normal text-on-surface-variant">kg</span></h3>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-3xl shadow-sm border-b border-black/5">
+<span class="material-symbols-outlined text-blue-500 mb-2">height</span>
+<p class="text-xs text-on-surface-variant font-medium">Height</p>
+<h3 class="text-xl font-bold font-headline">172 <span class="text-sm font-normal text-on-surface-variant">cm</span></h3>
+</div>
+</div>
+<!-- Settings List -->
+<section class="space-y-4">
+<h3 class="px-2 text-sm font-bold text-on-surface-variant uppercase tracking-[0.2em] font-headline">Account Settings</h3>
+<div class="bg-surface-container-low rounded-[2rem] overflow-hidden">
+<div class="divide-y divide-surface-variant/30">
+<button class="w-full flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-neutral-50 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-2xl bg-primary-container/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">person</span>
+</div>
+<div class="text-left">
+<p class="font-bold">Personal Information</p>
+<p class="text-sm text-on-surface-variant">Update your details and status</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-neutral-50 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-2xl bg-tertiary-container/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">security</span>
+</div>
+<div class="text-left">
+<p class="font-bold">Security &amp; Privacy</p>
+<p class="text-sm text-on-surface-variant">2FA, Password management</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button><button class="w-full flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-neutral-50 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-500">
+<span class="material-symbols-outlined">family_restroom</span>
+</div>
+<div class="text-left">
+<p class="font-bold">Family Members</p>
+<p class="text-sm text-on-surface-variant">Manage health records for family</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-neutral-50 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-2xl bg-secondary-container/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<div class="text-left">
+<p class="font-bold">Insurance &amp; Billing</p>
+<p class="text-sm text-on-surface-variant">Manage plans and payments</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Log Out Button -->
+<button class="w-full py-4 rounded-2xl bg-primary text-white font-bold hover:bg-primary-dim transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-[0.98] duration-200 mb-4">
+<span class="material-symbols-outlined">edit</span>
+    Update Profile
+</button><button class="w-full py-4 rounded-2xl border border-error/20 text-error font-bold hover:bg-error/5 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">logout</span>
+            Sign Out
+        </button>
+</main>
+<!-- Floating Action Button (Mandatory Placement: Bottom-Right) -->
+<!-- Constraint Check: Width 70px, Height 40px, Radius 20px (pill shape) -->
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[24px] bg-white/90 dark:bg-neutral-900/90 backdrop-blur-2xl shadow-[0_-4px_40px_rgba(0,0,0,0.06)]">
+<div class="flex justify-around items-center px-4 pt-3 pb-8 w-full">
+<!-- Home -->
+<a class="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 w-[70px] h-[40px] hover:text-green-600 transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-0.5">Home</span>
+</a>
+<!-- Services -->
+<a class="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 w-[70px] h-[40px] hover:text-green-600 transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">medical_services</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-0.5">Services</span>
+</a>
+<!-- Records -->
+<a class="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 w-[70px] h-[40px] hover:text-green-600 transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-0.5">Records</span>
+</a>
+<!-- Profile (ACTIVE STATE) -->
+<!-- Constraint Check: bg-gradient, w-70, h-40, rounded-20 -->
+<a class="flex flex-col items-center justify-center w-[70px] h-[40px] rounded-[20px] bg-gradient-to-br from-green-700 to-green-400 text-white shadow-lg shadow-green-500/20 active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-0.5">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

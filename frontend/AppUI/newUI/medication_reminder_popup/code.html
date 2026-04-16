@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Medication Reminder - Sanarch Healthcare</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#72fbbd",
+                        "on-secondary": "#c9ffdf",
+                        "surface-variant": "#d9dddf",
+                        "outline-variant": "#abadae",
+                        "on-error": "#ffefee",
+                        "on-primary-container": "#005f2f",
+                        "on-tertiary-fixed": "#00333d",
+                        "on-primary": "#cdffd4",
+                        "secondary-fixed": "#72fbbd",
+                        "inverse-surface": "#0b0f10",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#004a23",
+                        "primary-container": "#6bfe9c",
+                        "surface-container": "#e5e9ea",
+                        "outline": "#747778",
+                        "primary": "#006a35",
+                        "secondary-fixed-dim": "#63ecaf",
+                        "on-surface": "#2c2f30",
+                        "background": "#f5f7f8",
+                        "on-secondary-fixed": "#004930",
+                        "surface-bright": "#f5f7f8",
+                        "primary-fixed": "#6bfe9c",
+                        "error-container": "#fb5151",
+                        "on-tertiary": "#ddf7ff",
+                        "on-secondary-container": "#005e3e",
+                        "secondary": "#006946",
+                        "surface-container-highest": "#d9dddf",
+                        "on-primary-fixed-variant": "#006a35",
+                        "on-secondary-fixed-variant": "#006946",
+                        "surface": "#f5f7f8",
+                        "error": "#b31b25",
+                        "tertiary-fixed": "#00dcff",
+                        "error-dim": "#9f0519",
+                        "primary-fixed-dim": "#5bef90",
+                        "surface-dim": "#d0d5d7",
+                        "on-tertiary-fixed-variant": "#005361",
+                        "tertiary": "#006576",
+                        "surface-container-high": "#dfe3e4",
+                        "tertiary-container": "#00dcff",
+                        "surface-tint": "#006a35",
+                        "on-background": "#2c2f30",
+                        "inverse-primary": "#6bfe9c",
+                        "tertiary-fixed-dim": "#00cdee",
+                        "inverse-on-surface": "#9a9d9e",
+                        "primary-dim": "#005c2d",
+                        "secondary-dim": "#005c3d",
+                        "on-error-container": "#570008",
+                        "on-surface-variant": "#595c5d",
+                        "tertiary-dim": "#005867",
+                        "surface-container-low": "#eef1f2",
+                        "on-tertiary-container": "#004956"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7f8;
+            color: #2c2f30;
+        }
+        h1, h2, h3, .font-headline {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen bg-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/60 backdrop-blur-xl shadow-sm shadow-emerald-900/5 flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="text-emerald-700 hover:bg-emerald-50 transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-headline font-bold text-lg tracking-tight text-emerald-700">Medication Schedule</h1>
+</div>
+<div class="h-10 w-10 rounded-full bg-surface-container-high overflow-hidden border-2 border-primary-container">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Portrait of a healthcare user profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAu32LUovoQoo1mLNrf-7WHFFe8A72WKiP_KEfvTvj_Xf_3RQ0TKpi0xOEGAdWJt28qrtM1CUyqLJMNV-1sDN8PlAbI73gTwjj7LfPbt9zAls8RVoFcZvseLkwbbC_LaeHTzr7f4CEKcd-QeyvAVKAbrdHwcJ9cedd8IO19VaCClDiRbKJx4WxwGblHxlB7RluPRrKYCr7HV-E7--dW1G1VbOxRWoy5X2ou3T_d6MKp4iGVnzRrSlxKmD7LlagnXs5umK3iyIn7"/>
+</div>
+</header>
+<!-- Main Content Canvas (Simulated Dashboard Underneath Overlay) -->
+<main class="pt-24 pb-32 px-6 max-w-lg mx-auto space-y-8">
+<!-- Date Selector (Asymmetric/Editorial style) -->
+<section class="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+<div class="flex-shrink-0 w-16 py-4 bg-primary-container rounded-3xl flex flex-col items-center justify-center shadow-lg shadow-emerald-100">
+<span class="text-xs font-bold uppercase tracking-widest text-on-primary-container opacity-60">Tue</span>
+<span class="text-xl font-bold text-on-primary-container">12</span>
+</div>
+<div class="flex-shrink-0 w-16 py-4 bg-surface-container-low rounded-3xl flex flex-col items-center justify-center">
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Wed</span>
+<span class="text-xl font-bold text-on-surface">13</span>
+</div>
+<div class="flex-shrink-0 w-16 py-4 bg-surface-container-low rounded-3xl flex flex-col items-center justify-center">
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Thu</span>
+<span class="text-xl font-bold text-on-surface">14</span>
+</div>
+<div class="flex-shrink-0 w-16 py-4 bg-surface-container-low rounded-3xl flex flex-col items-center justify-center">
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Fri</span>
+<span class="text-xl font-bold text-on-surface">15</span>
+</div>
+</section>
+<!-- Metric Bento Grid -->
+<section class="grid grid-cols-2 gap-4">
+<div class="col-span-2 bg-surface-container-low p-6 rounded-3xl">
+<div class="flex justify-between items-start mb-4">
+<h3 class="font-headline font-bold text-on-surface">Daily Adherence</h3>
+<span class="text-primary font-bold text-lg">85%</span>
+</div>
+<div class="w-full bg-surface-container-highest h-3 rounded-full overflow-hidden">
+<div class="bg-gradient-to-r from-primary to-primary-container h-full w-[85%]"></div>
+</div>
+</div>
+<div class="bg-tertiary-container/20 p-5 rounded-3xl">
+<span class="material-symbols-outlined text-tertiary mb-2" data-icon="water_drop">water_drop</span>
+<p class="text-sm font-medium text-tertiary-dim">Hydration</p>
+<p class="text-xl font-bold text-on-tertiary-fixed">1.2L / 2L</p>
+</div>
+<div class="bg-secondary-container/20 p-5 rounded-3xl">
+<span class="material-symbols-outlined text-secondary mb-2" data-icon="potted_plant">potted_plant</span>
+<p class="text-sm font-medium text-on-secondary-fixed-variant">Wellness</p>
+<p class="text-xl font-bold text-on-secondary-fixed">Stable</p>
+</div>
+</section>
+<!-- List Section -->
+<section class="space-y-4">
+<h2 class="font-headline font-extrabold text-2xl tracking-tight px-1">Today's Regimen</h2>
+<div class="space-y-3">
+<div class="bg-surface-container-lowest p-5 rounded-3xl shadow-sm flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="pill">pill</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-on-surface">Lisinopril</h4>
+<p class="text-xs text-on-surface-variant">10mg • Morning</p>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-3xl shadow-sm flex items-center gap-4 border-2 border-primary-container/30">
+<div class="w-12 h-12 rounded-2xl bg-primary-container/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="medication">medication</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-on-surface">Metformin</h4>
+<p class="text-xs text-on-surface-variant">500mg • Lunch</p>
+</div>
+<span class="text-xs font-bold text-primary uppercase">Due Now</span>
+</div>
+</div>
+</section>
+</main>
+<!-- OVERLAY CONTAINER (Dimmed Background) -->
+<div class="fixed inset-0 z-[60] flex items-center justify-center px-6">
+<!-- Backdrop Blur/Dim -->
+<div class="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"></div>
+<!-- POPUP MODAL -->
+<div class="relative w-full max-w-sm bg-surface-container-lowest rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] overflow-hidden">
+<!-- Close Icon -->
+<button class="absolute top-4 right-4 p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors active:scale-90">
+<span class="material-symbols-outlined text-[20px]" data-icon="close">close</span>
+</button>
+<!-- Modal Content -->
+<div class="p-8 flex flex-col items-center text-center">
+<!-- Icon Container -->
+<div class="w-20 h-20 mb-6 bg-gradient-to-br from-primary to-primary-container rounded-[2rem] flex items-center justify-center text-white shadow-xl shadow-emerald-200">
+<span class="material-symbols-outlined text-4xl" data-icon="pill" style="font-variation-settings: 'FILL' 1;">pill</span>
+</div>
+<!-- Heading -->
+<h2 class="font-headline font-bold text-2xl text-on-surface mb-2 leading-tight">Time for your Medication</h2>
+<!-- Medication Details -->
+<div class="bg-surface-container-low px-4 py-2 rounded-full mb-8">
+<p class="font-headline font-semibold text-primary">Metformin 500mg</p>
+</div>
+<!-- Action Buttons Stack -->
+<div class="w-full space-y-3">
+<!-- Take Now (Primary) -->
+<button class="w-full py-4 bg-gradient-to-r from-primary to-primary-dim text-on-primary font-bold rounded-2xl shadow-lg shadow-emerald-900/10 active:scale-[0.98] transition-all hover:brightness-110 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-xl" data-icon="done_all">done_all</span>
+                        Take Now
+                    </button>
+<!-- Remind me in 15 mins (Secondary Outlined) -->
+<button class="w-full py-4 bg-transparent border-2 border-outline-variant/30 text-on-surface-variant font-semibold rounded-2xl active:scale-[0.98] transition-all hover:bg-surface-container-low flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-xl" data-icon="schedule">schedule</span>
+                        Remind me in 15 mins
+                    </button>
+</div>
+</div>
+</div>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-surface/80 backdrop-blur-2xl shadow-[0_-4px_40px_rgba(0,0,0,0.06)] rounded-t-[2rem]">
+<div class="flex flex-col items-center justify-center text-slate-400 p-3 hover:text-emerald-600 transition-transform duration-300 active:scale-90">
+<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
+<span class="font-label text-[10px] font-semibold tracking-wide uppercase">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-400 text-white rounded-2xl p-3 shadow-lg shadow-emerald-200 active:scale-90 transition-transform duration-300">
+<span class="material-symbols-outlined mb-1" data-icon="event_note">event_note</span>
+<span class="font-label text-[10px] font-semibold tracking-wide uppercase">Schedule</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 p-3 hover:text-emerald-600 transition-transform duration-300 active:scale-90">
+<span class="material-symbols-outlined mb-1" data-icon="insights">insights</span>
+<span class="font-label text-[10px] font-semibold tracking-wide uppercase">Insights</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 p-3 hover:text-emerald-600 transition-transform duration-300 active:scale-90">
+<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
+<span class="font-label text-[10px] font-semibold tracking-wide uppercase">Profile</span>
+</div>
+</nav>
+</body></html>

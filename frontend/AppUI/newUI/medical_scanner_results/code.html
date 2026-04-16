@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Scan Analysis - Sanarch</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-low": "#eef1f2",
+              "on-surface-variant": "#595c5d",
+              "on-tertiary-fixed-variant": "#005361",
+              "tertiary-fixed": "#00dcff",
+              "background": "#f5f7f8",
+              "surface-bright": "#f5f7f8",
+              "secondary-fixed": "#72fbbd",
+              "primary-dim": "#005c2d",
+              "primary-fixed": "#6bfe9c",
+              "surface-variant": "#d9dddf",
+              "tertiary-container": "#00dcff",
+              "secondary-dim": "#005c3d",
+              "error-container": "#fb5151",
+              "tertiary-fixed-dim": "#00cdee",
+              "primary": "#006a35",
+              "on-tertiary-fixed": "#00333d",
+              "surface-container": "#e5e9ea",
+              "outline": "#747778",
+              "on-secondary-fixed": "#004930",
+              "on-secondary": "#c9ffdf",
+              "on-primary": "#cdffd4",
+              "on-tertiary": "#ddf7ff",
+              "on-primary-container": "#005f2f",
+              "surface": "#f5f7f8",
+              "tertiary": "#006576",
+              "primary-fixed-dim": "#5bef90",
+              "primary-container": "#6bfe9c",
+              "error-dim": "#9f0519",
+              "on-tertiary-container": "#004956",
+              "surface-dim": "#d0d5d7",
+              "on-secondary-container": "#005e3e",
+              "surface-tint": "#006a35",
+              "on-primary-fixed-variant": "#006a35",
+              "error": "#b31b25",
+              "on-secondary-fixed-variant": "#006946",
+              "inverse-primary": "#6bfe9c",
+              "on-error": "#ffefee",
+              "secondary-container": "#72fbbd",
+              "inverse-on-surface": "#9a9d9e",
+              "on-primary-fixed": "#004a23",
+              "secondary-fixed-dim": "#63ecaf",
+              "tertiary-dim": "#005867",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2c2f30",
+              "on-error-container": "#570008",
+              "on-background": "#2c2f30",
+              "outline-variant": "#abadae",
+              "secondary": "#006946",
+              "inverse-surface": "#0b0f10",
+              "surface-container-highest": "#d9dddf",
+              "surface-container-high": "#dfe3e4"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .vital-glass {
+        background: rgba(245, 247, 248, 0.8);
+        backdrop-filter: blur(20px);
+      }
+      .bg-vital-gradient {
+        background: linear-gradient(135deg, #006a35 0%, #6bfe9c 100%);
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 vital-glass shadow-[0_40px_40px_-15px_rgba(0,0,0,0.06)] flex items-center justify-between px-6 h-16">
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-[#006a35]/10 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#006a35]">menu</span>
+</button>
+<h1 class="font-headline font-bold text-lg tracking-tight text-[#006a35]">Scan Analysis</h1>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden border-2 border-primary-container">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="Portrait of a smiling medical professional" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAG5qL6RviVNH1di8xRnnW9M15pWKLMsdbqCvFTCaSHAdjEwgRvm0loED7lPwr8pO6K7tHFd0f7np-gZNP1p-qVhFQ8Btntyudg7rWQM34UtMm5-T6PKrajWCzq2ynqx9kI_u3qOEiDNnoa3_37JaXYyabu0QSVZH90GB_A5vo_SnCLV5OhP6vFHzonf3FdmXUaU09wnq_8qamX3ONZojKrUehxiXsfsPtGabmemLsJeLhiqFF8hRquS05EhS3VGD2PHwtUJ1Y6"/>
+</div>
+</div>
+</header>
+<main class="pt-20 px-6 max-w-2xl mx-auto space-y-8">
+<!-- Document Preview Section -->
+<section class="relative group">
+<div class="relative w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-xl bg-surface-container-low">
+<!-- Blurred medical document effect -->
+<img class="w-full h-full object-cover blur-sm opacity-60" data-alt="Close up of medical results on paper" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCw9dBLsZncrl2JBz26WiYZA55HEFQxqFk45H3EXZBvS2I8076QcrxsYLyx4rlyda_ZDIPo7y9IxEC2ef2DYXswD2SOQc0rpCZAOEpoBTb6a3Fi3iFQyA6uGZKnu4jih7xLegRDVwVx2UPXdwsqHBIleq0_d6fs1eKZ5eRd4EeV2TSmg0w1bCFWN9tc-mPcs1TbjK3llwGB4rrzb2WFmBsn9uDfa3CUlpqydL0a23XzH-nomp8FZYFhkX1EIW5BNxRpsfj7hosd"/>
+<!-- Scanning Overlay UI -->
+<div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-primary/20"></div>
+<!-- Extraction Status Badge -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
+<div class="w-24 h-24 rounded-full vital-glass flex items-center justify-center border-2 border-primary-fixed shadow-2xl">
+<span class="material-symbols-outlined text-primary text-4xl" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div class="px-6 py-2 rounded-full bg-primary text-white font-headline font-bold text-sm tracking-wide shadow-lg flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary-fixed animate-pulse"></span>
+                        Extraction 85% Complete
+                    </div>
+</div>
+<!-- Animated Scan Line -->
+<div class="absolute top-[85%] left-0 w-full h-1 bg-primary-fixed shadow-[0_0_20px_#6bfe9c]"></div>
+</div>
+</section>
+<!-- Extracted Data Content -->
+<section class="space-y-6">
+<div class="flex items-end justify-between px-2">
+<h2 class="font-headline font-bold text-2xl text-on-surface">Extracted Data</h2>
+<span class="text-primary font-semibold text-sm">Verified by AI</span>
+</div>
+<!-- Bento Grid style Information Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Primary Info Card -->
+<div class="md:col-span-2 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-outline-variant/10">
+<div class="flex items-start justify-between">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Patient</p>
+<h3 class="font-headline font-bold text-xl text-on-surface">Sarah Henderson</h3>
+</div>
+<span class="material-symbols-outlined text-primary-container bg-primary p-2 rounded-xl">person</span>
+</div>
+</div>
+<!-- Split Cards -->
+<div class="bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-outline-variant/10">
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Document Type</p>
+<p class="font-headline font-semibold text-on-surface">Blood Test Report</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-outline-variant/10">
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Date</p>
+<p class="font-headline font-semibold text-on-surface">Oct 24, 2023</p>
+</div>
+<!-- Findings Section - High Priority -->
+<div class="md:col-span-2 bg-surface-container-low p-6 rounded-3xl border border-primary/5">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">analytics</span>
+<h4 class="font-headline font-bold text-on-surface">Key Findings</h4>
+</div>
+<div class="space-y-4">
+<!-- Metric 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-2xl flex items-center justify-between shadow-sm">
+<span class="text-on-surface-variant font-medium">Glucose</span>
+<div class="flex items-baseline gap-1">
+<span class="text-2xl font-headline font-extrabold text-primary">102</span>
+<span class="text-xs text-on-surface-variant font-bold">mg/dL</span>
+</div>
+</div>
+<!-- Metric 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-2xl flex items-center justify-between shadow-sm">
+<span class="text-on-surface-variant font-medium">Cholesterol</span>
+<div class="flex items-baseline gap-1">
+<span class="text-2xl font-headline font-extrabold text-primary">185</span>
+<span class="text-xs text-on-surface-variant font-bold">mg/dL</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Navigation Shell / Primary Actions -->
+<nav class="fixed bottom-0 w-full z-50 p-8 flex flex-col items-center gap-6">
+<!-- Floating Action Button: Primary -->
+<div class="w-full max-w-sm flex justify-center">
+<button class="w-full bg-vital-gradient text-white font-headline font-bold py-5 rounded-full shadow-[0_20px_40px_-10px_rgba(0,106,53,0.3)] hover:opacity-90 transition-all active:scale-95 flex items-center justify-center gap-3">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">save</span>
+                Save to Records
+            </button>
+</div>
+<!-- Secondary Navigation (Back Link) -->
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors py-2 px-4 rounded-full active:scale-95">
+<span class="material-symbols-outlined text-lg">home</span>
+<span class="font-headline font-semibold text-sm">Back to Home</span>
+</button>
+</nav>
+<!-- Background Decoration -->
+<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
+<div class="fixed bottom-0 left-0 -z-10 w-[400px] h-[400px] bg-tertiary/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2"></div>
+</body></html>

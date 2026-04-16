@@ -1,0 +1,174 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Sanarch - Sign In</title>
+<!-- Google Fonts: Plus Jakarta Sans & Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-tint": "#006a35",
+              "on-primary": "#cdffd4",
+              "surface-container": "#e5e9ea",
+              "surface": "#f5f7f8",
+              "primary-fixed-dim": "#5bef90",
+              "primary-fixed": "#6bfe9c",
+              "tertiary-fixed": "#00dcff",
+              "on-primary-container": "#005f2f",
+              "on-error": "#ffefee",
+              "background": "#f5f7f8",
+              "inverse-primary": "#6bfe9c",
+              "primary": "#006a35",
+              "tertiary-dim": "#005867",
+              "secondary": "#006946",
+              "on-tertiary-fixed-variant": "#005361",
+              "surface-bright": "#f5f7f8",
+              "on-secondary-container": "#005e3e",
+              "on-primary-fixed": "#004a23",
+              "on-primary-fixed-variant": "#006a35",
+              "primary-container": "#6bfe9c",
+              "on-background": "#2c2f30",
+              "tertiary-container": "#00dcff",
+              "surface-container-lowest": "#ffffff",
+              "outline": "#747778",
+              "secondary-container": "#72fbbd",
+              "on-tertiary": "#ddf7ff",
+              "on-surface-variant": "#595c5d",
+              "error-dim": "#9f0519",
+              "tertiary": "#006576",
+              "on-error-container": "#570008",
+              "secondary-fixed": "#72fbbd",
+              "secondary-fixed-dim": "#63ecaf",
+              "inverse-on-surface": "#9a9d9e",
+              "tertiary-fixed-dim": "#00cdee",
+              "inverse-surface": "#0b0f10",
+              "error-container": "#fb5151",
+              "on-secondary-fixed": "#004930",
+              "error": "#b31b25",
+              "primary-dim": "#005c2d",
+              "on-secondary-fixed-variant": "#006946",
+              "surface-variant": "#d9dddf",
+              "outline-variant": "#abadae",
+              "on-secondary": "#c9ffdf",
+              "surface-container-low": "#eef1f2",
+              "secondary-dim": "#005c3d",
+              "on-tertiary-fixed": "#00333d",
+              "on-surface": "#2c2f30",
+              "surface-dim": "#d0d5d7",
+              "surface-container-high": "#dfe3e4",
+              "surface-container-highest": "#d9dddf",
+              "on-tertiary-container": "#004956"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7f8;
+        }
+        h1, h2, h3, .brand-logo {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface flex min-h-screen items-center justify-center p-6">
+<!-- Auth Container -->
+<main class="w-full max-w-[440px] flex flex-col items-center">
+<!-- Brand Identity Section -->
+<div class="mb-10 text-center">
+<div class="flex items-center justify-center gap-2 mb-6">
+<img alt="Sanarch Logo" class="object-contain w-[52px] h-[52px]" src="https://lh3.googleusercontent.com/aida/ADBb0uiiMZBzeUXVheqpcXBHVgn3Rah5J7rgMOWEheB4hkx46Da8XJ4jJQqt5IPYYI1esqSpuyNrY-g-Mv5dKdYC46dKg2eRtBLZ6-c7ULpodlEgBQuZZwsT5_8vP8zZXZ-f--uGUJUpLYM6sLTXzN5e33XGV3uPbnsPhiU1iIsX_ypwa5bbbt5ObDkrWrwUzUcojzt7keR8f2ztd3w2V7gtGFjruBg4Zq6kj3qqSin4UO63_Viocsmw-hJMp-Jk0jgL71J4nBYk_g" style="">
+<span class="brand-logo text-primary text-3xl font-extrabold tracking-tighter" style="">Sanarch&nbsp;</span>
+</div>
+<h1 class="text-3xl font-bold text-on-surface tracking-tight mb-2" style="">Welcome Back</h1>
+<p class="text-on-surface-variant font-medium" style="">Sign in to continue your health journey</p>
+</div>
+<!-- Form Canvas -->
+<div class="w-full bg-surface-container-lowest rounded-[2rem] p-8 shadow-[0_20px_50px_rgba(0,106,53,0.04)]">
+<form action="#" class="space-y-6" method="POST">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="block text-sm font-semibold text-on-surface ml-1" for="email" style="">Email Address</label>
+<div class="relative">
+<input class="w-full h-14 bg-surface-container-low border-none rounded-xl px-5 text-on-surface focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all duration-300 outline-none placeholder:text-outline-variant" id="email" name="email" placeholder="name@example.com" required="" type="email">
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<div class="flex justify-between items-center px-1">
+<label class="block text-sm font-semibold text-on-surface" for="password" style="">Password</label>
+<a class="text-xs font-bold text-primary hover:text-primary-dim transition-colors" href="#" style="">Forgot Password?</a>
+</div>
+<div class="relative">
+<input class="w-full h-14 bg-surface-container-low border-none rounded-xl px-5 text-on-surface focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all duration-300 outline-none placeholder:text-outline-variant" id="password" name="password" placeholder="••••••••" required="" type="password">
+</div>
+</div>
+<!-- Submit Button -->
+<button class="w-full h-14 bg-gradient-to-r from-primary to-secondary text-on-primary font-bold rounded-full shadow-lg shadow-primary/10 hover:shadow-primary/20 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2" type="submit" style="">
+                    Sign In
+                    <span class="material-symbols-outlined text-xl" data-icon="arrow_forward" style="">arrow_forward</span>
+</button>
+</form>
+<!-- Divider -->
+<div class="relative my-8">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-outline-variant/20"></div>
+</div>
+<div class="relative flex justify-center text-xs uppercase tracking-widest font-bold text-outline-variant">
+<span class="bg-surface-container-lowest px-4" style="">Or sign in with</span>
+</div>
+</div>
+<!-- Social Logins -->
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-3 h-14 rounded-xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors duration-300 group" style="">
+<img alt="Google Logo" class="w-5 h-5 opacity-80 group-hover:opacity-100 transition-opacity" data-alt="Official colorful Google G logo icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHT3egGcsod6ARCnO-i42RD8RpEdFK5r-tb9YgN3-PhWF-NnWH7K-ct0nEj2W3fFnznMmp65sC9GA7Y8_Pt_fb-Qqt269wbQzMivLxdN9ixBAQeFgTYhlcm0LnuH11TVA2ee4_7PCsUCWaSqN0d5Mpys9LvjSlpGdPjPtdrzTaC_4FIi8SmRRTA9iwA0OA6XK0ImuM0zTkjZeLF0Es3yjgQf5wn7tCb4x5vHEUvEauwl-BuFdH5VPWx6Z862nvMgiG0p0mGPQ_" style="">
+<span class="text-sm font-bold text-on-surface" style="">Google</span>
+</button>
+<button class="flex items-center justify-center gap-3 h-14 rounded-xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors duration-300 group" style="">
+<span class="material-symbols-outlined text-2xl text-on-surface opacity-80 group-hover:opacity-100 transition-opacity" data-icon="apple" data-weight="fill" style="">ios</span>
+<span class="text-sm font-bold text-on-surface" style="">Apple</span>
+</button>
+</div>
+</div>
+<!-- Secondary CTA -->
+<div class="mt-10 text-center">
+<p class="text-on-surface-variant font-medium" style="">
+                Don't have an account? 
+                <a class="text-primary font-bold ml-1 hover:underline underline-offset-4 decoration-2 decoration-primary/30 transition-all" href="#" style="">Sign Up</a>
+</p>
+</div>
+</main>
+<!-- Background Decoration (Vital Serenity Aesthetic) -->
+<div class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-container/20 blur-[120px] -z-10 rounded-full"></div>
+<div class="fixed bottom-[-5%] right-[-5%] w-[30%] h-[30%] bg-secondary-container/30 blur-[100px] -z-10 rounded-full"></div>
+</body></html>

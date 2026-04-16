@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sanarch - Welcome</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-container": "#6bfe9c",
+              "error-container": "#fb5151",
+              "on-primary-container": "#005f2f",
+              "on-primary": "#cdffd4",
+              "error": "#b31b25",
+              "surface-container-low": "#eef1f2",
+              "primary-fixed": "#6bfe9c",
+              "secondary-dim": "#005c3d",
+              "inverse-on-surface": "#9a9d9e",
+              "on-background": "#2c2f30",
+              "secondary-fixed": "#72fbbd",
+              "secondary-container": "#72fbbd",
+              "tertiary": "#006576",
+              "surface-dim": "#d0d5d7",
+              "surface-bright": "#f5f7f8",
+              "on-error-container": "#570008",
+              "on-error": "#ffefee",
+              "on-primary-fixed": "#004a23",
+              "on-surface-variant": "#595c5d",
+              "secondary-fixed-dim": "#63ecaf",
+              "primary-dim": "#005c2d",
+              "on-surface": "#2c2f30",
+              "outline-variant": "#abadae",
+              "surface-tint": "#006a35",
+              "surface": "#f5f7f8",
+              "tertiary-container": "#00dcff",
+              "tertiary-fixed-dim": "#00cdee",
+              "surface-container": "#e5e9ea",
+              "on-tertiary-container": "#004956",
+              "on-tertiary-fixed": "#00333d",
+              "surface-variant": "#d9dddf",
+              "on-secondary-fixed": "#004930",
+              "tertiary-dim": "#005867",
+              "on-tertiary": "#ddf7ff",
+              "primary-fixed-dim": "#5bef90",
+              "primary": "#006a35",
+              "on-secondary-fixed-variant": "#006946",
+              "on-tertiary-fixed-variant": "#005361",
+              "inverse-surface": "#0b0f10",
+              "background": "#f5f7f8",
+              "inverse-primary": "#6bfe9c",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-high": "#dfe3e4",
+              "outline": "#747778",
+              "secondary": "#006946",
+              "on-secondary-container": "#005e3e",
+              "tertiary-fixed": "#00dcff",
+              "surface-container-highest": "#d9dddf",
+              "error-dim": "#9f0519",
+              "on-primary-fixed-variant": "#006a35",
+              "on-secondary": "#c9ffdf"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .vital-gradient {
+        background: linear-gradient(135deg, #006a35 0%, #2ECC71 100%);
+      }
+      .glass-pill {
+        backdrop-filter: blur(8px);
+        background: rgba(255, 255, 255, 0.9);
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased overflow-hidden">
+<!-- Main Container -->
+<main class="relative h-screen w-full flex flex-col">
+<!-- Top 2/3: Vibrant Section -->
+<section class="relative h-[65%] w-full vital-gradient flex items-end justify-center px-6 overflow-hidden">
+<!-- Branding (TopAppBar Shell Integration) -->
+<div class="fixed top-0 w-full z-50 flex items-center justify-between px-6 py-8">
+<span class="font-headline font-extrabold tracking-tight text-white text-2xl" style="">Sanarch</span>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md" style="">
+<span class="material-symbols-outlined" data-icon="close" style="">close</span>
+</button>
+</div>
+<!-- Doctor Image Container -->
+<div class="relative w-full h-full max-w-lg flex items-end justify-center">
+<!-- Floating Badges -->
+<div class="absolute -left-2 glass-pill px-4 py-2.5 rounded-full flex items-center gap-2 shadow-[0_10px_30px_rgba(0,0,0,0.1)] z-20 top-[32%]">
+<div class="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-on-primary-container" data-icon="schedule" data-weight="fill" style='font-variation-settings: "FILL" 1;'>schedule</span>
+</div>
+<span class="font-headline font-bold text-xs text-on-surface" style="">Save Time</span>
+</div>
+<div class="absolute -right-4 glass-pill px-4 py-2.5 rounded-full flex items-center gap-2 shadow-[0_10px_30px_rgba(0,0,0,0.1)] z-20 top-[60%]">
+<div class="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-on-primary-container" data-icon="event_available" data-weight="fill" style='font-variation-settings: "FILL" 1;'>event_available</span>
+</div>
+<span class="font-headline font-bold text-xs text-on-surface" style="">Scan Anywhere</span>
+</div>
+<div class="absolute -left-4 glass-pill px-4 py-2.5 rounded-full flex items-center gap-2 shadow-[0_10px_30px_rgba(0,0,0,0.1)] z-20 bottom-[25%]">
+<div class="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-on-primary-container" data-icon="medical_services" data-weight="fill" style='font-variation-settings: "FILL" 1;'>medical_services</span>
+</div>
+<span class="font-headline font-bold text-xs text-on-surface" style="">Stay Organised<br/></span>
+</div>
+<!-- Main Professional Cutout -->
+<img alt="Healthcare professional using Sanarch app" class="h-[90%] w-auto object-contain z-10 filter drop-shadow-[0_20px_50px_rgba(0,0,0,0.2)] rounded-3xl" src="https://lh3.googleusercontent.com/aida/ADBb0ughFlxg4Mcixfc1JAaSlDd77pbm6Zyo0AjqYd-8v09Zs0DX3XfF69_yGs8H2MySLkPlYzB2SoOu6h9oE3EAGd--ShpKdq01ixEnN9Y7M0cgweYbUB6g8JxuuVexkJ2VQirabwMMCUkbPRWd6f3bBEVQN6LTKZSgaE76HMP7DR9lbqs5BA_u_pBuuQlD5MfeeRk6nQxIjttRRBOtp6eC1BKTsi9wNYGD97KAz4ZLQJ3K5BmsvsGTsuEc8UXfqcM_p9u1hKdTbdg" style=""/>
+</div>
+</section>
+<!-- Bottom 1/3: Content Card -->
+<section class="relative h-[35%] w-full z-30">
+<!-- Overlapping Card -->
+<div class="absolute -top-12 inset-x-0 bottom-0 bg-surface-container-lowest rounded-t-[3rem] px-8 pt-10 pb-8 flex flex-col justify-between">
+<!-- Card Header Action -->
+<div class="flex flex-col items-center">
+<button class="bg-primary hover:bg-primary-dim transition-colors text-on-primary py-3.5 px-8 rounded-full font-headline font-bold text-sm shadow-xl shadow-primary/20" style="">
+                        Book Your Appointment
+                    </button>
+</div>
+<!-- Main Text Content -->
+<div class="mt-8 space-y-2 text-center">
+<h1 class="font-headline font-extrabold text-3xl text-on-surface leading-tight tracking-tight" style="">
+                        One App For All Your Healthcare Needs
+                    </h1>
+<p class="font-body text-on-surface-variant text-lg" style="">
+                        Health made simpler.
+                    </p>
+</div>
+<!-- Pagination and Navigation -->
+<div class="flex items-center mt-auto justify-end">
+<!-- Pagination Dots -->
+<!-- Next Button -->
+<button class="w-14 h-14 rounded-full bg-on-surface flex items-center justify-center shadow-lg active:scale-95 transition-transform" style="">
+<span class="material-symbols-outlined text-surface text-2xl" data-icon="arrow_forward" style="">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Suppressed Shell Components for Focused Onboarding Experience as per Hierarchy Rule -->
+<!-- Navbars are hidden to prioritize the focused onboarding journey -->
+</body></html>

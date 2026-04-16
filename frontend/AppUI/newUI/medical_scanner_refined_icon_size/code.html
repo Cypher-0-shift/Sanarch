@@ -1,0 +1,225 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Medical Scanner - Sanarch Healthcare</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "secondary-fixed-dim": "#63ecaf",
+              "surface-container": "#e5e9ea",
+              "on-secondary-container": "#005e3e",
+              "tertiary": "#006576",
+              "primary": "#006a35",
+              "primary-dim": "#005c2d",
+              "on-tertiary-container": "#004956",
+              "surface-tint": "#006a35",
+              "on-background": "#2c2f30",
+              "surface-container-low": "#eef1f2",
+              "inverse-primary": "#6bfe9c",
+              "surface-container-high": "#dfe3e4",
+              "primary-fixed-dim": "#5bef90",
+              "primary-container": "#6bfe9c",
+              "on-secondary-fixed-variant": "#006946",
+              "error-dim": "#9f0519",
+              "surface-variant": "#d9dddf",
+              "inverse-on-surface": "#9a9d9e",
+              "on-error": "#ffefee",
+              "secondary": "#006946",
+              "tertiary-fixed": "#00dcff",
+              "secondary-container": "#72fbbd",
+              "on-secondary": "#c9ffdf",
+              "tertiary-fixed-dim": "#00cdee",
+              "error": "#b31b25",
+              "secondary-dim": "#005c3d",
+              "on-primary-fixed-variant": "#006a35",
+              "background": "#f5f7f8",
+              "surface-dim": "#d0d5d7",
+              "on-primary-fixed": "#004a23",
+              "outline-variant": "#abadae",
+              "primary-fixed": "#6bfe9c",
+              "on-primary": "#cdffd4",
+              "inverse-surface": "#0b0f10",
+              "on-tertiary": "#ddf7ff",
+              "on-error-container": "#570008",
+              "outline": "#747778",
+              "on-secondary-fixed": "#004930",
+              "tertiary-dim": "#005867",
+              "surface-bright": "#f5f7f8",
+              "on-primary-container": "#005f2f",
+              "on-surface": "#2c2f30",
+              "surface-container-lowest": "#ffffff",
+              "surface": "#f5f7f8",
+              "secondary-fixed": "#72fbbd",
+              "on-tertiary-fixed": "#00333d",
+              "on-tertiary-fixed-variant": "#005361",
+              "surface-container-highest": "#d9dddf",
+              "on-surface-variant": "#595c5d",
+              "tertiary-container": "#00dcff",
+              "error-container": "#fb5151"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface min-h-screen">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl shadow-sm shadow-black/5">
+<div class="flex items-center justify-between px-4 py-3 w-full relative h-[56px] max-w-7xl mx-auto">
+<!-- Hamburger Menu (Left) -->
+<button class="text-neutral-500 dark:text-neutral-400 active:scale-95 duration-200 flex items-center justify-center" style="">
+<span class="material-symbols-outlined" style="font-size: 26px;">menu</span>
+</button>
+<!-- Title (Center) -->
+<h1 class="font-headline text-[20px] font-semibold tracking-tight text-[#143832] absolute left-1/2 -translate-x-1/2" style="">Scanner</h1>
+<!-- Avatar (Right) -->
+<div class="flex items-center justify-center">
+<div class="w-[26px] h-[26px] rounded-full bg-surface-container-highest overflow-hidden border border-neutral-100 shadow-sm">
+<img alt="User profile avatar portrait" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKsIra3Im_9AUwsJYU09pHzYU2hVO6FV-0Ra0aROBhsvjI09yWSvxKy35QmDpqHQPfMxDt3GuL8Uu4uc9MHvbgKaP4Yi88eoK1jsq6pMIvfXGHYzKTGbMQJDrRucgmlXFSyUSwzAZ5lRQGP6OvH9ygJbT5dqdQFQMEEJFp9t-o7Y5yaQq4y90egG40jckFH-JI4kMaU624BPVRlMaoR3t_kLibTGMwD1HngbSWWlpOSeVf91xZ3KYlyj_kHGf9Jq0zH_8nBi6e" style="">
+</div>
+</div>
+</div>
+</header>
+<main class="pt-8 pb-32 px-6 max-w-7xl mx-auto">
+<!-- Hero Instruction Section -->
+<section class="mb-10">
+<h2 class="font-headline font-extrabold text-3xl text-on-background mb-2 tracking-tight" style="">Add New Records</h2>
+<p class="text-on-surface-variant text-base" style="">Select a method to digitize your medical documents with AI precision.</p>
+</section>
+<!-- Primary Action Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+<!-- Scan Document Card -->
+<button class="group relative overflow-hidden bg-surface-container-lowest p-8 rounded-3xl transition-all duration-300 hover:shadow-xl hover:shadow-emerald-900/5 text-left border-none outline-none ring-1 ring-emerald-900/5" style="">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined" style="font-size: 80px;">photo_camera</span>
+</div>
+<div class="relative z-10">
+<div class="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-primary/20 transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-on-primary text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">document_scanner</span>
+</div>
+<h3 class="font-headline font-bold text-2xl mb-2 text-on-surface" style="">Scan Document</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed max-w-[200px]" style="">Use your camera to capture and extract data from physical files.</p>
+</div>
+<div class="mt-8 flex items-center text-primary font-semibold text-sm" style="">
+                Start Scanning
+                <span class="material-symbols-outlined ml-2 text-lg" style="">arrow_forward</span>
+</div>
+</button>
+<!-- Upload File Card -->
+<button class="group relative overflow-hidden bg-surface-container-low p-8 rounded-3xl transition-all duration-300 hover:bg-surface-container-high text-left border-none outline-none" style="">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined" style="font-size: 80px;">upload_file</span>
+</div>
+<div class="relative z-10">
+<div class="w-14 h-14 bg-secondary-container rounded-2xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-on-secondary-container text-3xl" style="">cloud_upload</span>
+</div>
+<h3 class="font-headline font-bold text-2xl mb-2 text-on-surface" style="">Upload File</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed max-w-[200px]" style="">Import PDF, JPG, or PNG files directly from your device storage.</p>
+</div>
+<div class="mt-8 flex items-center text-secondary font-semibold text-sm" style="">
+                Browse Files
+                <span class="material-symbols-outlined ml-2 text-lg" style="">folder_open</span>
+</div>
+</button>
+</div>
+<!-- Recent Activity Section -->
+<section class="bg-surface-container-low rounded-[2rem] p-8">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-3">
+<div class="w-2 h-8 bg-primary rounded-full"></div>
+<h2 class="font-headline font-bold text-xl text-on-surface" style="">Recent Activity</h2>
+</div>
+<button class="text-primary font-semibold text-sm hover:underline" style="">View All</button>
+</div>
+<div class="space-y-4">
+<!-- Activity Item 1 -->
+<div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center justify-between group cursor-pointer transition-colors hover:bg-white">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 bg-tertiary/10 rounded-xl flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" style="">description</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface mb-0.5" style="">Blood_Test_Results.pdf</h4>
+<p class="text-xs text-on-surface-variant flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-[14px]" style="">schedule</span> 2 hours ago • 1.2 MB
+                        </p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="px-3 py-1 bg-secondary-container/30 text-on-secondary-container text-[11px] font-bold rounded-full uppercase tracking-wider" style="">Processing</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" style="">chevron_right</span>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center justify-between group cursor-pointer transition-colors hover:bg-white">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="">lab_profile</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface mb-0.5" style="">Prescription_Aug_2023</h4>
+<p class="text-xs text-on-surface-variant flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-[14px]" style="">calendar_today</span> Yesterday • Scan
+                        </p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[11px] font-bold rounded-full uppercase tracking-wider" style="">Completed</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" style="">chevron_right</span>
+</div>
+</div>
+<!-- Draft Item -->
+<div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center justify-between group cursor-pointer border border-dashed border-outline-variant/30">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 bg-error-container/10 rounded-xl flex items-center justify-center text-error">
+<span class="material-symbols-outlined" style="">draft</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface mb-0.5" style="">Radiology_Report_Partial</h4>
+<p class="text-xs text-error font-medium flex items-center gap-1" style="">
+<span class="material-symbols-outlined text-[14px]" style="">warning</span> Draft • Needs review
+                        </p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" style="">edit_note</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Back to Home Button (Bottom Center) -->
+<footer class="fixed bottom-10 left-0 w-full flex justify-center z-50 pointer-events-none">
+<button class="pointer-events-auto flex flex-col items-center justify-center w-[70px] h-[40px] bg-emerald-100 text-emerald-800 rounded-[20px] shadow-lg shadow-emerald-900/10 active:scale-90 transition-all duration-300" style="">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 1;">home</span>
+</button>
+</footer>
+</body></html>
