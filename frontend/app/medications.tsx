@@ -1,12 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function MedicationsScreen() {
   const router = useRouter();
+  const [showReminderModal, setShowReminderModal] = useState(false);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -23,12 +25,20 @@ export default function MedicationsScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Medications</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => router.push('/add-medication')}
-        >
-          <MaterialIcons name="add" size={24} color="#059669" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => setShowReminderModal(true)}
+          >
+            <MaterialIcons name="notifications" size={22} color="#059669" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => router.push('/add-medication')}
+          >
+            <MaterialIcons name="add" size={24} color="#059669" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -168,6 +178,75 @@ export default function MedicationsScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Medication Reminder Popup Modal */}
+      <Modal
+        visible={showReminderModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReminderModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {/* Close button */}
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowReminderModal(false)}
+            >
+              <Text style={styles.modalCloseTxt}>✕</Text>
+            </TouchableOpacity>
+
+            {/* Pill icon */}
+            <LinearGradient
+              colors={['#006a35', '#6bfe9c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modalPillIcon}
+            >
+              <MaterialIcons name="local-pharmacy" size={40} color="#ffffff" />
+            </LinearGradient>
+
+            <Text style={styles.modalTitle}>Time for your{`\n`}Medication</Text>
+
+            <View style={styles.modalMedPill}>
+              <MaterialIcons name="medication" size={16} color="#006a35" />
+              <Text style={styles.modalMedName}>Metformin 500mg</Text>
+            </View>
+
+            <Text style={styles.modalSubtext}>
+              It is 8:00 AM. Remember to take your medication{`\n`}after breakfast.
+            </Text>
+
+            {/* Take Now button */}
+            <TouchableOpacity
+              style={styles.modalTakeBtn}
+              activeOpacity={0.85}
+              onPress={() => setShowReminderModal(false)}
+            >
+              <LinearGradient
+                colors={['#006a35', '#4ade80']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.modalTakeBtnGradient}
+              >
+                <MaterialIcons name="check-circle" size={20} color="#ffffff" />
+                <Text style={styles.modalTakeBtnText}>✓ Take Now</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Remind later button */}
+            <TouchableOpacity
+              style={styles.modalRemindLaterBtn}
+              onPress={() => setShowReminderModal(false)}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="timer" size={18} color="#595c5d" />
+              <Text style={styles.modalRemindLaterText}>⏱ Remind me in 15 mins</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -473,5 +552,130 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#2c2f30',
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
+    padding: 32,
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 40,
+    elevation: 20,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#eef1f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseTxt: {
+    fontSize: 16,
+    color: '#595c5d',
+    fontWeight: '700',
+  },
+  modalPillIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: '#006a35',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontFamily: 'Plus Jakarta Sans',
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#2c2f30',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 32,
+  },
+  modalMedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#eef1f2',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 30,
+    marginBottom: 16,
+  },
+  modalMedName: {
+    fontFamily: 'Plus Jakarta Sans',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2c2f30',
+  },
+  modalSubtext: {
+    fontFamily: 'Inter',
+    fontSize: 14,
+    color: '#595c5d',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  modalTakeBtn: {
+    width: '100%',
+    borderRadius: 30,
+    overflow: 'hidden',
+    marginBottom: 12,
+    shadowColor: '#006a35',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  modalTakeBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 18,
+    borderRadius: 30,
+  },
+  modalTakeBtnText: {
+    fontFamily: 'Plus Jakarta Sans',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  modalRemindLaterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    justifyContent: 'center',
+    backgroundColor: '#eef1f2',
+    paddingVertical: 14,
+    borderRadius: 30,
+  },
+  modalRemindLaterText: {
+    fontFamily: 'Inter',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#595c5d',
   },
 });

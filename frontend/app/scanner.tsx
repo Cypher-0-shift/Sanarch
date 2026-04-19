@@ -33,7 +33,7 @@ export default function ScannerScreen() {
         </View>
 
         <View style={styles.gridSection}>
-          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8} onPress={() => router.push('/scanner-results')}>
+          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8} onPress={() => router.push('/scan-analysis' as any)}>
             <View style={styles.actionIconBgOverlay}>
               <MaterialIcons name="photo-camera" size={80} color="rgba(44,47,48,0.05)" />
             </View>

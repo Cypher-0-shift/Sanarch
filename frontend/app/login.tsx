@@ -5,13 +5,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const isFormValid = email.trim().length > 0 && password.trim().length > 0;
+  const isFormValid = email.trim().length > 0 && password.trim().length >= 6;
 
   const handleLogin = () => {
     if (isFormValid) {
@@ -71,14 +73,27 @@ export default function LoginScreen() {
                   <Text style={styles.forgotPassword}>Forgot Password?</Text>
                 </TouchableOpacity>
               </View>
-              <TextInput 
-                style={styles.textInput}
-                placeholder="••••••••"
-                placeholderTextColor="#abadae"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
+              <View style={styles.passwordInputWrapper}>
+                <TextInput
+                  style={[styles.textInput, { paddingRight: 52, flex: 1 }]}
+                  placeholder="••••••••"
+                  placeholderTextColor="#abadae"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity
+                  style={styles.eyeIconBtn}
+                  onPress={() => setShowPassword(!showPassword)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#abadae"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Login Button */}
@@ -126,7 +141,8 @@ export default function LoginScreen() {
           {/* Sign Up CTA */}
           <View style={styles.signupContainer}>
             <Text style={styles.signupText}>
-              Don't have an account? <Text style={styles.signupLink} onPress={() => router.push('/setup-profile')}>Sign Up</Text>
+              Don't have an account?{' '}
+              <Text style={styles.signupLink} onPress={() => router.push('/setup-profile' as any)}>Sign Up</Text>
             </Text>
           </View>
         </ScrollView>
@@ -288,6 +304,21 @@ const styles = StyleSheet.create({
   socialRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  passwordInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eef1f2',
+    borderRadius: 12,
+    height: 56,
+  },
+  eyeIconBtn: {
+    position: 'absolute',
+    right: 16,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
   socialButton: {
     flexDirection: 'row',
