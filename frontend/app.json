@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Sanarch",
+    "slug": "sanarch",
+    "scheme": "sanarch",
+    "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "splash": {
+      "backgroundColor": "#143832",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "bundleIdentifier": "com.sanarch.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Sanarch needs camera access to scan medical documents.",
+        "NSPhotoLibraryUsageDescription": "Sanarch needs photo library access to upload medical documents."
+      }
+    },
+    "android": {
+      "package": "com.sanarch.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#143832"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#143832"
+        }
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
+    ]
+  }
+}

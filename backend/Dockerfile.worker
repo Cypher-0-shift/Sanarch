@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+# System deps for python-magic and PyMuPDF
+RUN apt-get update && apt-get install -y \
+    libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+
+
+COPY . .
+
+# Worker entry point — processes the documents queue
+CMD ["celery", "-A", "app.workers.celery_app", "worker", \
+    "--loglevel=info", \
+    "--queues=documents", \
+    "--concurrency=2", \
+    "--max-tasks-per-child=50"]
