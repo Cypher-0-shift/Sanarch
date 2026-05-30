@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     clamd_port: int = 3310
     clamd_timeout: int = 60  # seconds — NEW
     clamav_enabled: bool = True
+    skip_virus_scan: bool = False
 
     # App
     environment: str = "development"
@@ -83,5 +84,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 settings = Settings()

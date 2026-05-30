@@ -14,8 +14,8 @@ def scan_bytes(file_bytes: bytes) -> tuple[bool, str]:
     is_clean=True means file is safe to proceed.
     FAIL CLOSED: any error returns (False, reason) — never assume clean on error.
     """
-    if os.environ.get("SKIP_VIRUS_SCAN", "").lower() == "true":
-        logger.warning("Virus scan SKIPPED — SKIP_VIRUS_SCAN=true")
+    if settings.skip_virus_scan:
+        logger.warning("Virus scan SKIPPED — SKIP_VIRUS_SCAN is true in settings")
         return True, "skipped"
         
     if not settings.clamav_enabled:

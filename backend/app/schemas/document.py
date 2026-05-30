@@ -1,6 +1,6 @@
 # app/schemas/document.py
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 class DocumentUploadResponse(BaseModel):
     document_id: str
@@ -20,6 +20,6 @@ class AISummaryResponse(BaseModel):
     headline: str
     summary: str
     key_points: list[str]
-    flag: str  # "normal" | "attention" | "urgent"
+    flag: Literal["normal", "attention", "urgent"]
     flag_reason: Optional[str]
     cached: bool

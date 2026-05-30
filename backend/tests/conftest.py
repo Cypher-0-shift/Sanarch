@@ -26,6 +26,26 @@ from sqlalchemy.ext.compiler import compiles
 def compile_pg_uuid_for_sqlite(type_, compiler, **kw):
     return "CHAR(32)"
 
+from sqlalchemy import TypeDecorator, CHAR
+
+class SQLiteUUID(TypeDecorator):
+    impl = CHAR(32)
+    cache_ok = True
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return str(value).replace('-', '')
+        
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        import uuid
+        return uuid.UUID(value)
+
+# Monkey-patch PG_UUID for tests so bind processor works correctly
+PG_UUID.__init__ = lambda self, **kw: SQLiteUUID.__init__(self, **kw)
+
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     if isinstance(dbapi_connection, sqlite3.Connection):

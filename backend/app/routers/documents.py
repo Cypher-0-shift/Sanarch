@@ -421,7 +421,7 @@ async def summarize_document(
     if doc.ai_summary:
         try:
             cached_result = json.loads(doc.ai_summary)
-            return AISummaryResponse(**cached_result, cached=True)
+            return AISummaryResponse(**cached_result, cached=True, document_id=document_id)
         except Exception as e:
             logger.warning(f"Failed to parse cached ai_summary for doc {document_id}: {e}")
             pass
@@ -480,7 +480,7 @@ async def summarize_document(
             doc.ai_summary = json.dumps(result)
             db.commit()
 
-            return AISummaryResponse(**result, cached=False)
+            return AISummaryResponse(**result, cached=False, document_id=document_id)
 
     except Exception as e:
         logger.error(f"AI summarization failed for doc {document_id}: {e}")

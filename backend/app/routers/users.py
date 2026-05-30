@@ -87,15 +87,17 @@ async def create_user(
     db.refresh(user)
     logger.info(f"Created user {user.id} with Sanarch ID {sanarch_id}")
     return user
-def _warm_timeline_cache(patient_id: str, db: Session):
-    # Call the timeline logic directly to cache it
-    from app.routers.timeline import get_patient_timeline
+def _warm_timeline_cache(patient_id: str):
+    from app.database import SessionLocal
+    db = SessionLocal()
     try:
-        # Dummy mock of current user to satisfy dependency signature
-        mock_user = User(id=patient_id)
+        from app.routers.timeline import get_patient_timeline
+        mock_user = type('U', (), {'id': patient_id})()
         get_patient_timeline(patient_id=patient_id, limit=20, offset=0, db=db, current_user=mock_user)
     except Exception as e:
         logger.warning(f"Cache warming failed: {e}")
+    finally:
+        db.close()
 
 @router.get("/me", response_model=UserResponse)
 def get_me(
@@ -104,7 +106,7 @@ def get_me(
 ):
     threading.Thread(
         target=_warm_timeline_cache,
-        args=[str(current_user.id), db],
+        args=[str(current_user.id)],
         daemon=True
     ).start()
     return current_user
@@ -163,7 +165,7 @@ def update_me(
     return current_user
 
 
-@router.delete("/me")
+@router.post("/deactivate")
 def deactivate_me(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -175,4 +177,26 @@ def deactivate_me(
     return {
         "status": "deactivated",
         "message": "Account has been deactivated. Data retained for 30 days.",
+    }
+
+@router.delete("/me")
+def hard_delete_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete user account and all associated data."""
+    from app.models.document import Document
+    from app.models.patient import Patient
+    
+    # Delete associated records to prevent foreign key constraint failures
+    db.query(Document).filter(Document.owner_id == current_user.id).delete()
+    db.query(Patient).filter(Patient.owner_id == current_user.id).delete()
+    
+    # Delete the user
+    db.delete(current_user)
+    db.commit()
+    logger.info(f"User {current_user.id} account permanently deleted")
+    return {
+        "status": "deleted",
+        "message": "Account and all associated data have been permanently deleted.",
     }
