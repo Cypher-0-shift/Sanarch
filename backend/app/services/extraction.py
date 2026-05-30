@@ -58,7 +58,7 @@ def _get_med7_model():
     import spacy
     try:
         logger.info("Loading Med7 NER model...")
-        nlp = spacy.load("en_core_med7_lg")
+        nlp = spacy.load("en_core_web_sm")
         logger.info("Med7 loaded.")
         return nlp
     except OSError:

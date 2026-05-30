@@ -10,7 +10,7 @@ WORKDIR /app
 COPY requirements.txt .
 ENV PIP_DEFAULT_TIMEOUT=300
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install https://huggingface.co/kormilitzin/en_core_med7_lg/resolve/main/en_core_med7_lg-any-py3-none-any.whl
+    python -m spacy download en_core_web_sm
 
 COPY . .
 
