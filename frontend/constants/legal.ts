@@ -1,13 +1,13 @@
 // Legal document URLs — hosted on GitHub Pages
-// Source: https://github.com/Cypher-0-shift/sanarch-legal
+// Source: https://github.com/eduindiafoundation/Sanarch-legal
 
 export const LEGAL_URLS = {
   PRIVACY_POLICY:
-    'https://cypher-0-shift.github.io/sanarch-legal/privacy-policy.html',
+    'https://eduindiafoundation.github.io/Sanarch-legal/privacy-policy.html',
   TERMS_AND_CONDITIONS:
-    'https://cypher-0-shift.github.io/sanarch-legal/terms-and-conditions.html',
+    'https://eduindiafoundation.github.io/Sanarch-legal/terms-and-conditions.html',
   ACCOUNT_DELETION:
-    'https://cypher-0-shift.github.io/sanarch-legal/account-deletion.html',
+    'https://eduindiafoundation.github.io/Sanarch-legal/account-deletion.html',
 } as const;
 
 // Keep these for any legacy usage — will be removed in next cleanup
