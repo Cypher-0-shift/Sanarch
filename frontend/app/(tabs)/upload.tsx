@@ -5,7 +5,7 @@
 //   react-native-pdf react-native-svg react-native-gesture-handler
 //   expo-image-manipulator
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -100,9 +100,13 @@ export default function UploadScreen() {
   const [success, setSuccess] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  const isMounted = useRef(true);
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => setIsReady(true));
-    return () => task.cancel();
+    return () => {
+      task.cancel();
+      isMounted.current = false;
+    };
   }, []);
 
   // Handle incoming file from home page FAB
@@ -258,6 +262,16 @@ export default function UploadScreen() {
       });
       if (result.canceled || !result.assets?.[0]) return;
       const file = result.assets[0];
+      
+      const MAX_PDF_SIZE_MB = 15;
+      if (file.size && file.size > MAX_PDF_SIZE_MB * 1024 * 1024) {
+        Alert.alert(
+          'File Too Large',
+          `PDF must be under ${MAX_PDF_SIZE_MB}MB. This file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`
+        );
+        return;
+      }
+
       setFileUri(file.uri);
       setAdjustedUri(null);
       setFileName(file.name ?? 'document.pdf');
@@ -351,7 +365,9 @@ export default function UploadScreen() {
       const MAX_POLLS = 40; // 40 * 3s = 120s max wait
 
       while ((status === 'processing' || status === 'uploading') && pollCount < MAX_POLLS) {
+        if (!isMounted.current) break;
         await new Promise(resolve => setTimeout(resolve, 3000));
+        if (!isMounted.current) break;
         const statusResult = await getDocumentStatus(documentId);
         status = statusResult.status;
         extractedData = statusResult.extracted_data;
@@ -379,6 +395,10 @@ export default function UploadScreen() {
 
       setProgress(100);
       setSuccess(true);
+      
+      // Free base64 images from memory
+      setPdfPageImages([]);
+      setAdjustedUri(null);
 
       // 4. Navigate to records after 2s
       setTimeout(() => {

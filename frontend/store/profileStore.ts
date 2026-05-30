@@ -23,6 +23,7 @@ interface ProfileState {
   familyMembers: Profile[];
   setActiveProfile: (profile: Profile | null) => void;
   addFamilyMember: (member: Profile) => void;
+  updateFamilyMember: (id: string, updates: Partial<Profile>) => void;
   initProfiles: (mainProfile: Profile, dependentProfile?: Profile) => void;
   clearProfile: () => void;
 }
@@ -35,6 +36,13 @@ export const useProfileStore = create<ProfileState>((set) => ({
 
   addFamilyMember: (member) =>
     set((state) => ({ familyMembers: [...state.familyMembers, member] })),
+
+  updateFamilyMember: (id, updates) =>
+    set((state) => ({
+      familyMembers: state.familyMembers.map((m) =>
+        m.id === id ? { ...m, ...updates } : m
+      ),
+    })),
 
   initProfiles: (mainProfile, dependentProfile) =>
     set({

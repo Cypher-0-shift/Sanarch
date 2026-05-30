@@ -44,6 +44,7 @@ slowapi==0.1.9
 
 # Utilities
 python-jose[cryptography]==3.3.0
+python-dotenv==1.0.1
 
 # QR code generation
 qrcode[pil]==8.0

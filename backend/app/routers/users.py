@@ -1,15 +1,17 @@
 # app/routers/users.py
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse
 from app.middleware.auth_middleware import get_current_user
-from app.services.sanarch_id import generate_sanarch_id
+from app.utils.sanarch_id import generate_serial, build_sanarch_id
 from app.logging_config import logger
 from app.services.firebase_auth import verify_token
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from app.utils import sanitize_string
 from typing import Optional
+import threading
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -22,7 +24,14 @@ class CreateUserBody(BaseModel):
     email: str | None = None
     account_type: str = "self"
 
-@router.post("/create", response_model=UserResponse)
+    @field_validator("full_name", "email", mode="before")
+    @classmethod
+    def sanitize_fields(cls, v: str | None) -> str | None:
+        if isinstance(v, str):
+            return sanitize_string(v)
+        return v
+
+@router.post("/create", response_model=UserResponse, status_code=201)
 async def create_user(
     body: CreateUserBody,
     db: Session = Depends(get_db),
@@ -44,7 +53,25 @@ async def create_user(
     if existing:
         return existing
 
-    sanarch_id = generate_sanarch_id(db)
+    from datetime import datetime
+    age = 35 # Default
+    if body.date_of_birth:
+        try:
+            dob = datetime.strptime(body.date_of_birth, "%Y-%m-%d").date()
+            today = datetime.now().date()
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        except ValueError:
+            pass
+
+    sanarch_id = build_sanarch_id(
+        country="IN",
+        reg_year=datetime.now().year,
+        gender="X", # Default
+        age=age,
+        profile_type="P",
+        member_index=0,
+        family_serial=generate_serial()
+    )
     user = User(
         sanarch_id=sanarch_id,
         phone_number=phone_number,
@@ -60,11 +87,26 @@ async def create_user(
     db.refresh(user)
     logger.info(f"Created user {user.id} with Sanarch ID {sanarch_id}")
     return user
+def _warm_timeline_cache(patient_id: str, db: Session):
+    # Call the timeline logic directly to cache it
+    from app.routers.timeline import get_patient_timeline
+    try:
+        # Dummy mock of current user to satisfy dependency signature
+        mock_user = User(id=patient_id)
+        get_patient_timeline(patient_id=patient_id, limit=20, offset=0, db=db, current_user=mock_user)
+    except Exception as e:
+        logger.warning(f"Cache warming failed: {e}")
 
 @router.get("/me", response_model=UserResponse)
 def get_me(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    threading.Thread(
+        target=_warm_timeline_cache,
+        args=[str(current_user.id), db],
+        daemon=True
+    ).start()
     return current_user
 
 
@@ -74,6 +116,13 @@ class UpdateUserBody(BaseModel):
     date_of_birth: Optional[str] = None
     height_cm: Optional[str] = None
     weight_kg: Optional[str] = None
+
+    @field_validator("full_name", "email", mode="before")
+    @classmethod
+    def sanitize_fields(cls, v: str | None) -> str | None:
+        if isinstance(v, str):
+            return sanitize_string(v)
+        return v
 
 
 @router.put("/me", response_model=UserResponse)
@@ -96,7 +145,7 @@ def update_me(
     if body.email is not None:
         email = body.email.strip()
         if "@" not in email or "." not in email:
-            raise HTTPException(400, "Invalid email format")
+            raise HTTPException(400, "invalid email format")
         current_user.email = email
 
     if body.date_of_birth is not None:

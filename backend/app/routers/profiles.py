@@ -28,7 +28,6 @@ from app.utils.sanarch_id import (
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
-# TODO: Replace with auth-injected user in Sprint 9
 TEST_USER_ID = "test-user-001"
 
 _MAX_SERIAL_RETRIES = 3
@@ -141,11 +140,11 @@ def create_dependent_profile(
         .first()
     )
     if not primary:
-        raise HTTPException(status_code=404, detail="Primary profile not found")
+        raise HTTPException(status_code=404, detail="primary profile not found")
     if primary.profile_type != "P":
         raise HTTPException(
             status_code=400,
-            detail="Specified profile is not a primary (type 'P')",
+            detail="specified profile is not a primary (type 'p')",
         )
 
     # 2. Determine next member_index
@@ -195,7 +194,7 @@ def create_dependent_profile(
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail="Failed to create dependent profile (possible index collision)",
+            detail="failed to create dependent profile (possible index collision)",
         )
 
 
@@ -210,7 +209,7 @@ def get_profile(
     sanarch_id = sanarch_id.upper()
 
     if not validate_sanarch_id(sanarch_id):
-        raise HTTPException(status_code=400, detail="Invalid SANARCH ID format")
+        raise HTTPException(status_code=400, detail="invalid sanarch id format")
 
     profile = (
         db.query(SanarchProfile)
@@ -218,7 +217,7 @@ def get_profile(
         .first()
     )
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+        raise HTTPException(status_code=404, detail="profile not found")
 
     return _profile_to_response(profile)
 
@@ -240,7 +239,7 @@ def get_family_profiles(
     try:
         parsed = parse_sanarch_id(sanarch_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid SANARCH ID format")
+        raise HTTPException(status_code=400, detail="invalid sanarch id format")
 
     family_serial = parsed["family_serial"]
 
@@ -252,7 +251,7 @@ def get_family_profiles(
     )
 
     if not profiles:
-        raise HTTPException(status_code=404, detail="No profiles found for this family")
+        raise HTTPException(status_code=404, detail="no profiles found for this family")
 
     return [_profile_to_response(p) for p in profiles]
 
@@ -270,7 +269,7 @@ def get_profile_qr(sanarch_id: str):
     sanarch_id = sanarch_id.upper()
 
     if not validate_sanarch_id(sanarch_id):
-        raise HTTPException(status_code=400, detail="Invalid SANARCH ID format")
+        raise HTTPException(status_code=400, detail="invalid sanarch id format")
 
     png_bytes = generate_qr_png(sanarch_id)
     return Response(

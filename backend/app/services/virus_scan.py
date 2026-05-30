@@ -1,12 +1,11 @@
 # app/services/virus_scan.py
 import socket
 import struct
+import os
 from app.config import settings
 from app.logging_config import logger
 
 CHUNK_SIZE = 4096  # 4KB chunks for large files
-
-import os
 
 def scan_bytes(file_bytes: bytes) -> tuple[bool, str]:
     """

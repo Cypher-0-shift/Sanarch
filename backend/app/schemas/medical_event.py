@@ -1,6 +1,6 @@
 # app/schemas/medical_event.py
 from pydantic import BaseModel
-from typing import Optional, List, Any
+from typing import Optional, List
 from datetime import date, datetime
 from uuid import UUID
 
@@ -34,4 +34,5 @@ class MedicalEventResponse(BaseModel):
 
 class MedicalEventListResponse(BaseModel):
     events: List[MedicalEventResponse]
+    items: List[MedicalEventResponse]
     total: int

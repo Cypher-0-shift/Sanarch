@@ -2,6 +2,7 @@ import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import apiClient from './api';
 import { saveToken, clearToken, saveUserData, clearUserData, getToken } from './storage';
 import { ENDPOINTS } from '../constants/api';
+import { logger } from '../utils/logger';
 
 let confirmResult: FirebaseAuthTypes.ConfirmationResult | null = null;
 
@@ -10,7 +11,7 @@ export async function sendOTP(phoneNumber: string): Promise<void> {
   try {
     confirmResult = await auth().signInWithPhoneNumber(phoneNumber);
   } catch (error: any) {
-    console.error('[Auth] sendOTP failed:', error);
+    logger.error('[Auth] sendOTP failed:', error);
     // Map Firebase error codes to user-friendly messages
     if (error.code === 'auth/invalid-phone-number') {
       throw new Error('Invalid phone number format.');
@@ -47,7 +48,7 @@ export async function verifyOTP(otp: string): Promise<{ firebase_token: string; 
       is_new_user: response.data.is_new_user,
     };
   } catch (error: any) {
-    console.error('[Auth] verifyOTP failed:', error);
+    logger.error('[Auth] verifyOTP failed:', error);
     if (error.code === 'auth/invalid-verification-code') {
       throw new Error('Incorrect OTP. Please try again.');
     }
@@ -96,7 +97,7 @@ export async function logout(): Promise<void> {
     await clearUserData();
     confirmResult = null;
   } catch (error) {
-    console.error('[Auth] logout failed:', error);
+    logger.error('[Auth] logout failed:', error);
     throw error;
   }
 }

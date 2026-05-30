@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useDeferredValue } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue, useCallback } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, Alert, ScrollView, InteractionManager, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -79,6 +79,28 @@ export default function RecordsScreen() {
       return matchesFilter && matchesSearch;
     });
   }, [activeFilter, deferredSearch, records]);
+
+  const renderRecord = useCallback(({ item, index }: { item: TimelineEvent, index: number }) => (
+    <Animated.View entering={FadeInUp.delay(index * 100).duration(400)}>
+      <MedicalEventCard
+        id={item.id}
+        condition={item.condition}
+        date_start={item.date_start}
+        hospital={item.hospital ?? ''}
+        doctor={item.doctor ?? ''}
+        document_count={item.document_count}
+        label={item.label}
+        onPress={() => {
+          const firstDocId = item.documents?.[0]?.id;
+          if (firstDocId) {
+            router.push(`/(tabs)/records/${firstDocId}`);
+          } else {
+            useAlertStore.getState().showAlert('No Document', 'This record has no attached document yet.');
+          }
+        }}
+      />
+    </Animated.View>
+  ), [router]);
 
   if (!isReady) return <View className="flex-1 bg-[#F5F3F0]" />;
 
@@ -176,27 +198,16 @@ export default function RecordsScreen() {
               </View>
             ) : null
           }
-          renderItem={({ item, index }) => (
-            <Animated.View entering={FadeInUp.delay(index * 100).duration(400)}>
-              <MedicalEventCard
-                id={item.id}
-                condition={item.condition}
-                date_start={item.date_start}
-                hospital={item.hospital ?? ''}
-                doctor={item.doctor ?? ''}
-                document_count={item.document_count}
-                label={item.label}
-                onPress={() => {
-                  const firstDocId = item.documents?.[0]?.id;
-                  if (firstDocId) {
-                    router.push(`/(tabs)/records/${firstDocId}`);
-                  } else {
-                    useAlertStore.getState().showAlert('No Document', 'This record has no attached document yet.');
-                  }
-                }}
-              />
-            </Animated.View>
-          )}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          initialNumToRender={6}
+          getItemLayout={(_, index) => ({
+            length: 120,
+            offset: 120 * index,
+            index,
+          })}
+          renderItem={renderRecord}
           ListEmptyComponent={
             <EmptyState 
               icon="clipboard-text-outline" 

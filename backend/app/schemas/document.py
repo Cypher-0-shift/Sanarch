@@ -1,7 +1,6 @@
 # app/schemas/document.py
 from pydantic import BaseModel
 from typing import Optional, Any
-from datetime import datetime
 
 class DocumentUploadResponse(BaseModel):
     document_id: str

@@ -14,6 +14,11 @@ from jose import jwt
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
 
+def _mask_phone(phone: str) -> str:
+    if len(phone) < 6:
+        return "***"
+    return phone[:3] + "X" * (len(phone) - 6) + phone[-3:]
+
 class FirebaseTokenRequest(BaseModel):
     firebase_token: str
 
@@ -31,7 +36,7 @@ def create_access_token(user_id: str, sanarch_id: str) -> str:
                       algorithm=settings.jwt_algorithm)
 
 @router.post("/verify-firebase")
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 async def verify_firebase_token(
     request: Request,
     body: FirebaseTokenRequest,
@@ -54,7 +59,8 @@ async def verify_firebase_token(
     existing_user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
     is_new = existing_user is None
 
-    logger.info(f"Auth: firebase_uid={firebase_uid}, is_new={is_new}")
+    masked_phone = _mask_phone(phone_number) if phone_number else "none"
+    logger.info(f"Auth: new_user={is_new}, phone={masked_phone}")
 
     if is_new:
         return {

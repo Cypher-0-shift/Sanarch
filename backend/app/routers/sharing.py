@@ -1,8 +1,9 @@
 # app/routers/sharing.py
-import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
@@ -21,17 +22,30 @@ class ShareAccessResponse(BaseModel):
     events: List[dict]
 
 router = APIRouter(prefix="/sharing", tags=["sharing"])
+limiter = Limiter(key_func=get_remote_address)
 
 TOKEN_TTL_MINUTES = 10
 
-@router.post("/generate-token", response_model=ShareTokenResponse)
+@router.post("/generate-token", response_model=ShareTokenResponse, status_code=201)
+@limiter.limit("20/minute")
 def generate_token(
+    request: Request,
     body: GenerateTokenRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     if not body.event_ids:
-        raise HTTPException(400, "At least one event_id required")
+        raise HTTPException(400, "at least one event_id required")
+
+    MAX_ACTIVE_TOKENS_PER_USER = 10
+    active_count = db.query(ShareToken).filter(
+        ShareToken.owner_id == current_user.id,
+        ShareToken.is_revoked == False,
+        ShareToken.expires_at > datetime.now(timezone.utc),
+    ).count()
+
+    if active_count >= MAX_ACTIVE_TOKENS_PER_USER:
+        raise HTTPException(429, "maximum active share tokens reached")
 
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_TTL_MINUTES)
@@ -62,24 +76,28 @@ def revoke_token(
         ShareToken.owner_id == current_user.id,
     ).first()
     if not share:
-        raise HTTPException(404, "Token not found")
+        raise HTTPException(404, "token not found")
     share.is_revoked = True
     db.commit()
     return {"status": "revoked"}
 
 @router.get("/access/{token}", response_model=ShareAccessResponse)
-def access_shared_events(token: str, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def access_shared_events(token: str, request: Request, db: Session = Depends(get_db)):
+    if len(token) < 32 or len(token) > 64:
+        raise HTTPException(400, "invalid token format")
+
     share = db.query(ShareToken).filter(ShareToken.token == token).first()
     
     if not share:
-        raise HTTPException(status_code=404, detail="Invalid or expired link")
+        raise HTTPException(status_code=404, detail="invalid or expired link")
         
     expires_at = share.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
         
     if share.is_revoked or expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=404, detail="Invalid or expired link")
+        raise HTTPException(status_code=404, detail="invalid or expired link")
         
     share.accessed_at = datetime.now(timezone.utc)
     db.commit()

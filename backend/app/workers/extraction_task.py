@@ -10,6 +10,7 @@ import asyncio
 from celery.exceptions import SoftTimeLimitExceeded
 from app.workers.celery_app import celery_app
 from app.database import SessionLocal
+# Worker uses smaller pool — see database.py pool_recycle setting
 # Import ALL models so SQLAlchemy can resolve all mapper relationships
 from app.models.user import User  # noqa: F401
 from app.models.patient import Patient  # noqa: F401
@@ -36,11 +37,13 @@ def run_async(coro):
 
 @celery_app.task(
     bind=True,
-    max_retries=2,
-    default_retry_delay=30,
+    max_retries=3,
+    default_retry_delay=60,
     name="app.workers.extraction_task.process_document",
 )
 def process_document(self, document_id: str) -> dict:
+    import time
+    start_time = time.time()
     logger.info(f"Processing document {document_id}")
     db = SessionLocal()
     doc = None
@@ -53,10 +56,16 @@ def process_document(self, document_id: str) -> dict:
             return {"status": "not_found"}
 
         if not doc.s3_tmp_key:
-            logger.error(f"Document {document_id} has no tmp key — cannot process")
-            doc.status = DocumentStatus.failed
-            db.commit()
-            return {"status": "no_tmp_key"}
+            # If doc already moved to final (retry after partial success)
+            if doc.s3_key:
+                logger.info(f"Doc {document_id} already in final — skipping to extraction")
+                # Jump directly to extraction using file from final location
+                doc.s3_tmp_key = doc.s3_key
+            else:
+                logger.error(f"Document {document_id} has no tmp key — cannot process")
+                doc.status = DocumentStatus.failed
+                db.commit()
+                return {"status": "no_tmp_key"}
 
         # 2. Download file from B2 tmp prefix
         client = get_b2_client()
@@ -127,7 +136,7 @@ def process_document(self, document_id: str) -> dict:
             db.add(medical_event)
             logger.info(
                 f"MedicalEvent created for patient {doc.patient_id} "
-                f"date={event_date} hospital={extracted.get('hospital_name')}"
+                f"date={event_date}"
             )
 
         # 7. Mark document as pending_review and commit everything
@@ -142,6 +151,9 @@ def process_document(self, document_id: str) -> dict:
                 invalidate_timeline_cache(str(doc.patient_id))
             except Exception as cache_err:
                 logger.warning(f"Cache invalidation failed (non-fatal): {cache_err}")
+
+        elapsed = time.time() - start_time
+        logger.info(f"Document {document_id} processed in {elapsed:.1f}s")
 
         return {"status": "pending_review", "document_id": document_id}
 

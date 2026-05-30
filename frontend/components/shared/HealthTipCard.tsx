@@ -1,7 +1,8 @@
+import React from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-export default function HealthTipCard() {
+const HealthTipCard = React.memo(function HealthTipCard() {
   return (
     <View className="relative overflow-hidden rounded-xl bg-primary p-6 shadow-lg mb-8">
       {/* Decorative Elements */}
@@ -40,4 +41,6 @@ export default function HealthTipCard() {
       </TouchableOpacity>
     </View>
   );
-}
+});
+
+export default HealthTipCard;

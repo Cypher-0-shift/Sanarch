@@ -1,3 +1,4 @@
+import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -9,7 +10,7 @@ interface QuickActionCardProps {
   onPress: () => void;
 }
 
-export default function QuickActionCard({ title, description, icon, variant = 'default', onPress }: QuickActionCardProps) {
+const QuickActionCard = React.memo(function QuickActionCard({ title, description, icon, variant = 'default', onPress }: QuickActionCardProps) {
   const isEmergency = variant === 'emergency';
   
   return (
@@ -31,4 +32,6 @@ export default function QuickActionCard({ title, description, icon, variant = 'd
       </View>
     </TouchableOpacity>
   );
-}
+});
+
+export default QuickActionCard;

@@ -9,7 +9,8 @@ from app.database import get_db
 from app.models.user import User
 from app.models.patient import Patient
 from app.middleware.auth_middleware import get_current_user
-from app.services.sanarch_id import generate_sanarch_id
+from app.utils.sanarch_id import generate_serial, build_sanarch_id
+from app.utils import sanitize_string
 from app.logging_config import logger
 
 router = APIRouter(
@@ -22,10 +23,12 @@ class PatientCreateRequest(BaseModel):
     date_of_birth: Optional[str] = None
     relationship_to_owner: str
 
-    @field_validator("full_name")
+    @field_validator("full_name", mode="before")
     @classmethod
     def validate_full_name(cls, v: str) -> str:
-        v = v.strip()
+        if isinstance(v, str):
+            v = sanitize_string(v)
+        v = str(v).strip()
         if not (2 <= len(v) <= 100):
             raise ValueError("full_name must be between 2 and 100 characters")
         if re.search(r'[<>"\'`]', v):
@@ -55,15 +58,33 @@ class PatientResponse(BaseModel):
 
 class PatientsListResponse(BaseModel):
     patients: List[PatientResponse]
+    items: List[PatientResponse]
     total: int
 
-@router.post("/create", response_model=PatientResponse)
+@router.post("/create", response_model=PatientResponse, status_code=201)
 def create_patient(
     request: PatientCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    sanarch_id = generate_sanarch_id(db)
+    age = 35 # Default
+    if request.date_of_birth:
+        try:
+            dob = datetime.strptime(request.date_of_birth, "%Y-%m-%d").date()
+            today = datetime.now().date()
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        except ValueError:
+            pass
+
+    sanarch_id = build_sanarch_id(
+        country="IN",
+        reg_year=datetime.now().year,
+        gender="X", # Default if not collected here
+        age=age,
+        profile_type="D" if request.relationship_to_owner != "self" else "P",
+        member_index=0,
+        family_serial=generate_serial()
+    )
     
     patient = Patient(
         owner_id=current_user.id,
@@ -85,29 +106,39 @@ def get_patients(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    patients = db.query(Patient).filter(Patient.owner_id == current_user.id, Patient.is_active == True).order_by(Patient.created_at.asc()).all()
-    return PatientsListResponse(patients=patients, total=len(patients))
+    patients = db.query(Patient).filter(Patient.owner_id == current_user.id, Patient.is_active).order_by(Patient.created_at.desc()).all()
+    return PatientsListResponse(patients=patients, items=patients, total=len(patients))
 
 @router.get("/{patient_id}", response_model=PatientResponse)
 def get_patient(
-    patient_id: UUID,
+    patient_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+    try:
+        pid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid patient id format")
+
+    patient = db.query(Patient).filter(Patient.id == pid, Patient.owner_id == current_user.id).first()
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail="patient not found")
     return patient
 
 @router.delete("/{patient_id}")
 def delete_patient(
-    patient_id: UUID,
+    patient_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+    try:
+        pid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid patient id format")
+
+    patient = db.query(Patient).filter(Patient.id == pid, Patient.owner_id == current_user.id).first()
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail="patient not found")
     
     patient.is_active = False
     db.commit()

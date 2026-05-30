@@ -18,21 +18,21 @@ def get_doctor_view(token: str, db: Session = Depends(get_db)):
     share = db.query(ShareToken).filter(ShareToken.token == token).first()
     
     if not share:
-        raise HTTPException(status_code=404, detail="Invalid or expired link")
+        raise HTTPException(status_code=404, detail="invalid or expired link")
         
     expires_at = share.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
         
     if share.is_revoked or expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=404, detail="Invalid or expired link")
+        raise HTTPException(status_code=404, detail="invalid or expired link")
         
     share.accessed_at = datetime.now(timezone.utc)
     db.commit()
     
     user = db.query(User).filter(User.id == share.owner_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="user not found")
         
     events = db.query(MedicalEvent).filter(MedicalEvent.id.in_(share.event_ids)).order_by(MedicalEvent.event_date.desc()).all()
     

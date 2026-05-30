@@ -1,5 +1,4 @@
 # app/config.py
-import os
 from pydantic_settings import BaseSettings
 from pydantic import field_validator, model_validator
 from typing import Optional
@@ -7,8 +6,8 @@ from typing import Optional
 class Settings(BaseSettings):
     # Database
     database_url: str
-    db_pool_size: int = 10
-    db_max_overflow: int = 20
+    db_pool_size: int = 3
+    db_max_overflow: int = 5
     db_pool_timeout: int = 30
 
     # Redis
@@ -65,6 +64,8 @@ class Settings(BaseSettings):
                 raise ValueError("dev_mode_enabled must be False in production")
             if "*" in self.allowed_origins:
                 raise ValueError("Wildcard CORS origin not allowed in production")
+            if "localhost" in self.allowed_origins.lower() or "127.0.0.1" in self.allowed_origins:
+                raise ValueError("Localhost CORS origin not allowed in production")
         return self
 
     @property

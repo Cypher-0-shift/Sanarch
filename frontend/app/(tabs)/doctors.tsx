@@ -68,7 +68,11 @@ export default function ShareRecordsScreen() {
   }, []);
 
   if (token && !scanning) {
-    return <DoctorViewTab token={token} />;
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text>Doctor View Token: {token}</Text>
+      </View>
+    );
   }
 
   if (scanning) {

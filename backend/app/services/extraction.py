@@ -7,10 +7,8 @@ Models loaded lazily — not at import time.
 """
 import json
 import httpx
-import asyncio
-import io
 from functools import lru_cache
-from typing import Optional, Tuple
+from typing import Tuple
 from app.config import settings
 from app.logging_config import logger
 
@@ -132,7 +130,7 @@ async def structure_with_groq(text: str, entities: dict, retry: bool = True) -> 
         if retry:
             logger.warning(f"Groq JSON parse failed ({e}), retrying with stricter prompt")
             return await structure_with_groq(text, entities, retry=False)
-        logger.error(f"Groq returned invalid JSON after retry: {raw[:200]}")
+        logger.error("Groq returned invalid JSON after retry")
         # Return a safe fallback structure instead of crashing the pipeline
         return {
             "document_type": "other",
@@ -161,7 +159,6 @@ async def ocr_with_azure_di(image_bytes: bytes) -> Tuple[str, float]:
 
     try:
         from azure.ai.documentintelligence import DocumentIntelligenceClient
-        from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
         from azure.core.credentials import AzureKeyCredential
 
         client = DocumentIntelligenceClient(

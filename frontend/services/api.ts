@@ -4,6 +4,7 @@ import { getToken, clearToken } from './storage';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
+import { logger } from '../utils/logger';
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -58,6 +59,25 @@ apiClient.interceptors.response.use(
       );
     }
     
+    const USER_FACING_ERRORS: Record<number, string> = {
+      400: 'Invalid request. Please check your input.',
+      401: 'Session expired. Please log in again.',
+      403: 'You do not have permission to do this.',
+      404: 'The requested item was not found.',
+      429: 'Too many requests. Please wait a moment.',
+      500: 'Something went wrong on our end. Please try again.',
+      503: 'Service temporarily unavailable. Please try again.',
+    };
+    
+    const userMessage = USER_FACING_ERRORS[error.response?.status] 
+      ?? 'An unexpected error occurred.';
+    
+    if (__DEV__ && error.response?.data?.detail) {
+      logger.error('Server error:', error.response.data.detail);
+    }
+    
+    error.message = userMessage;
+
     return Promise.reject(error);
   },
 );
@@ -68,14 +88,27 @@ export default apiClient;
 // Typed helper wrappers
 // ---------------------------------------------------------------------------
 
+const pendingRequests = new Map<string, Promise<any>>();
+
 export async function get<T>(url: string): Promise<T> {
-  try {
-    const response = await apiClient.get<T>(url);
-    return response.data;
-  } catch (error) {
-    console.error(`[API] GET ${url} failed:`, error);
-    throw error;
+  if (pendingRequests.has(url)) {
+    return pendingRequests.get(url) as Promise<T>;
   }
+  
+  const promise = (async () => {
+    try {
+      const response = await apiClient.get<T>(url);
+      return response.data;
+    } catch (error) {
+      logger.error(`[API] GET ${url} failed:`, error);
+      throw error;
+    } finally {
+      pendingRequests.delete(url);
+    }
+  })();
+  
+  pendingRequests.set(url, promise);
+  return promise;
 }
 
 export async function post<T>(url: string, data?: unknown): Promise<T> {
@@ -83,7 +116,7 @@ export async function post<T>(url: string, data?: unknown): Promise<T> {
     const response = await apiClient.post<T>(url, data);
     return response.data;
   } catch (error) {
-    console.error(`[API] POST ${url} failed:`, error);
+    logger.error(`[API] POST ${url} failed:`, error);
     throw error;
   }
 }
@@ -95,7 +128,7 @@ export async function postForm<T>(url: string, formData: FormData): Promise<T> {
     });
     return response.data;
   } catch (error) {
-    console.error(`[API] POST-FORM ${url} failed:`, error);
+    logger.error(`[API] POST-FORM ${url} failed:`, error);
     throw error;
   }
 }
@@ -141,6 +174,10 @@ export async function createPatient(data: {
   return response.data;
 }
 
+let cachedUser: any = null;
+let cacheTimestamp = 0;
+const USER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function getMe(): Promise<{
   id: string;
   sanarch_id: string;
@@ -151,8 +188,19 @@ export async function getMe(): Promise<{
   height_cm: string | null;
   weight_kg: string | null;
 }> {
-  const response = await apiClient.get(ENDPOINTS.GET_ME);
-  return response.data;
+  const now = Date.now();
+  if (cachedUser && (now - cacheTimestamp) < USER_CACHE_TTL) {
+    return cachedUser;
+  }
+  const data = await get<any>(ENDPOINTS.GET_ME);
+  cachedUser = data;
+  cacheTimestamp = now;
+  return data;
+}
+
+export function clearUserCache() {
+  cachedUser = null;
+  cacheTimestamp = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +290,9 @@ export async function getDocumentStatus(documentId: string): Promise<{
   status: 'uploading' | 'processing' | 'complete' | 'failed';
   extracted_data?: any;
 }> {
-  const response = await apiClient.get(ENDPOINTS.GET_DOCUMENT_STATUS(documentId));
+  const response = await apiClient.get(ENDPOINTS.GET_DOCUMENT_STATUS(documentId), {
+    timeout: 10000,
+  });
   return response.data;
 }
 

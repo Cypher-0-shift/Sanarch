@@ -10,7 +10,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { useProfileStore } from '../../../store/profileStore';
 import { clearToken } from '../../../services/storage';
 import { useAlertStore } from '../../../store/alertStore';
-import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../../constants/legal';
+import { LEGAL_URLS } from '../../../constants/legal';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { deleteMe } from '../../../services/api';
 import { logout as firebaseLogout } from '../../../services/auth';
@@ -102,11 +102,7 @@ export default function Settings() {
   // Modals
   const [showReportIssue, setShowReportIssue] = useState(false);
   const [showDataStorage, setShowDataStorage] = useState(false);
-  const [legalModal, setLegalModal] = useState<{
-    visible: boolean;
-    title: string;
-    content: string;
-  }>({ visible: false, title: '', content: '' });
+
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleSyncData = () => {
@@ -282,13 +278,16 @@ export default function Settings() {
             icon="file-document-outline"
             iconBg="#F5F3F0"
             iconColor="#819685"
-            label="Terms of Service"
-            right={<MaterialCommunityIcons name="chevron-right" size={20} color="#819685" />}
-            onPress={() => setLegalModal({
-              visible: true,
-              title: 'Terms of Service',
-              content: TERMS_OF_SERVICE
-            })}
+            label="Terms & Conditions"
+            sublabel="Read our full terms of service"
+            right={
+              <MaterialCommunityIcons 
+                name="open-in-new" 
+                size={18} 
+                color="#819685" 
+              />
+            }
+            onPress={() => Linking.openURL(LEGAL_URLS.TERMS_AND_CONDITIONS)}
             borderBottom={true}
           />
           <SettingsRow
@@ -296,12 +295,31 @@ export default function Settings() {
             iconBg="#F5F3F0"
             iconColor="#819685"
             label="Privacy Policy"
-            right={<MaterialCommunityIcons name="chevron-right" size={20} color="#819685" />}
-            onPress={() => setLegalModal({
-              visible: true,
-              title: 'Privacy Policy',
-              content: PRIVACY_POLICY
-            })}
+            sublabel="How we protect your health data"
+            right={
+              <MaterialCommunityIcons 
+                name="open-in-new" 
+                size={18} 
+                color="#819685" 
+              />
+            }
+            onPress={() => Linking.openURL(LEGAL_URLS.PRIVACY_POLICY)}
+            borderBottom={true}
+          />
+          <SettingsRow
+            icon="account-remove-outline"
+            iconBg="#FEF2F2"
+            iconColor="#EF4444"
+            label="Account Deletion Policy"
+            sublabel="How to delete your account and data"
+            right={
+              <MaterialCommunityIcons 
+                name="open-in-new" 
+                size={18} 
+                color="#819685" 
+              />
+            }
+            onPress={() => Linking.openURL(LEGAL_URLS.ACCOUNT_DELETION)}
             borderBottom={true}
           />
           <SettingsRow
@@ -506,39 +524,7 @@ export default function Settings() {
         </View>
       </Modal>
 
-      {/* MODAL 4: LEGAL CONTENT */}
-      <Modal
-        visible={legalModal.visible}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setLegalModal(p => ({ ...p, visible: false }))}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F3F0' }} edges={['top']}>
 
-          <View style={{ backgroundColor: 'white', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E5E2DE', flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-            <TouchableOpacity
-              onPress={() => setLegalModal(p => ({ ...p, visible: false }))}
-              activeOpacity={0.75}
-              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F5F3F0', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <MaterialCommunityIcons name="close" size={22} color="#2D3A2F" />
-            </TouchableOpacity>
-            <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#2D3A2F' }}>
-              {legalModal.title}
-            </Text>
-          </View>
-
-          <ScrollView style={{ flex: 1, paddingHorizontal: 24, paddingTop: 24 }} contentContainerStyle={{ paddingBottom: 60 }}>
-            <Text style={{ fontSize: 14, color: '#2D3A2F', lineHeight: 22, fontFamily: 'Inter_400Regular' }}>
-              {legalModal.content}
-            </Text>
-
-            <Text style={{ fontSize: 12, color: '#819685', textAlign: 'center', marginTop: 24, marginBottom: 32 }}>
-              Last updated: May 2026
-            </Text>
-          </ScrollView>
-
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView >
   );
 }

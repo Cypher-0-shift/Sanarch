@@ -1,12 +1,12 @@
 # app/routers/documents.py
 import uuid
 import re
-import io
 import base64
 import json
 import httpx
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request, Query, Body
 from sqlalchemy.orm import Session
+from app.config import settings as _settings
 from app.database import get_db
 from app.models.document import Document, DocumentStatus
 from app.models.user import User
@@ -18,17 +18,21 @@ from app.logging_config import logger
 from app.routers.timeline import invalidate_timeline_cache
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from typing import Optional, List
+from typing import Optional
 import magic  # python-magic for true MIME detection
 import fitz  # PyMuPDF
-from PIL import Image
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 limiter = Limiter(key_func=get_remote_address)
 
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "application/pdf"}
+def get_user_or_ip(request: Request) -> str:
+    # Use user ID from JWT if available, else fall back to IP
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer ") and auth != "Bearer dev-mode-token":
+        return f"user:{auth[7:27]}"  # first 20 chars of token as key
+    return get_remote_address(request)
 
-from app.config import settings as _settings
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "application/pdf"}
 ALLOWED_EXTENSIONS = _settings.allowed_extensions_set
 MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20MB
 
@@ -38,6 +42,16 @@ def _validate_file_extension(filename: str) -> bool:
     ext = os.path.splitext(filename or "")[1].lower()
     return ext in ALLOWED_EXTENSIONS
 
+MAGIC_HEADERS = {
+    "image/jpeg": [b"\xff\xd8\xff"],
+    "image/png":  [b"\x89PNG"],
+    "application/pdf": [b"%PDF"],
+}
+
+def _verify_magic_header(file_bytes: bytes, mime: str) -> bool:
+    expected = MAGIC_HEADERS.get(mime, [])
+    return any(file_bytes.startswith(h) for h in expected)
+
 def _detect_true_mime(file_bytes: bytes) -> str:
     """Use libmagic to detect actual MIME type from file bytes, not client header."""
     try:
@@ -45,8 +59,8 @@ def _detect_true_mime(file_bytes: bytes) -> str:
     except Exception:
         return "application/octet-stream"
 
-@router.post("/upload", response_model=DocumentUploadResponse)
-@limiter.limit("10/minute")
+@router.post("/upload", response_model=DocumentUploadResponse, status_code=201)
+@limiter.limit("10/minute", key_func=get_user_or_ip)
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
@@ -55,18 +69,21 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
 ):
     # 1. Validate extension (client-controlled, but first line of defense)
+    if len(file.filename or "") > 200:
+        raise HTTPException(400, "filename too long")
+
     if not _validate_file_extension(file.filename):
-        raise HTTPException(400, f"File extension not allowed. Accepted: {ALLOWED_EXTENSIONS}")
+        raise HTTPException(400, f"file extension not allowed. accepted: {ALLOWED_EXTENSIONS}")
 
     # 2. Read file
     file_bytes = await file.read()
 
     # 3. Check size
     if len(file_bytes) > MAX_SIZE_BYTES:
-        raise HTTPException(400, f"File exceeds {MAX_SIZE_BYTES // 1024 // 1024}MB limit")
+        raise HTTPException(400, f"file exceeds {MAX_SIZE_BYTES // 1024 // 1024}mb limit")
 
     if len(file_bytes) == 0:
-        raise HTTPException(400, "File is empty")
+        raise HTTPException(400, "file is empty")
 
     # 4. Detect TRUE MIME type from bytes (not from header — headers are spoofable)
     true_mime = _detect_true_mime(file_bytes)
@@ -75,14 +92,17 @@ async def upload_document(
             f"User {current_user.id} uploaded file with claimed type {file.content_type} "
             f"but true type is {true_mime}"
         )
-        raise HTTPException(400, f"File type not allowed. Detected: {true_mime}")
+        raise HTTPException(400, f"file type not allowed. detected: {true_mime}")
+
+    if not _verify_magic_header(file_bytes, true_mime):
+        raise HTTPException(400, "file content does not match type")
 
     # 5. Validate patient_id format if provided
     if patient_id:
         try:
             uuid.UUID(patient_id)
         except ValueError:
-            raise HTTPException(400, "Invalid patient_id format")
+            raise HTTPException(400, "invalid patient_id format")
 
     # 6. Upload to B2 tmp prefix
     doc_id = uuid.uuid4()
@@ -96,7 +116,7 @@ async def upload_document(
         )
     except Exception as e:
         logger.error(f"B2 upload failed for doc {doc_id}: {e}")
-        raise HTTPException(503, "Storage service unavailable — try again")
+        raise HTTPException(503, "storage service unavailable — try again")
 
     # 7. Create DB record
     doc = Document(
@@ -140,25 +160,27 @@ def list_documents(
         try:
             uuid.UUID(patient_id)
         except ValueError:
-            raise HTTPException(400, "Invalid patient_id format")
+            raise HTTPException(400, "invalid patient_id format")
         query = query.filter(Document.patient_id == uuid.UUID(patient_id))
 
     total = query.count()
     docs = query.order_by(Document.uploaded_at.desc()).offset(offset).limit(limit).all()
 
+    docs_list = [
+        {
+            "id": str(d.id),
+            "original_filename": d.original_filename,
+            "status": d.status.value if d.status else None,
+            "label": d.label,
+            "mime_type": d.mime_type,
+            "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
+            "patient_id": str(d.patient_id) if d.patient_id else None,
+        }
+        for d in docs
+    ]
     return {
-        "documents": [
-            {
-                "id": str(d.id),
-                "original_filename": d.original_filename,
-                "status": d.status.value if d.status else None,
-                "label": d.label,
-                "mime_type": d.mime_type,
-                "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
-                "patient_id": str(d.patient_id) if d.patient_id else None,
-            }
-            for d in docs
-        ],
+        "items": docs_list,
+        "documents": docs_list,
         "total": total,
     }
 
@@ -173,7 +195,7 @@ def get_document(
     try:
         uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(400, "Invalid document_id")
+        raise HTTPException(400, "invalid document_id")
 
     doc = db.query(Document).filter(
         Document.id == uuid.UUID(document_id),
@@ -181,7 +203,7 @@ def get_document(
     ).first()
 
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(404, "document not found")
 
     presigned_url = None
     if doc.status == DocumentStatus.complete and doc.s3_key:
@@ -212,7 +234,7 @@ def get_document_status(
     try:
         uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(400, "Invalid document_id")
+        raise HTTPException(400, "invalid document_id")
 
     doc = db.query(Document).filter(
         Document.id == uuid.UUID(document_id),
@@ -220,7 +242,7 @@ def get_document_status(
     ).first()
 
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(404, "document not found")
 
     return DocumentStatusResponse(
         document_id=document_id,
@@ -240,7 +262,7 @@ def confirm_document(
     try:
         uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(400, "Invalid document_id")
+        raise HTTPException(400, "invalid document_id")
 
     doc = db.query(Document).filter(
         Document.id == uuid.UUID(document_id),
@@ -249,7 +271,7 @@ def confirm_document(
     ).first()
 
     if not doc:
-        raise HTTPException(404, "Document not found or not in review state")
+        raise HTTPException(404, "document not found or not in review state")
 
     doc.extracted_data = body.extracted_data
     doc.label = body.label
@@ -276,7 +298,7 @@ def delete_document(
     try:
         uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(400, "Invalid document_id")
+        raise HTTPException(400, "invalid document_id")
 
     doc = db.query(Document).filter(
         Document.id == uuid.UUID(document_id),
@@ -284,7 +306,7 @@ def delete_document(
     ).first()
 
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(404, "document not found")
 
     # Clean up B2 storage — best-effort, don't fail delete if B2 is down
     if doc.s3_key:
@@ -327,17 +349,17 @@ async def convert_pdf_to_images(
         else:
             # For file:// URIs, we can't access them from backend
             # Client should send base64 content instead
-            raise HTTPException(400, "Please send PDF as base64-encoded data URI")
+            raise HTTPException(400, "please send pdf as base64-encoded data uri")
         
         # Open PDF with PyMuPDF
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
         page_count = len(pdf_document)
         
         if page_count == 0:
-            raise HTTPException(400, "PDF has no pages")
+            raise HTTPException(400, "pdf has no pages")
         
         if page_count > 200:  # Reasonable limit
-            raise HTTPException(400, f"PDF has too many pages ({page_count}). Maximum 200 pages allowed.")
+            raise HTTPException(400, f"pdf has too many pages ({page_count}). maximum 200 pages allowed.")
         
         images = []
         
@@ -372,11 +394,13 @@ async def convert_pdf_to_images(
         raise
     except Exception as e:
         logger.error(f"PDF conversion failed: {str(e)}")
-        raise HTTPException(500, f"Failed to convert PDF: {str(e)}")
+        raise HTTPException(500, f"failed to convert pdf: {str(e)}")
 
 
 @router.post("/{document_id}/summarize", response_model=AISummaryResponse)
+@limiter.limit("10/minute")
 async def summarize_document(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -384,7 +408,7 @@ async def summarize_document(
     try:
         uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(400, "Invalid document_id")
+        raise HTTPException(400, "invalid document_id")
 
     doc = db.query(Document).filter(
         Document.id == uuid.UUID(document_id),
@@ -392,7 +416,7 @@ async def summarize_document(
     ).first()
 
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(404, "document not found")
 
     if doc.ai_summary:
         try:
@@ -403,7 +427,7 @@ async def summarize_document(
             pass
 
     if not doc.extracted_data:
-        raise HTTPException(400, "Document not yet processed")
+        raise HTTPException(400, "document not yet processed")
 
     system_prompt = (
         "You are a friendly health assistant explaining a medical document to a patient in plain English.\n"
@@ -460,4 +484,4 @@ async def summarize_document(
 
     except Exception as e:
         logger.error(f"AI summarization failed for doc {document_id}: {e}")
-        raise HTTPException(503, "AI service temporarily unavailable")
+        raise HTTPException(503, "ai service temporarily unavailable")

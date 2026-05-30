@@ -30,7 +30,9 @@ function calculateAge(dob?: string): string {
 export default function ProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user) ?? EMPTY_USER;
-  const { activeProfile, familyMembers, setActiveProfile } = useProfileStore();
+  const activeProfile = useProfileStore((s) => s.activeProfile);
+  const familyMembers = useProfileStore((s) => s.familyMembers);
+  const setActiveProfile = useProfileStore((s) => s.setActiveProfile);
   const [isReady, setIsReady] = useState(false);
 
   // TODO: Replace localStorage/store-based sanarch_id with auth-injected ID in Sprint 9

@@ -145,8 +145,11 @@ export default function SanarchIdCard({
       // Try to get SVG data from the QRCode component
       if (qrRef.current) {
         qrRef.current.toDataURL(async (dataUrl: string) => {
+          // @ts-ignore: expo-file-system types missing cacheDirectory in this local setup
           const fileUri = `${FileSystem.cacheDirectory}SANARCH-QR-${sanarchId}.png`;
+          // @ts-ignore: expo-file-system types missing writeAsStringAsync
           await FileSystem.writeAsStringAsync(fileUri, dataUrl, {
+            // @ts-ignore: expo-file-system types missing EncodingType
             encoding: FileSystem.EncodingType.Base64,
           });
           await Sharing.shareAsync(fileUri, {
@@ -156,8 +159,11 @@ export default function SanarchIdCard({
         });
       } else if (qrBase64) {
         // Fallback to the base64 from API
+        // @ts-ignore: expo-file-system types missing cacheDirectory in this local setup
         const fileUri = `${FileSystem.cacheDirectory}SANARCH-QR-${sanarchId}.png`;
+        // @ts-ignore: expo-file-system types missing writeAsStringAsync
         await FileSystem.writeAsStringAsync(fileUri, qrBase64, {
+          // @ts-ignore: expo-file-system types missing EncodingType
           encoding: FileSystem.EncodingType.Base64,
         });
         await Sharing.shareAsync(fileUri, {

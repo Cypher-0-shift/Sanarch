@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, JSON, Date
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 import uuid
+from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base
 
@@ -18,3 +18,5 @@ class MedicalEvent(Base):
     lab_values = Column(JSON) # list of dicts
     summary = Column(String)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    document = relationship("Document", foreign_keys=[document_id])

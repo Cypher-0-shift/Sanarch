@@ -139,6 +139,7 @@ export default function LoginScreen() {
         sanarch_id: 'SANARCH-DEV-123',
         full_name: 'Developer User',
         phone_number: '+919999999999',
+        email: 'dev@sanarch.io',
         role: 'user',
         created_at: new Date().toISOString(),
       };

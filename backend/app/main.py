@@ -1,6 +1,5 @@
 # app/main.py
 import uuid
-import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,10 +7,11 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
 from app.logging_config import setup_logging, logger
 from app.database import check_db_connection
-from app.routers import documents, auth, users, timeline, sharing, search, patients, profiles
+from app.routers import documents, auth, users, timeline, sharing, search, patients, profiles, doctor_view
 
 setup_logging("DEBUG" if settings.environment == "development" else "INFO")
 
@@ -19,11 +19,34 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
     logger.info(f"Starting Sanarch API — environment: {settings.environment}")
+    
+    # DB check
     if not check_db_connection():
         logger.error("FATAL: Cannot connect to database on startup")
+        # In production, fail fast
+        if settings.environment == "production":
+            raise RuntimeError("Database unavailable on startup")
+    
+    # Redis check
+    try:
+        import redis
+        r = redis.from_url(settings.redis_url)
+        r.ping()
+        logger.info("Redis: connected")
+    except Exception as e:
+        logger.warning(f"Redis unavailable on startup: {e}")
+    
+    logger.info("Sanarch API ready")
     yield
-    logger.info("Sanarch API shutting down")
+    
+    # Shutdown
+    logger.info("Sanarch API shutting down gracefully")
+    # Close DB connection pool
+    from app.database import engine
+    engine.dispose()
+    logger.info("Database connection pool closed")
 
 app = FastAPI(
     title="Sanarch API",
@@ -44,6 +67,23 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=()"
+        # Only add HSTS in production
+        if "production" in str(request.url):
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Request ID middleware
 @app.middleware("http")
@@ -76,7 +116,6 @@ app.include_router(timeline.router)
 app.include_router(sharing.router)
 app.include_router(search.router)
 app.include_router(profiles.router)
-from app.routers import doctor_view
 app.include_router(doctor_view.router)
 
 @app.get("/health", tags=["health"])

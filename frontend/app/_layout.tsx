@@ -46,9 +46,24 @@ const theme = vars({
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,      // 5 minutes
+      gcTime: 10 * 60 * 1000,        // 10 minutes memory
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 import { CustomAlert } from '../components/ui/CustomAlert';
+import { ErrorBoundary } from '../components/shared/ErrorBoundary';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -59,7 +74,7 @@ export default function RootLayout() {
   });
 
   const [authChecked, setAuthChecked] = useState(false);
-  const { login } = useAuthStore();
+  const login = useAuthStore((s) => s.login);
 
   // Setup Firebase token auto-refresh and hydrate user profile
   useEffect(() => {
@@ -144,29 +159,31 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
         <View style={theme} className="flex-1">
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'slide_from_right',
-              animationDuration: 220,
-              gestureEnabled: true,
-              gestureDirection: 'horizontal',
-              contentStyle: { backgroundColor: '#F5F3F0' },
-            }}
-          >
-            <Stack.Screen
-              name="index"
-              options={{ animation: 'fade', animationDuration: 200 }}
-            />
-            <Stack.Screen
-              name="auth"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="(tabs)"
-              options={{ animation: 'fade', animationDuration: 200 }}
-            />
-          </Stack>
+          <ErrorBoundary>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+                animationDuration: 220,
+                gestureEnabled: true,
+                gestureDirection: 'horizontal',
+                contentStyle: { backgroundColor: '#F5F3F0' },
+              }}
+            >
+              <Stack.Screen
+                name="index"
+                options={{ animation: 'fade', animationDuration: 200 }}
+              />
+              <Stack.Screen
+                name="auth"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="(tabs)"
+                options={{ animation: 'fade', animationDuration: 200 }}
+              />
+            </Stack>
+          </ErrorBoundary>
           <CustomAlert />
         </View>
       </QueryClientProvider>

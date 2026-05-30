@@ -1,7 +1,7 @@
 # app/routers/search.py
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, cast, String
+from sqlalchemy import or_
 from app.database import get_db
 from app.models.user import User
 from app.models.document import Document, DocumentStatus
@@ -11,7 +11,6 @@ from app.logging_config import logger
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -25,12 +24,13 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     results: List[SearchResult]
+    items: List[SearchResult]
     total: int
     query: str
 
 @router.get("/", response_model=SearchResponse)
 def search_records(
-    q: str = Query(..., min_length=2, max_length=100),
+    q: str = Query(..., min_length=3, max_length=100),
     limit: int = Query(default=20, le=50),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -40,6 +40,9 @@ def search_records(
     Searches: filename, label, hospital name, doctor name, diagnosis summary.
     """
     q = q.strip()
+    if len(q) < 3:
+        return SearchResponse(results=[], items=[], total=0, query=q)
+
     search_term = f"%{q}%"
     results = []
 
@@ -89,4 +92,4 @@ def search_records(
             ))
 
     logger.info(f"Search '{q}' returned {len(results)} results for user {current_user.id}")
-    return SearchResponse(results=results, total=len(results), query=q)
+    return SearchResponse(results=results, items=results, total=len(results), query=q)
