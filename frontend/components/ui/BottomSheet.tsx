@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sheet: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     paddingBottom: 34, // safe area
@@ -82,12 +82,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#CBD5E1',
+    backgroundColor: '#E5E2DE',
   },
   title: {
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
-    color: COLORS.slate900,
+    color: '#2D3A2F',
     paddingHorizontal: 24,
     paddingBottom: 12,
   },

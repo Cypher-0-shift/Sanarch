@@ -18,68 +18,85 @@ export interface MedicalEvent {
   documents: DocumentItem[];
 }
 
-export const MOCK_USER = {
-  id: 'usr_001',
-  sanarch_id: 'SAN-847291',
-  full_name: 'Alex Johnson',
-  phone: '+91 98765 43210',
-  email: 'alex.j@sanarch.io',
-  address: '124 Green Valley, Tech Park, Bangalore',
-} as const;
+export type MockUser = {
+  id: string;
+  sanarch_id: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  address: string;
+};
 
-export type MockUser = typeof MOCK_USER;
-
-export const MOCK_MEDICAL_EVENTS: MedicalEvent[] = [
+export const MOCK_RECORDS: MedicalEvent[] = [
   {
-    id: 'evt_001',
-    condition: 'Blood Test - CBC',
-    date_start: '2026-01-15',
+    id: 'rec-001',
+    condition: 'Complete Blood Count (CBC)',
+    date_start: '2025-11-14T00:00:00.000Z',
     date_end: null,
-    hospital: 'City General Hospital',
-    doctor: 'Dr. Rajesh Kapoor',
-    document_count: 1,
+    hospital: 'City Diagnostic Lab',
+    doctor: 'Dr. Emily Stone',
+    document_count: 2,
     label: 'lab_report',
     documents: [
-      { id: 'doc_001', type: 'pdf', label: 'CBC Full Report' },
+      { id: 'doc-001a', type: 'pdf', label: 'CBC Report' },
+      { id: 'doc-001b', type: 'image', label: 'Lab Receipt' },
     ],
   },
   {
-    id: 'evt_002',
-    condition: 'MRI Scan - Brain',
-    date_start: '2025-12-20',
+    id: 'rec-002',
+    condition: 'Prescription — Amoxicillin 500mg, Paracetamol 650mg',
+    date_start: '2025-11-10T00:00:00.000Z',
     date_end: null,
-    hospital: 'Neurological Center',
-    doctor: 'Dr. Meena Iyer',
-    document_count: 1,
-    label: 'scan',
-    documents: [
-      { id: 'doc_002', type: 'dicom', label: 'Brain MRI Scan' },
-    ],
-  },
-  {
-    id: 'evt_003',
-    condition: 'Post-Op Prescription',
-    date_start: '2025-12-10',
-    date_end: '2025-12-24',
-    hospital: 'Apollo Hospitals',
-    doctor: 'Dr. Sarah Williams',
+    hospital: 'Apollo Clinic, Chennai',
+    doctor: 'Dr. Rajan Iyer',
     document_count: 1,
     label: 'prescription',
     documents: [
-      { id: 'doc_003', type: 'pdf', label: 'Post-Operative Medication' },
+      { id: 'doc-002a', type: 'image', label: 'Prescription Sheet' },
     ],
   },
   {
-    id: 'evt_004',
-    condition: 'Chest X-Ray',
-    date_start: '2025-11-05',
+    id: 'rec-003',
+    condition: 'Chest X-Ray — PA View',
+    date_start: '2025-10-22T00:00:00.000Z',
     date_end: null,
-    hospital: 'Wellness Clinic',
-    doctor: 'Dr. Arjun Nair',
-    document_count: 1,
+    hospital: 'Fortis Radiology Centre',
+    doctor: 'Dr. Priya Nair',
+    document_count: 3,
     label: 'scan',
     documents: [
-      { id: 'doc_004', type: 'image', label: 'Chest X-Ray Film' },
+      { id: 'doc-003a', type: 'image', label: 'X-Ray Image' },
+      { id: 'doc-003b', type: 'pdf', label: 'Radiologist Report' },
+      { id: 'doc-003c', type: 'image', label: 'Referral Letter' },
+    ],
+  },
+  {
+    id: 'rec-004',
+    condition: 'Discharge Summary — Appendectomy',
+    date_start: '2025-09-05T00:00:00.000Z',
+    date_end: '2025-09-08T00:00:00.000Z',
+    hospital: 'Kauvery Hospital, Chennai',
+    doctor: 'Dr. Suresh Kumar',
+    document_count: 4,
+    label: 'hospital_summary',
+    documents: [
+      { id: 'doc-004a', type: 'pdf', label: 'Discharge Summary' },
+      { id: 'doc-004b', type: 'pdf', label: 'Operative Notes' },
+      { id: 'doc-004c', type: 'image', label: 'Wound Photo' },
+      { id: 'doc-004d', type: 'pdf', label: 'Medications at Discharge' },
+    ],
+  },
+  {
+    id: 'rec-005',
+    condition: 'Lipid Profile — Cholesterol, LDL, HDL, Triglycerides',
+    date_start: '2025-08-18T00:00:00.000Z',
+    date_end: null,
+    hospital: 'SRL Diagnostics',
+    doctor: 'Dr. Meena Krishnan',
+    document_count: 1,
+    label: 'lab_report',
+    documents: [
+      { id: 'doc-005a', type: 'pdf', label: 'Lipid Panel Report' },
     ],
   },
 ];

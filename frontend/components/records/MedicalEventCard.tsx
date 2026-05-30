@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import type { MedicalEventLabel } from '../../constants/mock';
 
 interface MedicalEventCardProps {
@@ -13,208 +12,122 @@ interface MedicalEventCardProps {
   doctor?: string;
   document_count: number;
   label: MedicalEventLabel;
+  hasAbnormalities?: boolean;
   onPress: () => void;
 }
 
 const LABEL_CONFIG: Record<
   MedicalEventLabel,
-  {
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-    color: string;
-    bg: string;
-    text: string;
-  }
+  { icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; bg: string; text: string }
 > = {
   lab_report: {
-    icon: 'water',
-    color: '#2563EB',
-    bg: '#DBEAFE',
-    text: 'Lab Report',
+    icon: 'file-document-outline',
+    color: '#004D36',
+    bg: '#E8F5E9',
+    text: 'REPORT',
   },
   prescription: {
     icon: 'pill',
-    color: '#7C3AED',
-    bg: '#EDE9FE',
-    text: 'Prescription',
+    color: '#E65100',
+    bg: '#FFF3E0',
+    text: 'MEDS',
   },
   hospital_summary: {
     icon: 'hospital-building',
-    color: '#166534',
-    bg: '#DCFCE7',
-    text: 'Hospital Summary',
+    color: '#0277BD',
+    bg: '#E3F2FD',
+    text: 'SUMMARY',
   },
   scan: {
     icon: 'radiology-box',
-    color: '#475569',
-    bg: '#F1F5F9',
-    text: 'Scan',
+    color: '#7B1FA2',
+    bg: '#F3E5F5',
+    text: 'IMAGING',
   },
 };
 
-const formatDateRange = (start: string, end?: string): string => {
-  const fmt = (d: string) => {
-    const date = new Date(d);
-    return date.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-  if (end) return `${fmt(start)} — ${fmt(end)}`;
-  return fmt(start);
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
 };
 
 const MedicalEventCard: React.FC<MedicalEventCardProps> = ({
   condition,
   date_start,
-  date_end,
   hospital,
   doctor,
-  document_count,
   label,
+  hasAbnormalities,
   onPress,
 }) => {
-  const config = LABEL_CONFIG[label];
+  const config = LABEL_CONFIG[label] || LABEL_CONFIG.lab_report;
 
   return (
-    <TouchableOpacity
-      style={styles.card}
+    <Pressable
+      className="bg-white rounded-[24px] p-5 mb-4 shadow-sm border border-[#E5E2DE]"
+      style={({ pressed }) => pressed ? { transform: [{ scale: 0.98 }], opacity: 0.95 } : {}}
       onPress={onPress}
-      activeOpacity={0.7}
     >
-      {/* Row 1: Icon + Condition + Chevron */}
-      <View style={styles.row}>
-        <View style={[styles.iconBox, { backgroundColor: config.bg }]}>
-          <MaterialCommunityIcons
-            name={config.icon}
-            size={20}
-            color={config.color}
-          />
+      <View className="flex-row gap-4">
+        {/* Left Icon Block */}
+        <View 
+          className="w-12 h-12 rounded-2xl items-center justify-center shrink-0"
+          style={{ backgroundColor: config.bg }}
+        >
+          <MaterialCommunityIcons name={config.icon} size={24} color={config.color} />
         </View>
-        <Text style={styles.condition} numberOfLines={1}>
-          {condition}
-        </Text>
-        <MaterialCommunityIcons
-          name="chevron-right"
-          size={20}
-          color={COLORS.slate400}
-        />
-      </View>
 
-      {/* Row 2: Date range */}
-      <View style={styles.metaRow}>
-        <MaterialCommunityIcons
-          name="calendar-outline"
-          size={14}
-          color={COLORS.slate500}
-        />
-        <Text style={styles.metaText}>
-          {formatDateRange(date_start, date_end)}
-        </Text>
-      </View>
-
-      {/* Row 3: Hospital */}
-      <View style={styles.metaRow}>
-        <MaterialCommunityIcons
-          name="map-marker-outline"
-          size={14}
-          color={COLORS.slate500}
-        />
-        <Text style={styles.metaText} numberOfLines={1}>
-          {hospital}
-          {doctor ? ` · ${doctor}` : ''}
-        </Text>
-      </View>
-
-      {/* Row 4: Badge pills */}
-      <View style={styles.badgeRow}>
-        <View style={[styles.badge, { backgroundColor: config.bg }]}>
-          <Text style={[styles.badgeText, { color: config.color }]}>
-            {config.text}
+        {/* Right Content Block */}
+        <View className="flex-1 min-w-0">
+          <View className="flex-row justify-between items-start">
+            <Text className="text-base font-display-bold text-[#2D3A2F] flex-1 mr-2" numberOfLines={2} ellipsizeMode="tail">
+              {condition}
+            </Text>
+            <View className="flex-row items-center gap-2">
+              {hasAbnormalities && (
+                <View className="px-2 py-0.5 rounded-md bg-[#FFF8E1] border border-[#FFECB3]">
+                  <Text className="text-[10px] font-display-bold uppercase text-[#F57C00] tracking-wider">
+                    ⚠ Abnormal
+                  </Text>
+                </View>
+              )}
+              <View 
+                className="px-2 py-0.5 rounded-md"
+                style={{ backgroundColor: config.bg }}
+              >
+                <Text className="text-[11px] font-display-bold uppercase" style={{ color: config.color }}>
+                  {config.text}
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          <Text className="text-sm text-[#5C6E60] font-display mt-1 truncate" numberOfLines={1}>
+            {hospital}
           </Text>
-        </View>
-        <View style={styles.badge}>
-          <MaterialCommunityIcons
-            name="file-document-outline"
-            size={12}
-            color={COLORS.slate600}
-          />
-          <Text style={styles.badgeText}>
-            {document_count} {document_count === 1 ? 'doc' : 'docs'}
-          </Text>
+          
+          <View className="flex-row items-center gap-2 mt-3 flex-wrap">
+            <MaterialCommunityIcons name="calendar-blank" size={14} color="#819685" />
+            <Text className="text-[11px] text-[#819685] font-display-medium uppercase tracking-wide">
+              {formatDate(date_start)}
+            </Text>
+            {doctor && (
+              <>
+                <Text className="text-[#E5E2DE]">•</Text>
+                <Text className="text-[11px] text-[#819685] font-display-medium uppercase tracking-wide">
+                  {doctor}
+                </Text>
+              </>
+            )}
+          </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: `${COLORS.primary}0D`, // primary/5
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  condition: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: COLORS.slate900,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    paddingLeft: 52, // align with text after icon box
-  },
-  metaText: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: COLORS.slate500,
-    marginLeft: 6,
-    flex: 1,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 52,
-    marginTop: 6,
-    gap: 8,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    gap: 4,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: COLORS.slate600,
-  },
-});
 
 export default MedicalEventCard;

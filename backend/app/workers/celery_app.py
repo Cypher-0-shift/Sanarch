@@ -1,12 +1,34 @@
-# app/workers/celery_app.py
+import ssl
 from celery import Celery
 from app.config import settings
 from app.logging_config import logger
+import redis as redis_lib
+
+def _verify_redis_on_startup():
+    try:
+        r = redis_lib.from_url(settings.redis_url)
+        r.ping()
+        logger.info("Celery Redis broker: connected")
+    except Exception as e:
+        logger.error(f"Celery Redis broker: UNREACHABLE — {e}")
+        # Do not crash — Celery will retry connections
+
+_verify_redis_on_startup()
+
+broker_use_ssl = None
+redis_backend_use_ssl = None
+
+if settings.redis_url.startswith("rediss://"):
+    ssl_conf = {"ssl_cert_reqs": ssl.CERT_REQUIRED}
+    broker_use_ssl = ssl_conf
+    redis_backend_use_ssl = ssl_conf
 
 celery_app = Celery(
     "sanarch",
     broker=settings.redis_url,
     backend=settings.redis_url,
+    broker_use_ssl=broker_use_ssl,
+    redis_backend_use_ssl=redis_backend_use_ssl,
     include=["app.workers.extraction_task"]
 )
 

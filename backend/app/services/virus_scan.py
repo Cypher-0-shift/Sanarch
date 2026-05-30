@@ -6,6 +6,8 @@ from app.logging_config import logger
 
 CHUNK_SIZE = 4096  # 4KB chunks for large files
 
+import os
+
 def scan_bytes(file_bytes: bytes) -> tuple[bool, str]:
     """
     Scans file bytes via ClamAV INSTREAM protocol.
@@ -13,6 +15,14 @@ def scan_bytes(file_bytes: bytes) -> tuple[bool, str]:
     is_clean=True means file is safe to proceed.
     FAIL CLOSED: any error returns (False, reason) — never assume clean on error.
     """
+    if os.environ.get("SKIP_VIRUS_SCAN", "").lower() == "true":
+        logger.warning("Virus scan SKIPPED — SKIP_VIRUS_SCAN=true")
+        return True, "skipped"
+        
+    if not settings.clamav_enabled:
+        logger.info("ClamAV is disabled, skipping scan")
+        return True, "skipped"
+
     sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

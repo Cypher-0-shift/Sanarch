@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "392359484149",
+    "project_id": "sanarch-27b18",
+    "storage_bucket": "sanarch-27b18.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:392359484149:android:bffa96909496db82db83bc",
+        "android_client_info": {
+          "package_name": "com.sanarch.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBT2zd7OUBdEN8OlY_x6cf5MxiOY0xiag"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

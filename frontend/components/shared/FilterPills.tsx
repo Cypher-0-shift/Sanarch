@@ -23,12 +23,13 @@ export default function FilterPills({ activeFilter, onSelect, filters }: FilterP
           <TouchableOpacity
             key={filter}
             onPress={() => onSelect(filter)}
+            activeOpacity={0.75}
             className={`h-9 px-5 rounded-full items-center justify-center flex-row ${
-              isActive ? 'bg-primary' : 'bg-white border border-primary/10'
+              isActive ? 'bg-[#004D36]' : 'bg-white border border-[#E5E2DE]'
             }`}
           >
             <Text className={`text-sm font-display-medium ${
-              isActive ? 'text-white' : 'text-primary'
+              isActive ? 'text-white' : 'text-[#5C6E60]'
             }`}>
               {filter}
             </Text>

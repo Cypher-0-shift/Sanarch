@@ -53,3 +53,34 @@ export async function clearUserData(): Promise<void> {
     console.error('[Storage] Failed to clear user data:', error);
   }
 }
+
+const RECENT_SEARCHES_KEY = 'sanarch_recent_searches';
+
+export async function getRecentSearches(): Promise<string[]> {
+  try {
+    const data = await SecureStore.getItemAsync(RECENT_SEARCHES_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('[Storage] Failed to get recent searches:', error);
+    return [];
+  }
+}
+
+export async function saveRecentSearch(query: string): Promise<void> {
+  if (!query.trim() || query.length < 2) return;
+  try {
+    const searches = await getRecentSearches();
+    const newSearches = [query.trim(), ...searches.filter(q => q.toLowerCase() !== query.trim().toLowerCase())].slice(0, 10);
+    await SecureStore.setItemAsync(RECENT_SEARCHES_KEY, JSON.stringify(newSearches));
+  } catch (error) {
+    console.error('[Storage] Failed to save recent search:', error);
+  }
+}
+
+export async function clearRecentSearches(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(RECENT_SEARCHES_KEY);
+  } catch (error) {
+    console.error('[Storage] Failed to clear recent searches:', error);
+  }
+}

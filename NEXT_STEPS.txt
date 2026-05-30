@@ -1,0 +1,135 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                    SANARCH - NEXT STEPS TO RUN THE APP                      ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+You have TWO OPTIONS:
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  OPTION 1: Use Production Backend (RECOMMENDED - FASTEST)                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Your frontend is already configured to use production backend:
+  https://api.sanarch.in/v1
+
+You DON'T need to run Docker or start the backend locally!
+
+STEPS:
+
+1. Start Android Emulator
+   ────────────────────────────────────────────────────────────────────────────
+   
+   a) Open Android Studio
+   b) Click "Device Manager" icon (phone icon on right toolbar)
+   c) Click ▶️ Play button next to any emulator
+   d) Wait for emulator to fully boot (you'll see Android home screen)
+   
+   Verify it's running:
+     adb devices
+   
+   You should see a device listed.
+
+
+2. Build and Run Frontend
+   ────────────────────────────────────────────────────────────────────────────
+   
+   Open a NEW terminal (not the Docker one) and run:
+   
+     cd frontend
+     npx expo run:android
+   
+   This will:
+     • Build the app with Firebase support (5-10 minutes first time)
+     • Install on your emulator
+     • Start Metro bundler
+     • Open the app automatically
+   
+   The app will connect to the production backend automatically!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  OPTION 2: Fix Docker Backend (If you need local backend)                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+The Docker build is failing due to network timeout downloading Python packages.
+
+FIXES:
+
+Fix 1: Retry the build (network might be slow)
+   ────────────────────────────────────────────────────────────────────────────
+   
+   cd backend
+   docker-compose down
+   docker-compose up --build
+   
+   Sometimes it just needs a retry.
+
+
+Fix 2: Increase Docker timeout
+   ────────────────────────────────────────────────────────────────────────────
+   
+   Add this to backend/Dockerfile and backend/Dockerfile.worker:
+   
+   Before the line: RUN pip install --no-cache-dir -r requirements.txt
+   Add: ENV PIP_DEFAULT_TIMEOUT=300
+   
+   This increases timeout from 60s to 300s.
+
+
+Fix 3: Use local backend without Docker
+   ────────────────────────────────────────────────────────────────────────────
+   
+   cd backend
+   
+   # Activate virtual environment
+   .\venv\Scripts\activate
+   
+   # Install dependencies
+   pip install -r requirements.txt
+   
+   # Run migrations
+   alembic upgrade head
+   
+   # Start backend
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   
+   Then update frontend/.env:
+     EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                    RECOMMENDED: USE OPTION 1                                 ║
+║                                                                              ║
+║  1. Close the Docker terminal (Ctrl+C)                                       ║
+║  2. Start Android emulator from Android Studio                               ║
+║  3. Run: cd frontend && npx expo run:android                                 ║
+║  4. Wait 5-10 minutes for build                                              ║
+║  5. App opens with production backend!                                       ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+TROUBLESHOOTING:
+
+"I don't have Android Studio"
+  → Download from: https://developer.android.com/studio
+  → Install with default settings
+  → Open it and let it download Android SDK
+
+"adb devices shows no devices"
+  → Make sure emulator is fully booted (you see Android home screen)
+  → Try: adb kill-server && adb start-server
+  → Then: adb devices
+
+"Build fails"
+  → Delete node_modules: rmdir /s /q frontend\node_modules
+  → Reinstall: cd frontend && npm install
+  → Try again: npx expo run:android
+
+"Still getting Firebase error"
+  → Make sure you're NOT using Expo Go
+  → You MUST run: npx expo run:android (builds native app)
+  → NOT: npx expo start (uses Expo Go)
+

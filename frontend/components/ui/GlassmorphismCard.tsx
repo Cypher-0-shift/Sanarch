@@ -56,7 +56,7 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
               <MaterialCommunityIcons
                 name="camera-outline"
                 size={24}
-                color={COLORS.primary}
+                color={'#004D36'}
               />
             </View>
             <View style={styles.textContainer}>
@@ -80,7 +80,7 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
               <MaterialCommunityIcons
                 name="file-upload-outline"
                 size={24}
-                color={COLORS.primary}
+                color={'#004D36'}
               />
             </View>
             <View style={styles.textContainer}>
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
-    backgroundColor: `${COLORS.primary}15`,
+    backgroundColor: 'rgba(0,77,54,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.md,
@@ -140,17 +140,17 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
-    color: COLORS.slate900,
+    color: '#2D3A2F',
     marginBottom: 2,
   },
   rowSubtitle: {
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
-    color: COLORS.slate500,
+    color: '#5C6E60',
   },
   divider: {
-    height: 1,
-    backgroundColor: 'rgba(241, 245, 249, 0.4)',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#000000',
     marginVertical: 4,
   },
 });

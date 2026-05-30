@@ -1,0 +1,147 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║              🚀 SANARCH - QUICK START GUIDE 🚀              ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────┐
+│  STEP 1: CHECK YOUR SETUP                                    │
+└──────────────────────────────────────────────────────────────┘
+
+   Double-click: check-setup.bat
+
+   This will verify:
+   ✓ Python installed
+   ✓ Node.js installed
+   ✓ Docker installed
+   ✓ Environment files configured
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  STEP 2: START THE APP                                       │
+└──────────────────────────────────────────────────────────────┘
+
+   Double-click: start-all.bat
+
+   This will:
+   ✓ Start backend (Docker containers)
+   ✓ Start frontend (Expo Metro)
+   ✓ Open in 2 separate windows
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  STEP 3: OPEN ON YOUR DEVICE                                 │
+└──────────────────────────────────────────────────────────────┘
+
+   In the Metro bundler window:
+   
+   Press 'a' → Open on Android emulator
+   Press 'i' → Open on iOS simulator (Mac only)
+   
+   OR scan QR code with Expo Go app on your phone
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  IMPORTANT: FIRST TIME SETUP                                 │
+└──────────────────────────────────────────────────────────────┘
+
+   1. Configure frontend/.env:
+      
+      For Android Emulator:
+      EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
+      
+      For Physical Device:
+      EXPO_PUBLIC_API_URL=http://YOUR_IP:8000
+      
+      Find your IP: Run 'ipconfig' in terminal
+
+   2. Enable Firebase Phone Auth:
+      - Go to Firebase Console
+      - Authentication → Sign-in method
+      - Enable Phone provider
+
+   3. Build for Android (Firebase requires dev build):
+      cd frontend
+      npx expo run:android
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  QUICK COMMANDS                                              │
+└──────────────────────────────────────────────────────────────┘
+
+   Start Backend Only:    start-backend.bat
+   Start Frontend Only:   start-frontend.bat
+   Start Everything:      start-all.bat
+   Check Setup:           check-setup.bat
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  TROUBLESHOOTING                                             │
+└──────────────────────────────────────────────────────────────┘
+
+   Backend not responding?
+   → Check: http://localhost:8000/health
+   → Run: cd backend && docker-compose restart
+
+   Frontend can't connect?
+   → Check EXPO_PUBLIC_API_URL in frontend/.env
+   → Use 10.0.2.2 for emulator, your IP for device
+
+   Firebase errors?
+   → Ensure google-services.json is in android/app/
+   → Run: npx expo run:android (not expo start)
+
+   Clear cache:
+   → cd frontend && npx expo start --clear
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  SERVICE URLS                                                │
+└──────────────────────────────────────────────────────────────┘
+
+   Backend API:       http://localhost:8000
+   API Docs:          http://localhost:8000/docs
+   Health Check:      http://localhost:8000/health
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  USING THE APP                                               │
+└──────────────────────────────────────────────────────────────┘
+
+   Dev Mode Login (No Firebase):
+   1. Open app
+   2. Tap "Dev Mode" button
+   3. Instant access!
+
+   Real Firebase Login:
+   1. Enter phone: +919876543210
+   2. Tap "Send OTP"
+   3. Enter 6-digit code
+   4. Complete onboarding
+
+   Features:
+   ✓ Upload documents (photo/PDF)
+   ✓ AI extracts medical data
+   ✓ View timeline
+   ✓ Search records
+   ✓ Generate QR for doctors
+   ✓ Add family members
+   ✓ Edit profile
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  NEED MORE HELP?                                             │
+└──────────────────────────────────────────────────────────────┘
+
+   Read detailed guides:
+   → START_APP.md (comprehensive instructions)
+   → README_STARTUP.md (quick reference)
+
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║                  🎉 YOU'RE READY TO GO! 🎉                  ║
+║                                                              ║
+║              Run: start-all.bat to begin                     ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝

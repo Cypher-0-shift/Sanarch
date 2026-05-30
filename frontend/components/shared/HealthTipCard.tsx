@@ -34,6 +34,7 @@ export default function HealthTipCard() {
       <TouchableOpacity 
         className="bg-white px-4 py-2 rounded-lg self-start z-10"
         onPress={() => Alert.alert('Coming Soon', 'Full health article is not available yet.')}
+        activeOpacity={0.75}
       >
         <Text className="text-primary text-sm font-display-bold">Read More</Text>
       </TouchableOpacity>

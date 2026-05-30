@@ -25,6 +25,7 @@ class Document(Base):
     label = Column(String)                # Lab Report, Prescription, etc.
     status = Column(Enum(DocumentStatus), default=DocumentStatus.uploading)
     extracted_data = Column(JSON)         # structured NER output
+    ai_summary = Column(String, nullable=True)  # Magic summary
     page_count = Column(String)
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     owner = relationship("User", back_populates="documents")

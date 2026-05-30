@@ -40,12 +40,13 @@ export default function RecordCardFull({ id, title, subtitle, icon, previewImage
         <TouchableOpacity 
           className="flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-primary/5 py-2 h-9"
           onPress={() => router.push(`/(tabs)/records/${id}`)}
+          activeOpacity={0.75}
         >
           <MaterialCommunityIcons name="eye-outline" size={16} color="#143832" />
           <Text className="text-sm font-display-semibold text-primary">View</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity className="h-9 w-9 rounded-lg bg-primary/5 items-center justify-center">
+        <TouchableOpacity className="h-9 w-9 rounded-lg bg-primary/5 items-center justify-center" activeOpacity={0.75}>
           <MaterialCommunityIcons name="download" size={18} color="#143832" />
         </TouchableOpacity>
       </View>

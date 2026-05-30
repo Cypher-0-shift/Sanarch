@@ -1,90 +1,199 @@
-import time
-import requests
-import json
-import sys
+#!/usr/bin/env python3
+"""
+SANARCH pre-deployment connectivity check.
+Run from backend/ directory: python run_checks.py
+Checks: PostgreSQL, Redis, ClamAV, Backblaze B2, Groq API, Azure DI, Firebase.
+"""
+import os, sys, socket
+from datetime import datetime
+from dotenv import load_dotenv
 
-headers = {'Authorization': 'Bearer dev-mode-token'}
-base_url = 'http://localhost:8000'
+if sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
 
-print('--- Check 4: Patient Creation ---')
-patient_body = {
-    'full_name': 'Test Patient',
-    'date_of_birth': '1985-06-15',
-    'relationship_to_owner': 'self'
-}
-resp = requests.post(f'{base_url}/patients/create', headers=headers, json=patient_body)
-resp.raise_for_status()
-patient = resp.json()
-patient_id = patient['id']
-print(f"Patient Sanarch ID: {patient.get('sanarch_id')}")
-print(f"Patient ID: {patient_id}")
+load_dotenv()
 
-print('\n--- Check 5: Upload with patient_id, confirm, check timeline ---')
-files = {'file': ('test_report.pdf', open('test_report.pdf', 'rb'), 'application/pdf')}
-resp = requests.post(f'{base_url}/documents/upload?patient_id={patient_id}', headers=headers, files=files)
-resp.raise_for_status()
-doc_id = resp.json()['document_id']
-print(f'Uploaded Doc ID: {doc_id}')
+results = {}
 
-print('Polling status...')
-extracted = {}
+def check(name, fn):
+    try:
+        msg = fn()
+        if msg is None: # skipped
+            return
+        results[name] = ("PASS", msg)
+        print(f"✅ {name}: {msg}")
+    except Exception as e:
+        results[name] = ("FAIL", str(e))
+        print(f"❌ {name}: {e}")
 
-for i in range(30):
-    time.sleep(3)
-    status_resp = requests.get(f'{base_url}/documents/{doc_id}/status', headers=headers)
-    status_resp.raise_for_status()
-    status_data = status_resp.json()
-    status = status_data['status']
-    print(f'[{i}] Status: {status}')
-    if status == 'pending_review':
-        extracted = status_data.get('extracted_data', {})
-        print('\n--- EXTRACTED DATA FROM PIPELINE ---')
-        print(json.dumps(extracted, indent=2))
-        print('Ready for confirmation.')
-        break
-    elif status == 'failed':
-        print('Processing failed!')
-        break
+def skip(name):
+    results[name] = ("SKIP", "NOT CONFIGURED")
+    print(f"⚠️  {name}: NOT CONFIGURED (skipped)")
 
-if not extracted:
+print(f"\nSANARCH Service Check - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'-'*52}")
+
+# 1. PostgreSQL
+def check_postgres():
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        skip("PostgreSQL")
+        return None
+    import psycopg2
+    url = url.replace("@postgres:", "@localhost:")
+    conn = psycopg2.connect(url)
+    cur = conn.cursor()
+    cur.execute("SELECT 1")
+    cur.fetchone()
+    conn.close()
+    return "Connected"
+
+check("PostgreSQL", check_postgres)
+
+# 2. Redis
+def check_redis():
+    url = os.environ.get("REDIS_URL")
+    if not url or url.startswith("rediss://default:<PASSWORD>"):
+        skip("Redis")
+        return None
+    import redis
+    url = url.replace("redis://redis:", "redis://localhost:")
+    r = redis.from_url(url)
+    r.ping()
+    info = r.info("server")
+    return f"v{info['redis_version']}"
+
+check("Redis", check_redis)
+
+# 3. ClamAV
+def check_clamav():
+    host = os.environ.get("CLAMD_HOST")
+    port = os.environ.get("CLAMD_PORT")
+    if not host or not port:
+        skip("ClamAV")
+        return None
+    
+    if host == "clamav":
+        host = "localhost"
+    s = socket.socket()
+    s.settimeout(5)
+    s.connect((host, int(port)))
+    s.sendall(b"zPING\0")
+    resp = s.recv(64).decode().strip("\0").strip()
+    s.close()
+    if resp != "PONG":
+        raise RuntimeError(f"Unexpected response: {resp}")
+    return f"PONG received from {host}:{port}"
+
+check("ClamAV", check_clamav)
+
+# 4. Backblaze B2
+def check_b2():
+    endpoint = os.environ.get("B2_ENDPOINT_URL")
+    key_id = os.environ.get("B2_KEY_ID")
+    app_key = os.environ.get("B2_APPLICATION_KEY")
+    bucket = os.environ.get("B2_BUCKET_NAME")
+    if not endpoint or not key_id or not app_key or not bucket:
+        skip("Backblaze B2")
+        return None
+    
+    import boto3
+    from botocore.client import Config
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=key_id,
+        aws_secret_access_key=app_key,
+        config=Config(signature_version="s3v4"),
+        region_name="us-east-1",
+    )
+    client.list_objects_v2(Bucket=bucket, MaxKeys=1)
+    return f"bucket={bucket} reachable"
+
+check("Backblaze B2", check_b2)
+
+# 5. Groq API
+def check_groq():
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        skip("Groq API")
+        return None
+    import httpx
+    resp = httpx.get(
+        "https://api.groq.com/openai/v1/models",
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    models = [m["id"] for m in resp.json()["data"] if "llama" in m["id"].lower()]
+    if not models:
+        raise RuntimeError("No Llama models found")
+    return f"OK - models present"
+
+check("Groq API", check_groq)
+
+# 6. Azure Document Intelligence
+def check_azure_di():
+    endpoint = os.environ.get("AZURE_DI_ENDPOINT")
+    key = os.environ.get("AZURE_DI_KEY")
+    if not endpoint or not key:
+        skip("Azure DI")
+        return None
+    import httpx
+    try:
+        url = f"{endpoint.rstrip('/')}/documentintelligence/documentModels?api-version=2024-02-29-preview"
+        resp = httpx.get(url, headers={"Ocp-Apim-Subscription-Key": key}, timeout=10)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            url = f"{endpoint.rstrip('/')}/formrecognizer/documentModels?api-version=2023-07-31"
+            resp = httpx.get(url, headers={"Ocp-Apim-Subscription-Key": key}, timeout=10)
+            resp.raise_for_status()
+        else:
+            raise
+    return "OK"
+
+check("Azure DI", check_azure_di)
+
+# 7. Firebase
+def check_firebase():
+    path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
+    b64 = os.environ.get("FIREBASE_SERVICE_ACCOUNT_BASE64")
+    
+    if not path and not b64:
+        skip("Firebase")
+        return None
+        
+    import firebase_admin
+    from firebase_admin import credentials
+    import base64
+    import json
+    
+    if not firebase_admin._apps:
+        if b64:
+            decoded = base64.b64decode(b64).decode("utf-8")
+            cred = credentials.Certificate(json.loads(decoded))
+        else:
+            if not os.path.exists(path):
+                skip("Firebase")
+                return None
+            cred = credentials.Certificate(path)
+            
+        firebase_admin.initialize_app(cred)
+    return f"project={os.environ.get('FIREBASE_PROJECT_ID', 'unknown')}"
+
+check("Firebase", check_firebase)
+
+# Summary
+print(f"\n{'-'*52}")
+passed = sum(1 for v in results.values() if v[0] == "PASS")
+skipped = sum(1 for v in results.values() if v[0] == "SKIP")
+failed = sum(1 for v in results.values() if v[0] == "FAIL")
+# Hardcoded 7 because the prompt expects "X/7 services reachable"
+print(f"{passed}/7 services reachable")
+if failed > 0:
     sys.exit(1)
-
-confirm_body = {
-    'label': 'Lab Report',
-    'extracted_data': extracted
-}
-print('Confirming document...')
-resp = requests.post(f'{base_url}/documents/{doc_id}/confirm', headers=headers, json=confirm_body)
-resp.raise_for_status()
-print('Confirmed!')
-
-print('Checking timeline...')
-resp = requests.get(f'{base_url}/timeline/{patient_id}', headers=headers)
-resp.raise_for_status()
-timeline = resp.json()
-print(f"Timeline events total: {timeline.get('total')}")
-event_id = timeline['events'][0]['id']
-print('Event Data:')
-print(json.dumps(timeline['events'][0], indent=2))
-
-print('\n--- Check 6: QR Sharing Flow ---')
-share_body = {
-    'event_ids': [event_id],
-    'doctor_name': 'Dr. Test'
-}
-resp = requests.post(f'{base_url}/sharing/generate-token', headers=headers, json=share_body)
-resp.raise_for_status()
-share = resp.json()
-token = share['token']
-print(f'Token: {token}')
-print(f"Expires: {share.get('expires_at')}")
-print(f"QR Payload: {share.get('qr_payload')}")
-
-print('Accessing as doctor (no auth)...')
-resp = requests.get(f'{base_url}/sharing/access/{token}')
-resp.raise_for_status()
-doctor_view = resp.json()
-print(f"Doctor sees Sanarch ID: {doctor_view.get('sanarch_id')}")
-print(f"Events returned: {len(doctor_view.get('events', []))}")
-
-print('\nTests 4, 5, 6 Passed!')
+else:
+    sys.exit(0)

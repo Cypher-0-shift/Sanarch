@@ -39,7 +39,7 @@ const Button: React.FC<ButtonProps> = ({
   ].filter(Boolean) as ViewStyle[];
 
   const textColor =
-    variant === 'primary' ? COLORS.white : COLORS.primary;
+    variant === 'primary' ? '#FFFFFF' : '#004D36';
 
   const textStyle: TextStyle[] = [
     styles.text,
@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   primaryContainer: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#004D36',
   },
   outlineContainer: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: COLORS.primary,
+    borderColor: '#004D36',
   },
   ghostContainer: {
     backgroundColor: 'transparent',

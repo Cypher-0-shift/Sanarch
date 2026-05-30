@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.logging_config import setup_logging, logger
 from app.database import check_db_connection
-from app.routers import documents, auth, users, timeline, sharing, search, patients
+from app.routers import documents, auth, users, timeline, sharing, search, patients, profiles
 
 setup_logging("DEBUG" if settings.environment == "development" else "INFO")
 
@@ -75,6 +75,9 @@ app.include_router(documents.router)
 app.include_router(timeline.router)
 app.include_router(sharing.router)
 app.include_router(search.router)
+app.include_router(profiles.router)
+from app.routers import doctor_view
+app.include_router(doctor_view.router)
 
 @app.get("/health", tags=["health"])
 async def health():
@@ -84,3 +87,45 @@ async def health():
         "database": "connected" if db_ok else "disconnected",
         "environment": settings.environment,
     }
+
+@app.get("/ready", tags=["health"])
+def readiness_check():
+    checks = {}
+
+    # DB
+    checks["database"] = "ok" if check_db_connection() else "fail"
+
+    # Redis
+    try:
+        import redis
+        r = redis.from_url(settings.redis_url)
+        r.ping()
+        checks["redis"] = "ok"
+    except Exception:
+        checks["redis"] = "fail"
+
+    # ClamAV
+    try:
+        import socket
+        s = socket.socket()
+        s.settimeout(3)
+        s.connect((settings.clamd_host, settings.clamd_port))
+        s.sendall(b"zPING\0")
+        resp = s.recv(64).decode().strip("\0").strip()
+        s.close()
+        checks["clamav"] = "ok" if resp == "PONG" else "degraded"
+    except Exception:
+        checks["clamav"] = "degraded"  # non-fatal — app can run without it
+
+    all_critical_ok = (
+        checks["database"] == "ok" and
+        checks["redis"] == "ok"
+    )
+
+    return JSONResponse(
+        status_code=200 if all_critical_ok else 503,
+        content={
+            "status": "ready" if all_critical_ok else "not_ready",
+            "checks": checks,
+        }
+    )

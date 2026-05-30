@@ -38,7 +38,7 @@ export default function OTPInput({ length = 4, value, onChange }: OTPInputProps)
           <TextInput
             key={index}
             style={{ width: '22%' }}
-            className="h-14 text-center text-xl font-display-bold rounded-xl border border-slate-200 bg-white text-primary focus:border-primary/50"
+            className="h-14 text-center text-xl font-display-bold rounded-xl border border-[#E5E2DE] bg-white text-[#004D36]"
             keyboardType="number-pad"
             maxLength={1}
             value={value[index] || ''}

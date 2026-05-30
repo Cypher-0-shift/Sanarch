@@ -9,7 +9,8 @@
       "android"
     ],
     "splash": {
-      "backgroundColor": "#143832",
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#004D36",
       "resizeMode": "contain"
     },
     "ios": {
@@ -22,8 +23,9 @@
     },
     "android": {
       "package": "com.sanarch.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#143832"
+        "backgroundColor": "#004D36"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -36,15 +38,19 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#143832"
-        }
-      ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-local-authentication",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ]
   }
 }

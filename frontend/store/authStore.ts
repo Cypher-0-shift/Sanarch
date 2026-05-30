@@ -1,21 +1,21 @@
 import { create } from 'zustand';
-import { MOCK_USER, type MockUser } from '../constants/mock';
+import { EMPTY_USER, type UserPlaceholder } from '../constants/placeholders';
 
 interface AuthState {
-  user: MockUser | null;
+  user: UserPlaceholder;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  setUser: (user: MockUser | null) => void;
+  setUser: (user: UserPlaceholder) => void;
   setToken: (token: string | null) => void;
   setLoading: (loading: boolean) => void;
-  login: (user: MockUser, token: string) => void;
+  login: (user: UserPlaceholder, token: string) => void;
   logout: () => void;
   devLogin: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
+  user: EMPTY_USER,
   token: null,
   isAuthenticated: false,
   isLoading: false,
@@ -30,11 +30,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user, token, isAuthenticated: true, isLoading: false }),
 
   logout: () =>
-    set({ user: null, token: null, isAuthenticated: false, isLoading: false }),
+    set({ user: EMPTY_USER, token: null, isAuthenticated: false, isLoading: false }),
 
   devLogin: () =>
     set({
-      user: MOCK_USER,
+      user: {
+        id: 'dev-usr-001',
+        sanarch_id: 'SAN-DEV01',
+        full_name: 'Developer',
+        phone_number: '+91 00000 00000',
+        email: 'dev@sanarch.io',
+      },
       token: 'dev-mode-token',
       isAuthenticated: true,
       isLoading: false,

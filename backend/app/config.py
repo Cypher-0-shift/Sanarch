@@ -33,12 +33,14 @@ class Settings(BaseSettings):
 
     # Firebase
     firebase_project_id: str
-    firebase_service_account_path: str
+    firebase_service_account_path: str = ""
+    firebase_service_account_base64: Optional[str] = None
 
     # ClamAV
     clamd_host: str = "localhost"
     clamd_port: int = 3310
     clamd_timeout: int = 60  # seconds — NEW
+    clamav_enabled: bool = True
 
     # App
     environment: str = "development"

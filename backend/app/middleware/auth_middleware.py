@@ -16,7 +16,18 @@ def _init_firebase():
     global _firebase_initialized
     if not _firebase_initialized and not firebase_admin._apps:
         try:
-            cred = credentials.Certificate(settings.firebase_service_account_path)
+            import os
+            import base64
+            import json
+            
+            b64 = os.environ.get("FIREBASE_SERVICE_ACCOUNT_B64", "")
+            if b64:
+                json_bytes = base64.b64decode(b64)
+                service_account = json.loads(json_bytes)
+                cred = credentials.Certificate(service_account)
+            else:
+                cred = credentials.Certificate(settings.firebase_service_account_path)
+                
             firebase_admin.initialize_app(cred, {
                 "projectId": settings.firebase_project_id
             })
@@ -52,22 +63,18 @@ def get_current_user(
         raise HTTPException(status_code=404, detail="No users in database for dev mode")
 
     try:
-        decoded_token = firebase_auth.verify_id_token(token, check_revoked=True)
-        firebase_uid = decoded_token["uid"]
-    except firebase_auth.RevokedIdTokenError:
-        raise HTTPException(status_code=401, detail="Token has been revoked")
-    except firebase_auth.ExpiredIdTokenError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except firebase_auth.InvalidIdTokenError as e:
-        logger.warning(f"Invalid Firebase token: {e}")
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        from jose import jwt, JWTError
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
     except Exception as e:
         logger.error(f"Token verification error: {e}")
         raise HTTPException(status_code=401, detail="Authentication failed")
 
-    user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found — complete registration first")
+        raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
 

@@ -17,7 +17,21 @@ def ensure_firebase_initialized() -> None:
         _initialized = True
         return
     try:
-        cred = credentials.Certificate(settings.firebase_service_account_path)
+        import os
+        import base64
+        import json
+        
+        b64 = os.environ.get("FIREBASE_SERVICE_ACCOUNT_B64", "")
+        if b64:
+            json_bytes = base64.b64decode(b64)
+            service_account = json.loads(json_bytes)
+            cred = credentials.Certificate(service_account)
+        else:
+            # Fall back to file path (local development)
+            cred = credentials.Certificate(
+                settings.firebase_service_account_path
+            )
+            
         firebase_admin.initialize_app(cred, {
             "projectId": settings.firebase_project_id
         })

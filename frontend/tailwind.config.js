@@ -7,10 +7,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        "primary":          "#143832",
-        "accent-green":     "#DAF1DE",
-        "background-light": "#F6F8F7",
-        "background-dark":  "#141E1C",
+        "primary":          "#004D36",
+        "primary-light":    "#006B4D",
+        "accent-green":     "#E8F5E9",
+        "background-light": "#F5F3F0",
+        "background-dark":  "#2D3A2F",
+        "surface":          "#FFFFFF",
+        "text-dark":        "#2D3A2F",
+        "text-muted":       "#5C6E60",
+        "text-light":       "#819685",
+        "border-soft":      "#E5E2DE",
       },
       fontFamily: {
         "display":          ["Inter_400Regular"],
@@ -19,10 +25,12 @@ module.exports = {
         "display-bold":     ["Inter_700Bold"],
       },
       borderRadius: {
-        DEFAULT: 8,
-        "lg":    16,
-        "xl":    24,
-        "full":  9999,
+        DEFAULT: "8px",
+        "lg":    "16px",
+        "xl":    "24px",
+        "2xl":   "28px",
+        "3xl":   "32px",
+        "full":  "9999px",
       },
     },
   },

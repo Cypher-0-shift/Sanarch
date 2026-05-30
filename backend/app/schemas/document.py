@@ -15,3 +15,12 @@ class DocumentStatusResponse(BaseModel):
 class DocumentConfirmRequest(BaseModel):
     label: str
     extracted_data: dict[str, Any]
+
+class AISummaryResponse(BaseModel):
+    document_id: str
+    headline: str
+    summary: str
+    key_points: list[str]
+    flag: str  # "normal" | "attention" | "urgent"
+    flag_reason: Optional[str]
+    cached: bool

@@ -10,12 +10,45 @@ import {
 } from '@expo-google-fonts/inter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
+import { useProfileStore } from '../store/profileStore';
 import { getToken } from '../services/storage';
+import { setupTokenRefresh } from '../services/auth';
+import { getMe, getPatients } from '../services/api';
+import { Dimensions, View, Text, TextInput } from 'react-native';
+import { vars } from 'nativewind';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css'; // NativeWind CSS
+
+// Prevent system text scaling from breaking layouts
+interface TextWithDefaultProps extends React.FC<any> {
+  defaultProps?: any;
+}
+((Text as unknown) as TextWithDefaultProps).defaultProps = {
+  ...((Text as unknown) as TextWithDefaultProps).defaultProps,
+  maxFontSizeMultiplier: 1.1,
+};
+((TextInput as unknown) as TextWithDefaultProps).defaultProps = {
+  ...((TextInput as unknown) as TextWithDefaultProps).defaultProps,
+  maxFontSizeMultiplier: 1.1,
+};
+
+// Calculate responsive rem value based on screen width
+const { width } = Dimensions.get('window');
+const baseWidth = 390; // Standard mobile width (e.g., iPhone 14)
+// Cap the scaling so tablets don't look completely bloated, but smaller phones shrink
+const scale = Math.min(Math.max(width / baseWidth, 0.8), 1.2); 
+const remValue = 16 * scale;
+
+const theme = vars({
+  '--rem': remValue
+});
+
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+import { CustomAlert } from '../components/ui/CustomAlert';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -28,14 +61,73 @@ export default function RootLayout() {
   const [authChecked, setAuthChecked] = useState(false);
   const { login } = useAuthStore();
 
+  // Setup Firebase token auto-refresh and hydrate user profile
+  useEffect(() => {
+    setupTokenRefresh();
+
+    const hydrateUser = async () => {
+      const token = await getToken();
+      if (!token || token === 'dev-mode-token') return;
+
+      try {
+        const [userData, patients] = await Promise.all([
+          getMe(),
+          getPatients(),
+        ]);
+
+        // Update auth store
+        useAuthStore.getState().login(userData, token);
+
+        // Build main profile
+        const mainProfile = {
+          id: userData.id,
+          sanarchId: userData.sanarch_id,
+          name: userData.full_name,
+          relation: 'self' as const,
+          isMainAccount: true,
+          dob: userData.date_of_birth ?? undefined,
+          heightCm: userData.height_cm ?? undefined,
+          weightKg: userData.weight_kg ?? undefined,
+          phone: userData.phone_number,
+          email: userData.email ?? undefined,
+        };
+
+        // Build dependent profiles from patients
+        const dependentProfiles = patients.map(p => ({
+          id: p.id,
+          sanarchId: p.sanarch_id,
+          name: p.name,
+          relation: p.relation as any,
+          isMainAccount: false,
+          dob: p.date_of_birth ?? undefined,
+          heightCm: p.height_cm ?? undefined,
+          weightKg: p.weight_kg ?? undefined,
+        }));
+
+        // Init profile store with main profile
+        useProfileStore.getState().initProfiles(mainProfile, undefined);
+
+        // Add additional dependents
+        dependentProfiles.forEach(dep => {
+          useProfileStore.getState().addFamilyMember(dep);
+        });
+      } catch (error) {
+        console.error('[App] Profile hydration failed:', error);
+        // Do not crash — user sees empty state
+      }
+    };
+
+    hydrateUser();
+  }, []);
+
   useEffect(() => {
     async function checkAuth() {
       const token = await getToken();
       if (token && token !== 'dev-mode-token') {
         // Token exists — fetch /users/me here later
-        // For now: set authenticated with mock user
-        const { MOCK_USER } = await import('../constants/mock');
-        login(MOCK_USER, token);
+        // For now: set authenticated with empty user
+        const { EMPTY_USER } = await import('../constants/placeholders');
+        login(EMPTY_USER, token);
       }
       setAuthChecked(true);
     }
@@ -49,8 +141,35 @@ export default function RootLayout() {
   if (!fontsLoaded || !authChecked) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Stack screenOptions={{ headerShown: false }} />
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <View style={theme} className="flex-1">
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              animationDuration: 220,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+              contentStyle: { backgroundColor: '#F5F3F0' },
+            }}
+          >
+            <Stack.Screen
+              name="index"
+              options={{ animation: 'fade', animationDuration: 200 }}
+            />
+            <Stack.Screen
+              name="auth"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="(tabs)"
+              options={{ animation: 'fade', animationDuration: 200 }}
+            />
+          </Stack>
+          <CustomAlert />
+        </View>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -21,7 +21,7 @@ const SkeletonCard: React.FC = () => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.xl,
     padding: SPACING.md,
     marginBottom: 12,
     shadowColor: '#000',
