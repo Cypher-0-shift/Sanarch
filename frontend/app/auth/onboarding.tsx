@@ -194,6 +194,17 @@ export default function OnboardingScreen() {
         email: formData.accountHolderEmail || undefined,
       });
 
+      // Get the backend access token now that the user is created
+      const { default: apiClient } = await import('../../services/api');
+      const { saveToken } = await import('../../services/storage');
+      const verifyResponse = await apiClient.post('/auth/verify-firebase', {
+        firebase_token: firebaseToken,
+      });
+      const accessToken = verifyResponse.data.access_token;
+      
+      await saveToken(accessToken);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
       // 3. Save to auth store
       useAuthStore.getState().login(
         {
@@ -206,7 +217,7 @@ export default function OnboardingScreen() {
           height_cm: userData.height_cm,
           weight_kg: userData.weight_kg,
         },
-        firebaseToken
+        accessToken
       );
 
       setLoadingPhase(2);

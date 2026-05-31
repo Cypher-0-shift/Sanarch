@@ -104,7 +104,7 @@ export default function LoginScreen() {
       setIsLoading(true);
       setErrorMsg(null);
       try {
-        const { is_new_user } = await verifyOTP(otp);
+        const { is_new_user, access_token } = await verifyOTP(otp);
         
         if (is_new_user) {
           router.replace({
@@ -114,7 +114,7 @@ export default function LoginScreen() {
         } else {
           // Fetch user profile from backend
           const userData = await apiClient.get('/users/me');
-          useAuthStore.getState().login(userData.data, await getFirebaseToken());
+          useAuthStore.getState().login(userData.data, access_token!);
           router.replace('/(tabs)/home');
         }
       } catch (error: any) {

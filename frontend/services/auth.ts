@@ -23,7 +23,7 @@ export async function sendOTP(phoneNumber: string): Promise<void> {
   }
 }
 
-export async function verifyOTP(otp: string): Promise<{ firebase_token: string; is_new_user: boolean }> {
+export async function verifyOTP(otp: string): Promise<{ firebase_token: string; is_new_user: boolean; access_token?: string }> {
   if (!confirmResult) {
     throw new Error('No OTP session. Please request a new code.');
   }
@@ -35,17 +35,20 @@ export async function verifyOTP(otp: string): Promise<{ firebase_token: string; 
     // Get Firebase ID token
     const firebaseToken = await credential.user.getIdToken();
 
-    // Save token to SecureStore immediately
-    await saveToken(firebaseToken);
-
     // Verify with backend — determines is_new_user
     const response = await apiClient.post(ENDPOINTS.VERIFY_FIREBASE, {
       firebase_token: firebaseToken,
     });
 
+    if (!response.data.is_new_user && response.data.access_token) {
+      await saveToken(response.data.access_token);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
+    }
+
     return {
       firebase_token: firebaseToken,
       is_new_user: response.data.is_new_user,
+      access_token: response.data.access_token,
     };
   } catch (error: any) {
     logger.error('[Auth] verifyOTP failed:', error);
@@ -76,14 +79,9 @@ export async function getFirebaseToken(): Promise<string> {
 
 export async function setupTokenRefresh(): Promise<void> {
   // Firebase automatically handles token refresh.
-  // This listener saves the fresh token to SecureStore whenever it changes.
+  // We only care about logout events here to clear the backend JWT.
   auth().onIdTokenChanged(async (user) => {
-    if (user) {
-      const token = await user.getIdToken();
-      await saveToken(token);
-      // Update axios default header
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
+    if (!user) {
       const currentToken = await getToken();
       // Do not clear the token if we are using the mock dev JWT
       if (currentToken && !currentToken.startsWith('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzA5NGY0ZS0yYmZjLTQzZmMtOWI5NS00OTIxNmQzYzQxZDEi')) {
