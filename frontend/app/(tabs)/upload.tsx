@@ -253,6 +253,23 @@ export default function UploadScreen() {
     }
   };
 
+  const handleUploadPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Gallery access is required to upload photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.92 });
+    if (!result.canceled && result.assets?.[0]) {
+      const uri = result.assets[0].uri;
+      setFileUri(uri);
+      setAdjustedUri(uri);
+      setFileName(result.assets[0].fileName || 'Photo_' + Date.now() + '.jpg');
+      setFileType('photo');
+      setStep(2);
+    }
+  };
+
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -381,7 +398,7 @@ export default function UploadScreen() {
         throw new Error('Document processing failed. The file may be corrupted or a virus was detected.');
       }
 
-      if (status !== 'complete') {
+      if (status !== 'pending_review') {
         throw new Error('Document processing timed out. It will continue in the background.');
       }
 
@@ -505,6 +522,18 @@ export default function UploadScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.sourceTitle}>Take Photo</Text>
                 <Text style={s.sourceSub}>Scan a document with your camera</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
+            </TouchableOpacity>
+
+            {/* Upload Photo */}
+            <TouchableOpacity onPress={handleUploadPhoto} activeOpacity={0.8} style={s.sourceCard}>
+              <View style={[s.sourceIcon, { backgroundColor: '#F3E5F5' }]}>
+                <MaterialCommunityIcons name="image-outline" size={28} color="#7B1FA2" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sourceTitle}>Upload Photo</Text>
+                <Text style={s.sourceSub}>Select an image from gallery</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
             </TouchableOpacity>

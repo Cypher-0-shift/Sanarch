@@ -84,8 +84,12 @@ export async function setupTokenRefresh(): Promise<void> {
       // Update axios default header
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else {
-      await clearToken();
-      delete apiClient.defaults.headers.common['Authorization'];
+      const currentToken = await getToken();
+      // Do not clear the token if we are using the mock dev JWT
+      if (currentToken && !currentToken.startsWith('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzA5NGY0ZS0yYmZjLTQzZmMtOWI5NS00OTIxNmQzYzQxZDEi')) {
+        await clearToken();
+        delete apiClient.defaults.headers.common['Authorization'];
+      }
     }
   });
 }

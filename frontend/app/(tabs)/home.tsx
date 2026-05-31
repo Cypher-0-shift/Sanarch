@@ -116,6 +116,30 @@ export default function HomeScreen() {
     }
   };
 
+  const handleUploadPhoto = async () => {
+    setShowUploadCard(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Gallery access is needed to select photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.92,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      const uri = result.assets[0].uri;
+      router.push({
+        pathname: '/(tabs)/upload',
+        params: {
+          fileUri: uri,
+          fileName: result.assets[0].fileName || `Photo_${Date.now()}.jpg`,
+          fileType: 'photo',
+        },
+      });
+    }
+  };
+
   const handleUploadFile = async () => {
     setShowUploadCard(false);
     try {
@@ -347,6 +371,7 @@ export default function HomeScreen() {
         visible={showUploadCard}
         onClose={() => setShowUploadCard(false)}
         onTakePhoto={handleTakePhoto}
+        onUploadPhoto={handleUploadPhoto}
         onUploadFile={handleUploadFile}
       />
 

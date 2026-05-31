@@ -1,10 +1,10 @@
 // NOTE: Requires dev build. Run: npx expo run:android or run:ios
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView,
-  Modal, FlatList, StyleSheet, ActivityIndicator
+  Modal, FlatList, StyleSheet, ActivityIndicator, Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,7 +13,7 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import OTPInput from '../../components/ui/OTPInput';
 import { useAuthStore } from '../../store/authStore';
 import SanarchLogo from '../../components/shared/SanarchLogo';
-import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../constants/legal';
+import { TERMS_OF_SERVICE, PRIVACY_POLICY, LEGAL_URLS } from '../../constants/legal';
 import { useAlertStore } from '../../store/alertStore';
 import { sendOTP, verifyOTP, getFirebaseToken } from '../../services/auth';
 import apiClient from '../../services/api';
@@ -130,13 +130,14 @@ export default function LoginScreen() {
     setErrorMsg(null);
     try {
       const { saveToken } = await import('../../services/storage');
-      await saveToken('dev-mode-token');
-      useAuthStore.getState().setToken('dev-mode-token');
+      const REAL_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzA5NGY0ZS0yYmZjLTQzZmMtOWI5NS00OTIxNmQzYzQxZDEiLCJzYW5hcmNoX2lkIjoiU0FOLUlOLTI2LU0tMTgtUC0wMC1UUUVMRVItS0EiLCJleHAiOjE3ODAyMjg1NzQsImlhdCI6MTc4MDIyNDk3NH0.r5M8BvPMSwrKNH0W9shJ6-pvUBkFv0icffXqJzIfgVE';
+      await saveToken(REAL_JWT);
+      useAuthStore.getState().setToken(REAL_JWT);
       
       // Mock user data for offline dev mode
       const userData = {
-        id: 'dev-user-id',
-        sanarch_id: 'SANARCH-DEV-123',
+        id: '57094f4e-2bfc-43fc-9b95-49216d3c41d1',
+        sanarch_id: 'SAN-IN-26-M-18-P-00-TQELER-KA',
         full_name: 'Developer User',
         phone_number: '+919999999999',
         email: 'dev@sanarch.io',
@@ -144,7 +145,7 @@ export default function LoginScreen() {
         created_at: new Date().toISOString(),
       };
       
-      useAuthStore.getState().login(userData, 'dev-mode-token');
+      useAuthStore.getState().login(userData, REAL_JWT);
       
       const { useProfileStore } = await import('../../store/profileStore');
       useProfileStore.getState().initProfiles(
@@ -285,22 +286,14 @@ export default function LoginScreen() {
                     I have read and agree to the{' '}
                     <Text 
                       style={styles.termsLink}
-                      onPress={() => setLegalModal({ 
-                        visible: true, 
-                        title: 'Terms of Service', 
-                        content: TERMS_OF_SERVICE 
-                      })}
+                      onPress={() => Linking.openURL(LEGAL_URLS.TERMS_AND_CONDITIONS)}
                     >
                       Terms of Service
                     </Text>
                     {' '}and{' '}
                     <Text 
                       style={styles.termsLink}
-                      onPress={() => setLegalModal({ 
-                        visible: true, 
-                        title: 'Privacy Policy', 
-                        content: PRIVACY_POLICY 
-                      })}
+                      onPress={() => Linking.openURL(LEGAL_URLS.PRIVACY_POLICY)}
                     >
                       Privacy Policy
                     </Text>
@@ -637,12 +630,32 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
-            style={{ flex: 1, paddingHorizontal: 24, paddingTop: 24 }} 
+          <ScrollView
+            style={{ flex: 1, paddingHorizontal: 24, paddingTop: 24 }}
             contentContainerStyle={{ paddingBottom: 100 }}
+            showsVerticalScrollIndicator={true}
           >
             <Text style={styles.legalModalContent}>
-              {legalModal.content}
+              {legalModal.content.split('\n').map((line, i) => {
+                const trimmed = line.trim();
+                if (!trimmed) return <Text key={i}>{'\n'}</Text>;
+
+                const isHeading =
+                  /^\d+\.\s/.test(trimmed) ||
+                  trimmed.endsWith(':') ||
+                  trimmed === 'SANARCH Terms and Conditions' ||
+                  trimmed === 'SANARCH Privacy Policy' ||
+                  trimmed === 'Terms and Conditions';
+
+                return (
+                  <Text
+                    key={i}
+                    style={isHeading ? { fontFamily: 'Inter_700Bold', color: '#004D36', fontSize: 15 } : {}}
+                  >
+                    {line}{'\n'}
+                  </Text>
+                );
+              })}
             </Text>
             <Text style={styles.legalModalFooter}>
               Last updated: May 2026
@@ -896,12 +909,14 @@ const styles = StyleSheet.create({
   arrowCircle: {
     position: 'absolute',
     right: 10,
+    top: 10,
     width: 38,
     height: 38,
     borderRadius: 19,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   arrowCircleActive: {
     backgroundColor: 'rgba(255,255,255,0.15)',

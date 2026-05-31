@@ -14,6 +14,7 @@ interface GlassmorphismCardProps {
   visible: boolean;
   onClose: () => void;
   onTakePhoto: () => void;
+  onUploadPhoto: () => void;
   onUploadFile: () => void;
 }
 
@@ -21,10 +22,16 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
   visible,
   onClose,
   onTakePhoto,
+  onUploadPhoto,
   onUploadFile,
 }) => {
   const handleTakePhoto = () => {
     onTakePhoto();
+    onClose();
+  };
+
+  const handleUploadPhoto = () => {
+    onUploadPhoto();
     onClose();
   };
 
@@ -63,6 +70,30 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
               <Text style={styles.rowTitle}>Take Photo</Text>
               <Text style={styles.rowSubtitle}>
                 Scan a document with your camera
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Upload Photo */}
+          <TouchableOpacity
+            style={styles.row}
+            onPress={handleUploadPhoto}
+            activeOpacity={0.7}
+          >
+            <View style={styles.iconContainer}>
+              <MaterialCommunityIcons
+                name="image-outline"
+                size={24}
+                color={'#004D36'}
+              />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.rowTitle}>Upload Photo</Text>
+              <Text style={styles.rowSubtitle}>
+                Select an image from gallery
               </Text>
             </View>
           </TouchableOpacity>
