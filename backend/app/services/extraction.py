@@ -131,20 +131,7 @@ async def structure_with_groq(text: str, entities: dict, retry: bool = True) -> 
             logger.warning(f"Groq JSON parse failed ({e}), retrying with stricter prompt")
             return await structure_with_groq(text, entities, retry=False)
         logger.error("Groq returned invalid JSON after retry")
-        # Return a safe fallback structure instead of crashing the pipeline
-        return {
-            "document_type": "other",
-            "document_date": None,
-            "hospital_name": None,
-            "doctor_name": None,
-            "patient_name": None,
-            "diagnosis": [],
-            "medications": [],
-            "lab_values": [],
-            "follow_up_date": None,
-            "follow_up_instructions": None,
-            "summary": "Extraction failed — please review document manually.",
-        }
+        return dict(_FALLBACK_STRUCTURE)
 
 
 # ---------------------------------------------------------------------------
@@ -240,19 +227,7 @@ async def extract_from_image(image_bytes: bytes, mime_type: str) -> dict:
 
     if not text.strip():
         logger.warning("Azure DI returned empty text — using fallback structure")
-        return {
-            "document_type": "other",
-            "document_date": None,
-            "hospital_name": None,
-            "doctor_name": None,
-            "patient_name": None,
-            "diagnosis": [],
-            "medications": [],
-            "lab_values": [],
-            "follow_up_date": None,
-            "follow_up_instructions": None,
-            "summary": "Extraction failed — please review document manually.",
-        }
+        return dict(_FALLBACK_STRUCTURE)
 
     entities = extract_entities_med7(text)
     logger.info(f"Med7 entities: {list(entities.keys())}")

@@ -4,7 +4,7 @@ from google.cloud.firestore import Client, SERVER_TIMESTAMP
 from app.firestore import get_db
 from app.schemas.user import UserResponse
 from app.middleware.auth_middleware import get_current_user
-from app.utils.sanarch_id import generate_serial, build_sanarch_id
+from app.utils.sanarch_id import generate_serial, build_sanarch_id, parse_sanarch_id
 from app.logging_config import logger
 from app.services.firebase_auth import verify_token
 from pydantic import BaseModel, field_validator
@@ -13,6 +13,48 @@ from typing import Optional
 import threading
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _ensure_profile_exists(db: Client, sanarch_id: str) -> None:
+    """Auto-create a sanarch_profiles record if one doesn't exist yet."""
+    profile_query = db.collection("sanarch_profiles").where(
+        "sanarch_id", "==", sanarch_id
+    ).limit(1).stream()
+    if next(profile_query, None):
+        return  # already exists
+
+    try:
+        if sanarch_id == "SAN-DEV01":
+            profile_data = {
+                "sanarch_id": "SAN-DEV01",
+                "family_serial": "DEV01",
+                "profile_type": "P",
+                "member_index": 0,
+                "country_code": "IN",
+                "reg_year": 24,
+                "gender_code": "X",
+                "age_band": 35,
+                "primary_id": None,
+                "created_at": SERVER_TIMESTAMP,
+            }
+        else:
+            parsed = parse_sanarch_id(sanarch_id)
+            profile_data = {
+                "sanarch_id": sanarch_id,
+                "family_serial": parsed["family_serial"],
+                "profile_type": parsed["profile_type"],
+                "member_index": int(parsed["member_index"]),
+                "country_code": parsed["country"],
+                "reg_year": int(parsed["reg_year"]),
+                "gender_code": parsed["gender"],
+                "age_band": int(parsed["age_band"]),
+                "primary_id": None,
+                "created_at": SERVER_TIMESTAMP,
+            }
+        db.collection("sanarch_profiles").add(profile_data)
+        logger.info(f"Auto-created missing profile for {sanarch_id}")
+    except Exception as e:
+        logger.error(f"Failed to auto-create profile for {sanarch_id}: {e}")
 
 class CreateUserBody(BaseModel):
     firebase_token: str
@@ -57,41 +99,7 @@ async def create_user(
         
         # Auto-create profile if it doesn't exist (backward compatibility)
         if "sanarch_id" in data:
-            profile_query = db.collection("sanarch_profiles").where("sanarch_id", "==", data["sanarch_id"]).limit(1).stream()
-            if not next(profile_query, None):
-                from app.utils.sanarch_id import parse_sanarch_id
-                try:
-                    if data["sanarch_id"] == "SAN-DEV01":
-                        profile_data = {
-                            "sanarch_id": "SAN-DEV01",
-                            "family_serial": "DEV01",
-                            "profile_type": "P",
-                            "member_index": 0,
-                            "country_code": "IN",
-                            "reg_year": 24,
-                            "gender_code": "X",
-                            "age_band": 35,
-                            "primary_id": None,
-                            "created_at": SERVER_TIMESTAMP
-                        }
-                    else:
-                        parsed = parse_sanarch_id(data["sanarch_id"])
-                        profile_data = {
-                            "sanarch_id": data["sanarch_id"],
-                            "family_serial": parsed["family_serial"],
-                            "profile_type": parsed["profile_type"],
-                            "member_index": int(parsed["member_index"]),
-                            "country_code": parsed["country"],
-                            "reg_year": int(parsed["reg_year"]),
-                            "gender_code": parsed["gender"],
-                            "age_band": int(parsed["age_band"]),
-                            "primary_id": None,
-                            "created_at": SERVER_TIMESTAMP
-                        }
-                    db.collection("sanarch_profiles").add(profile_data)
-                    logger.info(f"Auto-created missing profile for {data['sanarch_id']}")
-                except Exception as e:
-                    logger.error(f"Failed to auto-create profile for {data['sanarch_id']}: {e}")
+            _ensure_profile_exists(db, data["sanarch_id"])
         
         return data
 
@@ -169,41 +177,7 @@ def get_me(
 ):
     # Auto-create profile if missing (backward compatibility)
     if "sanarch_id" in current_user:
-        profile_query = db.collection("sanarch_profiles").where("sanarch_id", "==", current_user["sanarch_id"]).limit(1).stream()
-        if not next(profile_query, None):
-            from app.utils.sanarch_id import parse_sanarch_id
-            try:
-                if current_user["sanarch_id"] == "SAN-DEV01":
-                    profile_data = {
-                        "sanarch_id": "SAN-DEV01",
-                        "family_serial": "DEV01",
-                        "profile_type": "P",
-                        "member_index": 0,
-                        "country_code": "IN",
-                        "reg_year": 24,
-                        "gender_code": "X",
-                        "age_band": 35,
-                        "primary_id": None,
-                        "created_at": SERVER_TIMESTAMP
-                    }
-                else:
-                    parsed = parse_sanarch_id(current_user["sanarch_id"])
-                    profile_data = {
-                        "sanarch_id": current_user["sanarch_id"],
-                        "family_serial": parsed["family_serial"],
-                        "profile_type": parsed["profile_type"],
-                        "member_index": int(parsed["member_index"]),
-                        "country_code": parsed["country"],
-                        "reg_year": int(parsed["reg_year"]),
-                        "gender_code": parsed["gender"],
-                        "age_band": int(parsed["age_band"]),
-                        "primary_id": None,
-                        "created_at": SERVER_TIMESTAMP
-                    }
-                db.collection("sanarch_profiles").add(profile_data)
-                logger.info(f"Auto-created missing profile for {current_user['sanarch_id']} in get_me")
-            except Exception as e:
-                logger.error(f"Failed to auto-create profile for {current_user['sanarch_id']} in get_me: {e}")
+        _ensure_profile_exists(db, current_user["sanarch_id"])
 
     threading.Thread(
         target=_warm_timeline_cache,

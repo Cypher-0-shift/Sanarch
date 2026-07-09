@@ -6,6 +6,7 @@ Upload returns immediately; AI processing happens in Celery.
 import re
 import base64
 import json
+import time
 import httpx
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request, Query
 from typing import Optional, List
@@ -522,7 +523,6 @@ def retry_document(
     })
 
     # Re-queue Celery task with a unique task_id to avoid conflicts
-    import time
     retry_task_id = f"{document_id}-retry-{int(time.time())}"
     process_document.apply_async(
         args=[document_id, current_user["id"]],
