@@ -14,12 +14,9 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { useAlertStore } from '../../store/alertStore';
 
 // Enable LayoutAnimation on Android
 if (
@@ -57,46 +54,6 @@ const TEAL_DARK = '#004D36';
 const AMBER = '#BA7517';
 const AMBER_BG = '#FFF3E0';
 
-// ── ID Segment Parser ────────────────────────────────────────────────────────
-
-interface ParsedSegment {
-  key: string;
-  value: string;
-  label: string;
-}
-
-function parseSanarchIdSegments(sanarchId: string): ParsedSegment[] {
-  const parts = sanarchId.split('-');
-  if (parts.length !== 9) return [];
-
-  const genderMap: Record<string, string> = { M: 'Male', F: 'Female', X: 'Non-binary' };
-  const bandMap: Record<string, string> = {
-    '00': 'Infant (0–2)',
-    '05': 'Child (3–12)',
-    '13': 'Teen (13–17)',
-    '18': 'Young Adult (18–34)',
-    '35': 'Adult (35–54)',
-    '55': 'Senior (55–74)',
-    '75': 'Elder (75+)',
-  };
-
-  return [
-    { key: 'prefix', value: parts[0], label: 'Platform' },
-    { key: 'country', value: parts[1], label: `Country` },
-    { key: 'year', value: parts[2], label: `Registered 20${parts[2]}` },
-    { key: 'gender', value: parts[3], label: genderMap[parts[3]] ?? parts[3] },
-    { key: 'band', value: parts[4], label: bandMap[parts[4]] ?? `Band ${parts[4]}` },
-    {
-      key: 'type',
-      value: parts[5],
-      label: parts[5] === 'P' ? 'Primary holder' : 'Dependent',
-    },
-    { key: 'index', value: parts[6], label: `Member #${parseInt(parts[6], 10)}` },
-    { key: 'serial', value: parts[7], label: 'Unique serial' },
-    { key: 'checksum', value: parts[8], label: 'Checksum' },
-  ];
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getInitials(name: string): string {
@@ -119,11 +76,8 @@ export default function SanarchIdCard({
   onMemberSelect,
 }: SanarchIdCardProps) {
   const [copied, setCopied] = useState(false);
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
-  const qrRef = useRef<{ toDataURL: (callback: (data: string) => void) => void }>(null);
 
   const isPrimary = profileType === 'P';
-  const segments = parseSanarchIdSegments(sanarchId);
 
   // ── Copy ID to clipboard ────────────────────────────────────────────────
   const handleCopyId = useCallback(async () => {
@@ -135,52 +89,9 @@ export default function SanarchIdCard({
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback: show alert with the ID
-      Alert.alert('SANARCH ID', sanarchId);
+      useAlertStore.getState().showAlert('SANARCH ID', sanarchId);
     }
   }, [sanarchId]);
-
-  // ── Share / Download QR ─────────────────────────────────────────────────
-  const handleShareQr = useCallback(async () => {
-    try {
-      // Try to get SVG data from the QRCode component
-      if (qrRef.current) {
-        qrRef.current.toDataURL(async (dataUrl: string) => {
-          // @ts-ignore: expo-file-system types missing cacheDirectory in this local setup
-          const fileUri = `${FileSystem.cacheDirectory}SANARCH-QR-${sanarchId}.png`;
-          // @ts-ignore: expo-file-system types missing writeAsStringAsync
-          await FileSystem.writeAsStringAsync(fileUri, dataUrl, {
-            // @ts-ignore: expo-file-system types missing EncodingType
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'image/png',
-            dialogTitle: `SANARCH QR — ${sanarchId}`,
-          });
-        });
-      } else if (qrBase64) {
-        // Fallback to the base64 from API
-        // @ts-ignore: expo-file-system types missing cacheDirectory in this local setup
-        const fileUri = `${FileSystem.cacheDirectory}SANARCH-QR-${sanarchId}.png`;
-        // @ts-ignore: expo-file-system types missing writeAsStringAsync
-        await FileSystem.writeAsStringAsync(fileUri, qrBase64, {
-          // @ts-ignore: expo-file-system types missing EncodingType
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'image/png',
-          dialogTitle: `SANARCH QR — ${sanarchId}`,
-        });
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Could not share QR code');
-    }
-  }, [sanarchId, qrBase64]);
-
-  // ── Toggle breakdown ────────────────────────────────────────────────────
-  const toggleBreakdown = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setBreakdownOpen((prev) => !prev);
-  }, []);
 
   return (
     <View>
@@ -246,32 +157,6 @@ export default function SanarchIdCard({
             </Text>
           </View>
 
-          {/* QR Code */}
-          <View className="items-center mt-5">
-            <View
-              className="bg-white p-3 rounded-2xl border border-[#E5E2DE]"
-              style={{
-                shadowColor: '#000',
-                shadowOpacity: 0.04,
-                shadowRadius: 8,
-                elevation: 1,
-              }}
-            >
-              <QRCode
-                value={sanarchId}
-                size={140}
-                backgroundColor="white"
-                color={TEAL_DARK}
-                getRef={(ref: { toDataURL: (callback: (data: string) => void) => void }) => {
-                  (qrRef as React.MutableRefObject<typeof ref>).current = ref;
-                }}
-              />
-            </View>
-            <Text className="text-[#819685] text-[11px] mt-2">
-              Scan to verify identity
-            </Text>
-          </View>
-
           {/* Action buttons */}
           <View className="flex-row gap-3 mt-5">
             <TouchableOpacity
@@ -294,59 +179,8 @@ export default function SanarchIdCard({
                 {copied ? 'Copied!' : 'Copy ID'}
               </Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleShareQr}
-              activeOpacity={0.75}
-              className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl border border-[#E5E2DE] bg-[#FAFAF9]"
-            >
-              <MaterialCommunityIcons
-                name="share-variant-outline"
-                size={16}
-                color="#5C6E60"
-              />
-              <Text className="text-[13px] font-semibold text-[#2D3A2F] ml-1.5">
-                Share QR
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
-
-        {/* ── Collapsible breakdown ── */}
-        <TouchableOpacity
-          onPress={toggleBreakdown}
-          activeOpacity={0.85}
-          className="flex-row items-center justify-between px-5 py-3 bg-[#FAFAF9] border-t border-[#E5E2DE]"
-        >
-          <Text className="text-[13px] font-semibold text-[#2D3A2F]">
-            ID breakdown
-          </Text>
-          <MaterialCommunityIcons
-            name={breakdownOpen ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color="#819685"
-          />
-        </TouchableOpacity>
-
-        {breakdownOpen && (
-          <View className="px-5 pb-4 bg-[#FAFAF9]">
-            <View className="flex-row flex-wrap gap-2">
-              {segments.map((seg) => (
-                <View
-                  key={seg.key}
-                  className="px-3 py-1.5 rounded-full border border-[#E5E2DE] bg-white"
-                >
-                  <Text className="text-[10px] text-[#819685] uppercase">
-                    {seg.value}
-                  </Text>
-                  <Text className="text-[11px] text-[#2D3A2F] font-semibold">
-                    {seg.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
       </View>
 
       {/* ── Family members strip ── */}

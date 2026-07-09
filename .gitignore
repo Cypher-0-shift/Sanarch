@@ -47,3 +47,7 @@ env/
 
 # Other
 repomix-output.xml
+*.patch
+extract.txt
+old_upload*.tsx
+current_upload.tsx

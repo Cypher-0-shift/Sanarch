@@ -1,222 +1,167 @@
-import { useState, useEffect, useMemo, useDeferredValue, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, Alert, ScrollView, InteractionManager, Keyboard } from 'react-native';
+// app/(tabs)/records/index.tsx
+import React, { useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  Animated,
+  RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import MedicalEventCard from '../../../components/records/MedicalEventCard';
-import SkeletonCard from '../../../components/shared/SkeletonCard';
-import { type MedicalEventLabel } from '../../../constants/mock';
-import EmptyState from '../../../components/ui/EmptyState';
-import { getTimeline, TimelineEvent } from '../../../services/api';
-import { useAuthStore } from '../../../store/authStore';
-import { useProfileStore } from '../../../store/profileStore';
-import { useAlertStore } from '../../../store/alertStore';
+import { router } from 'expo-router';
+import { useDocumentsStore, type DocumentRecord } from '../../../store/documentsStore';
+import DocumentCard from '../../../components/DocumentCard';
 
-const FILTER_LABELS = ['All', 'Reports', 'Prescriptions', 'Imaging', 'Vaccines'];
+// ── Skeleton card placeholder with shimmer ───────────────────────
+function SkeletonCard() {
+  const shimmer = React.useRef(new Animated.Value(0)).current;
 
-const FILTER_LABEL_MAP: Record<string, MedicalEventLabel | null> = {
-  All: null,
-  Reports: 'lab_report',
-  Prescriptions: 'prescription',
-  Imaging: 'scan',
-  Vaccines: 'hospital_summary', // Mapping vaccine to hospital_summary for demo purposes
-};
-
-export default function RecordsScreen() {
-  const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [search, setSearch] = useState('');
-  const [records, setRecords] = useState<TimelineEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isReady, setIsReady] = useState(false);
-
-  const user = useAuthStore((s) => s.user);
-  const activeProfile = useProfileStore((s) => s.activeProfile);
-
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setIsReady(true);
-    });
-    return () => task.cancel();
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
   }, []);
 
-  useEffect(() => {
-    if (!isReady) return;
-
-    const fetchRecords = async () => {
-      setLoading(true);
-      try {
-        const patientId = activeProfile?.id ?? user?.id;
-        if (!patientId) {
-          setLoading(false);
-          return;
-        }
-        const data = await getTimeline(patientId, 100, 0);
-        setRecords(data.events);
-      } catch (error) {
-        console.error('[Records] Fetch failed:', error);
-        setRecords([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRecords();
-  }, [isReady, activeProfile?.id, user?.id]);
-
-  const deferredSearch = useDeferredValue(search);
-
-  const filteredRecords = useMemo(() => {
-    return records.filter((event) => {
-      const labelFilter = FILTER_LABEL_MAP[activeFilter];
-      const matchesFilter = labelFilter === null || event.label === labelFilter;
-      const query = deferredSearch.toLowerCase();
-      const matchesSearch =
-        !query ||
-        event.condition.toLowerCase().includes(query) ||
-        (event.hospital && event.hospital.toLowerCase().includes(query));
-      return matchesFilter && matchesSearch;
-    });
-  }, [activeFilter, deferredSearch, records]);
-
-  const renderRecord = useCallback(({ item, index }: { item: TimelineEvent, index: number }) => (
-    <Animated.View entering={FadeInUp.delay(index * 100).duration(400)}>
-      <MedicalEventCard
-        id={item.id}
-        condition={item.condition}
-        date_start={item.date_start}
-        hospital={item.hospital ?? ''}
-        doctor={item.doctor ?? ''}
-        document_count={item.document_count}
-        label={item.label}
-        onPress={() => {
-          const firstDocId = item.documents?.[0]?.id;
-          if (firstDocId) {
-            router.push(`/(tabs)/records/${firstDocId}`);
-          } else {
-            useAlertStore.getState().showAlert('No Document', 'This record has no attached document yet.');
-          }
-        }}
-      />
-    </Animated.View>
-  ), [router]);
-
-  if (!isReady) return <View className="flex-1 bg-[#F5F3F0]" />;
-
+  const opacity = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.7],
+  });
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
-      
-      {/* Header Section */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-[#F8FAF9] border-b border-[#E5E2DE] z-30">
-        <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-[#2D3A2F] text-2xl font-display-bold tracking-tight">My Records</Text>
-          <TouchableOpacity 
-            className="w-10 h-10 rounded-full bg-[#F5F3F0] items-center justify-center"
-            activeOpacity={0.75}
-            onPress={() => useAlertStore.getState().showAlert('Sort', 'Sort options coming soon.')}
-          >
-            <MaterialCommunityIcons name="swap-vertical" size={20} color="#2D3A2F" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Bar */}
-        <View className="h-12 bg-white rounded-2xl flex-row items-center px-4 gap-3 mb-6 border border-[#E5E2DE] focus-within:border-[#004D36]/20">
-          <MaterialCommunityIcons name="magnify" size={20} color="#819685" />
-          <TextInput 
-            className="flex-1 bg-transparent text-sm text-[#2D3A2F] font-display-medium"
-            placeholder="Search reports, doctors, clinics..."
-            placeholderTextColor="#819685"
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-
-        {/* Filter Tabs */}
-        <View>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
-          >
-            {FILTER_LABELS.map((filter) => {
-              const isActive = activeFilter === filter;
-              return (
-                <TouchableOpacity
-                  key={filter}
-                  className={`px-5 py-2.5 rounded-full border ${
-                    isActive 
-                      ? 'bg-[#004D36] border-[#004D36] shadow-sm' 
-                      : 'bg-white border-[#E5E2DE]'
-                  }`}
-                  style={isActive ? { shadowColor: '#004D36', shadowOpacity: 0.15, shadowRadius: 12 } : {}}
-                  onPress={() => setActiveFilter(filter)}
-                  activeOpacity={0.75}
-                >
-                  <View className="flex-row items-center">
-                    <Text className={`text-sm font-display-bold ${isActive ? 'text-white' : 'text-[#5C6E60]'}`}>
-                      {filter}
-                    </Text>
-                    {isActive && filteredRecords.length > 0 && (
-                      <View className="ml-2 bg-white/20 rounded-full min-w-[20px] px-1 h-5 items-center justify-center bg-white">
-                        <Text className="text-[#004D36] text-[10px] font-display-bold">{filteredRecords.length}</Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+    <Animated.View
+      style={{ opacity }}
+      className="bg-white rounded-xl mb-3 p-4 flex-row"
+    >
+      <View className="w-14 h-14 rounded-xl bg-[#E8E8E8] mr-3" />
+      <View className="flex-1">
+        <View className="h-4 bg-[#E8E8E8] rounded-full w-3/4 mb-2" />
+        <View className="h-3 bg-[#E8E8E8] rounded-full w-1/2 mb-3" />
+        <View className="h-1 bg-[#E8E8E8] rounded-full w-full" />
       </View>
+    </Animated.View>
+  );
+}
 
-      {/* Main Scrollable Content */}
-      {loading ? (
-        <View className="px-6 pt-6">
+// ── Empty state ──────────────────────────────────────────────────
+function EmptyState() {
+  const pressScale = React.useRef(new Animated.Value(1)).current;
+  return (
+    <View className="flex-1 items-center justify-center px-8 pt-20">
+      <Text className="text-6xl mb-5">📄</Text>
+      <Text className="text-xl font-bold text-[#2D3A2F] text-center">No records yet</Text>
+      <Text className="text-[15px] text-[#7A8A7C] text-center mt-2 leading-5">
+        Upload your first medical document to get started.
+      </Text>
+      <Animated.View style={{ transform: [{ scale: pressScale }] }} className="mt-6">
+        <Pressable
+          onPressIn={() =>
+            Animated.spring(pressScale, {
+              toValue: 0.97,
+              friction: 8,
+              tension: 200,
+              useNativeDriver: true,
+            }).start()
+          }
+          onPressOut={() =>
+            Animated.spring(pressScale, {
+              toValue: 1,
+              friction: 8,
+              tension: 200,
+              useNativeDriver: true,
+            }).start()
+          }
+          onPress={() => router.push('/(tabs)/upload')}
+          className="bg-[#004D36] rounded-xl px-8 py-3.5"
+        >
+          <Text className="text-white font-semibold text-[15px]">Upload Document</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ── Main Records Screen ──────────────────────────────────────────
+export default function RecordsScreen() {
+  const documents = useDocumentsStore((s) => s.documents);
+  const isLoading = useDocumentsStore((s) => s.isLoading);
+  const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+
+  const [refreshing, setRefreshing] = React.useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchDocuments();
+    setRefreshing(false);
+  }, [fetchDocuments]);
+
+  const renderCard = useCallback(
+    ({ item }: { item: DocumentRecord }) => <DocumentCard document={item} />,
+    []
+  );
+
+  const keyExtractor = useCallback((item: DocumentRecord) => item.document_id, []);
+
+  // Loading skeleton
+  if (isLoading && documents.length === 0) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F5F3F0]">
+        <View className="px-5 pt-4 pb-2">
+          <Text className="text-[28px] font-bold text-[#2D3A2F]">My Records</Text>
+        </View>
+        <View className="px-5 pt-2">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </View>
-      ) : (
-        <FlatList
-          data={filteredRecords}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 120, paddingTop: 24 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          ListHeaderComponent={
-            records.length > 0 ? (
-              <View className="flex-row items-center justify-center gap-2 mb-6">
-                <View className="w-1.5 h-1.5 bg-[#81C784] rounded-full" />
-                <Text className="text-[11px] font-display-bold text-[#819685] uppercase tracking-widest">
-                  Last synced 2m ago
-                </Text>
-              </View>
-            ) : null
-          }
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-          initialNumToRender={6}
-          getItemLayout={(_, index) => ({
-            length: 120,
-            offset: 120 * index,
-            index,
-          })}
-          renderItem={renderRecord}
-          ListEmptyComponent={
-            <EmptyState 
-              icon="clipboard-text-outline" 
-              title="No records found" 
-              subtitle="Upload medical documents to build your health timeline."
-            />
-          }
-        />
-      )}
+      </SafeAreaView>
+    );
+  }
+
+  // Empty state
+  if (!isLoading && documents.length === 0) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F5F3F0]">
+        <View className="px-5 pt-4 pb-2">
+          <Text className="text-[28px] font-bold text-[#2D3A2F]">My Records</Text>
+        </View>
+        <EmptyState />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-[#F5F3F0]">
+      <View className="px-5 pt-4 pb-2">
+        <Text className="text-[28px] font-bold text-[#2D3A2F]">My Records</Text>
+      </View>
+      <FlatList
+        data={documents}
+        renderItem={renderCard}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#004D36"
+            colors={['#004D36']}
+          />
+        }
+      />
     </SafeAreaView>
   );
 }

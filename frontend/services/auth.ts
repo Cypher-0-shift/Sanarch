@@ -84,7 +84,7 @@ export async function setupTokenRefresh(): Promise<void> {
     if (!user) {
       const currentToken = await getToken();
       // Do not clear the token if we are using the mock dev JWT
-      if (currentToken && !currentToken.startsWith('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzA5NGY0ZS0yYmZjLTQzZmMtOWI5NS00OTIxNmQzYzQxZDEi')) {
+      if (currentToken && currentToken !== 'dev-mode-token') {
         await clearToken();
         delete apiClient.defaults.headers.common['Authorization'];
       }

@@ -18,13 +18,16 @@ export const ENDPOINTS = {
   // Timeline
   GET_TIMELINE: (patientId: string) => `/timeline/${patientId}`,
   
-  // Documents
-  UPLOAD_DOCUMENT: '/documents/upload',
-  GET_DOCUMENT: (id: string) => `/documents/${id}`,
-  GET_DOCUMENT_STATUS: (id: string) => `/documents/${id}/status`,
-  CONFIRM_DOCUMENT: (id: string) => `/documents/${id}/confirm`,
-  PDF_CONVERT: '/documents/pdf/convert',
-  LIST_DOCUMENTS: '/documents/',
+  // Documents (v1 API)
+  UPLOAD_DOCUMENT: '/api/v1/documents/upload',
+  LIST_DOCUMENTS: '/api/v1/documents',
+  GET_DOCUMENT: (id: string) => `/api/v1/documents/${id}`,
+  DELETE_DOCUMENT: (id: string) => `/api/v1/documents/${id}`,
+  PDF_CONVERT: '/api/v1/documents/pdf/convert',
+  SUMMARIZE_DOCUMENT: (id: string) => `/api/v1/documents/${id}/summarize`,
+  RETRY_DOCUMENT: (id: string) => `/api/v1/documents/${id}/retry`,
+  DOCUMENT_STATUS: (id: string) => `/api/v1/documents/${id}`,
+  CONFIRM_DOCUMENT: (id: string) => `/api/v1/documents/${id}/confirm`,
   
   // Search
   SEARCH: '/search',
@@ -41,5 +44,4 @@ export const ENDPOINTS = {
   GET_PROFILE_QR: (id: string) => `/profiles/${id}/qr`,
 
   DOCTOR_VIEW: (token: string) => `/doctor-view/${token}`,
-  SUMMARIZE_DOCUMENT: (id: string) => `/documents/${id}/summarize`,
 } as const;

@@ -165,7 +165,7 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
 
-                {/* Row 3: Sanarch ID + QR */}
+                {/* Row 3: Sanarch ID */}
                 <View className="flex-row justify-between items-end mt-4">
                   <View>
                     <Text className="text-white opacity-50 text-[10px] uppercase tracking-widest">Sanarch ID</Text>
@@ -175,9 +175,6 @@ export default function ProfileScreen() {
                       <View className="w-32 h-5 bg-white/20 rounded-md mt-0.5" />
                     )}
                   </View>
-                  <TouchableOpacity onPress={() => router.push('/(tabs)/doctors')} activeOpacity={0.75}>
-                    <MaterialCommunityIcons name="qrcode" size={32} color="white" />
-                  </TouchableOpacity>
                 </View>
               </View>
             </View>

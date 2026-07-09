@@ -25,6 +25,7 @@ export default function FamilyProfilesScreen() {
           <TouchableOpacity 
             onPress={() => router.back()}
             activeOpacity={0.75}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
             className="w-10 h-10 rounded-full bg-[#F5F3F0] items-center justify-center"
           >
             <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
@@ -71,13 +72,13 @@ export default function FamilyProfilesScreen() {
               </View>
               
               <View className="flex-row gap-4 mb-6">
-                <View className="flex-1 bg-[#F8FAF9] rounded-2xl p-4 flex-col">
+                <View className="flex-1 bg-[#F8FAF9] rounded-xl p-4 flex-col">
                   <Text className="text-[10px] uppercase font-display-bold text-[#819685] tracking-widest">Age</Text>
                   <Text className="text-lg font-display-bold text-[#2D3A2F]">32 Years</Text>
                 </View>
-                <View className="flex-1 bg-[#F8FAF9] rounded-2xl p-4 flex-col">
+                <View className="flex-1 bg-[#F8FAF9] rounded-xl p-4 flex-col">
                   <Text className="text-[10px] uppercase font-display-bold text-[#819685] tracking-widest">ID</Text>
-                  <Text className="text-lg font-display-bold text-[#2D3A2F]">{user.sanarch_id ? user.sanarch_id.split('-')[1] + 'X' : '—'}</Text>
+                  <Text className="text-lg font-display-bold text-[#2D3A2F]">{user.sanarch_id ? user.sanarch_id.slice(3, 5) + 'X' : '—'}</Text>
                 </View>
               </View>
               

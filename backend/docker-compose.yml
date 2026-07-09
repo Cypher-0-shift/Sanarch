@@ -20,6 +20,12 @@ services:
       retries: 10
       start_period: 180s
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
   api:
     build:
@@ -41,6 +47,7 @@ services:
 
     volumes:
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./app:/app/app:ro
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -76,7 +83,9 @@ services:
 
     volumes:
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./app:/app/app:ro
 
 
 volumes:
   clamav_data:
+  redis_data:

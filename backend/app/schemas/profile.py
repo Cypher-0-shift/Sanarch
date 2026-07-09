@@ -4,7 +4,6 @@ Pydantic v2 schemas for SANARCH profile endpoints.
 """
 from datetime import datetime
 from typing import Literal, Optional
-from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -53,7 +52,7 @@ class ProfileResponse(BaseModel):
     reg_year: int
     gender_code: str
     age_band: int
-    primary_id: Optional[UUID] = None
+    primary_id: Optional[str] = None
     created_at: datetime
     qr_base64: str = Field(
         ...,

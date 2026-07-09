@@ -33,6 +33,7 @@ export default function DependentDetailsScreen() {
         <TouchableOpacity 
           onPress={() => router.back()}
           activeOpacity={0.75}
+          hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm"
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />

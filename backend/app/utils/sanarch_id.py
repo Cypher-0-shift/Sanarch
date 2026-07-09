@@ -129,7 +129,7 @@ def build_sanarch_id(
     payload = f"SAN{cc}{yy}{g}{band}{t}{ix}{serial}"
     ck = luhn_mod36_checksum(payload)
 
-    return f"SAN-{cc}-{yy}-{g}-{band}-{t}-{ix}-{serial}-{ck}"
+    return f"SAN{cc}{yy}{g}{band}{t}{ix}{serial}{ck}"
 
 
 def validate_sanarch_id(sanarch_id: str) -> bool:
@@ -156,17 +156,17 @@ def parse_sanarch_id(sanarch_id: str) -> dict[str, str]:
 
     Raises ValueError if the format cannot be parsed.
     """
-    parts = sanarch_id.upper().split("-")
-    if len(parts) != 9 or parts[0] != "SAN":
+    sanarch_id = sanarch_id.upper().replace("-", "")
+    if len(sanarch_id) != 21 or not sanarch_id.startswith("SAN"):
         raise ValueError(f"Invalid SANARCH ID format: {sanarch_id}")
 
     return {
-        "country": parts[1],
-        "reg_year": parts[2],
-        "gender": parts[3],
-        "age_band": parts[4],
-        "profile_type": parts[5],
-        "member_index": parts[6],
-        "family_serial": parts[7],
-        "checksum": parts[8],
+        "country": sanarch_id[3:5],
+        "reg_year": sanarch_id[5:7],
+        "gender": sanarch_id[7:8],
+        "age_band": sanarch_id[8:10],
+        "profile_type": sanarch_id[10:11],
+        "member_index": sanarch_id[11:13],
+        "family_serial": sanarch_id[13:19],
+        "checksum": sanarch_id[19:21],
     }

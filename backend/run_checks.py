@@ -2,7 +2,7 @@
 """
 SANARCH pre-deployment connectivity check.
 Run from backend/ directory: python run_checks.py
-Checks: PostgreSQL, Redis, ClamAV, Backblaze B2, Groq API, Azure DI, Firebase.
+Checks: Firestore, Redis, ClamAV, Backblaze B2, Groq API, Azure DI, Firebase.
 """
 import os, sys, socket
 from datetime import datetime
@@ -35,22 +35,20 @@ def skip(name):
 
 print(f"\nSANARCH Service Check - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'-'*52}")
 
-# 1. PostgreSQL
-def check_postgres():
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        skip("PostgreSQL")
+# 1. Firestore
+def check_firestore():
+    path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
+    b64 = os.environ.get("FIREBASE_SERVICE_ACCOUNT_BASE64")
+    project_id = os.environ.get("FIREBASE_PROJECT_ID")
+    if not path and not b64:
+        skip("Firestore")
         return None
-    import psycopg2
-    url = url.replace("@postgres:", "@localhost:")
-    conn = psycopg2.connect(url)
-    cur = conn.cursor()
-    cur.execute("SELECT 1")
-    cur.fetchone()
-    conn.close()
-    return "Connected"
+    from app.firestore import check_db_connection
+    if not check_db_connection():
+        raise RuntimeError("Firestore connection failed")
+    return f"project={project_id or 'unknown'}"
 
-check("PostgreSQL", check_postgres)
+check("Firestore", check_firestore)
 
 # 2. Redis
 def check_redis():

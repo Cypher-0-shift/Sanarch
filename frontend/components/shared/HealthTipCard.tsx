@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAlertStore } from '../../store/alertStore';
 
 const HealthTipCard = React.memo(function HealthTipCard() {
   return (
@@ -34,7 +35,7 @@ const HealthTipCard = React.memo(function HealthTipCard() {
 
       <TouchableOpacity 
         className="bg-white px-4 py-2 rounded-lg self-start z-10"
-        onPress={() => Alert.alert('Coming Soon', 'Full health article is not available yet.')}
+        onPress={() => useAlertStore.getState().showAlert('Coming Soon', 'Full health article is not available yet.')}
         activeOpacity={0.75}
       >
         <Text className="text-primary text-sm font-display-bold">Read More</Text>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -50,7 +50,7 @@ export default function RecordDetailsScreen() {
       const data = await summarizeDocument(id as string);
       setSummaryData(data);
     } catch (e: any) {
-      Alert.alert('Summary Failed', e.response?.data?.detail || 'Could not generate summary.');
+      useAlertStore.getState().showAlert('Summary Failed', e.response?.data?.detail || 'Could not generate summary.');
     } finally {
       setSummarizing(false);
     }
@@ -79,7 +79,7 @@ export default function RecordDetailsScreen() {
     return (
       <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
         <View className="bg-white border-b border-[#E5E2DE] px-4 py-4 flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3" activeOpacity={0.75}>
+          <TouchableOpacity onPress={() => router.back()} className="mr-3" activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
           </TouchableOpacity>
           <Text className="text-xl font-display-bold text-[#2D3A2F]">Record Details</Text>
@@ -96,7 +96,7 @@ export default function RecordDetailsScreen() {
     return (
       <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
         <View className="bg-white border-b border-[#E5E2DE] px-4 py-4 flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3" activeOpacity={0.75}>
+          <TouchableOpacity onPress={() => router.back()} className="mr-3" activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
           </TouchableOpacity>
           <Text className="text-xl font-display-bold text-[#2D3A2F]">Record Details</Text>
@@ -137,6 +137,7 @@ export default function RecordDetailsScreen() {
           className="w-10 h-10 rounded-xl bg-[#F5F3F0] items-center justify-center"
           onPress={() => router.back()}
           activeOpacity={0.75}
+          hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
         </TouchableOpacity>
@@ -146,6 +147,7 @@ export default function RecordDetailsScreen() {
             className="w-10 h-10 rounded-xl bg-[#F5F3F0] items-center justify-center"
             onPress={() => useAlertStore.getState().showAlert('Coming Soon', 'Document sharing coming in the next update.')}
             activeOpacity={0.75}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           >
             <MaterialCommunityIcons name="share-variant" size={20} color="#2D3A2F" />
           </TouchableOpacity>
@@ -153,6 +155,7 @@ export default function RecordDetailsScreen() {
             className="w-10 h-10 rounded-xl bg-[#F5F3F0] items-center justify-center"
             onPress={() => useAlertStore.getState().showAlert('Options', 'Coming soon.')}
             activeOpacity={0.75}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           >
             <MaterialCommunityIcons name="dots-vertical" size={24} color="#2D3A2F" />
           </TouchableOpacity>
@@ -250,7 +253,7 @@ export default function RecordDetailsScreen() {
                 )}
 
                 {summaryData.flag !== 'normal' && (
-                  <View className={`p-4 rounded-2xl border ${summaryData.flag === 'attention' ? 'bg-[#FFF8E1] border-[#FFECB3]' : 'bg-[#FFEBEE] border-[#FFCDD2]'}`}>
+                  <View className={`p-4 rounded-xl border ${summaryData.flag === 'attention' ? 'bg-[#FFF8E1] border-[#FFECB3]' : 'bg-[#FFEBEE] border-[#FFCDD2]'}`}>
                     <View className="flex-row items-center gap-2 mb-2">
                       <MaterialCommunityIcons 
                         name="alert-circle-outline" 

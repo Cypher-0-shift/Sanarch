@@ -3,9 +3,7 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 
 # Database
-sqlalchemy==2.0.35
-alembic==1.13.3
-psycopg2-binary==2.9.9
+# Removed SQL dependencies (moved to Firestore)
 
 # Redis + Queue
 redis==5.0.8

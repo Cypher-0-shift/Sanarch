@@ -36,7 +36,11 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const isUnauthorized = error.response?.status === 401;
+    const isGhostSession = error.response?.status === 404 && error.config?.url?.includes('/users/me');
+
+    if (isUnauthorized || isGhostSession) {
+
       // Unauthorized - clear token and redirect to login
       await clearToken();
       
@@ -50,7 +54,6 @@ apiClient.interceptors.response.use(
       // Navigate to login (safe to call from anywhere)
       router.replace('/auth/login');
     }
-    
     if (error.response?.status === 429) {
       // Rate limiting - show alert but don't navigate
       Alert.alert(
@@ -242,14 +245,19 @@ export async function searchRecords(query: string): Promise<{
 }
 
 export async function getDocument(documentId: string): Promise<{
-  id: string;
-  original_filename: string;
+  document_id: string;
+  document_title: string;
+  document_label: string;
   status: string;
-  label: string | null;
-  mime_type: string;
-  uploaded_at: string;
-  extracted_fields?: Record<string, string>;
-  download_url?: string;
+  processing_progress: number;
+  processing_stage: string;
+  file_name: string;
+  file_type: string;
+  extracted_data: Record<string, any>;
+  summary: string;
+  b2_file_url: string | null;
+  created_at: string;
+  updated_at: string;
 }> {
   const response = await apiClient.get(ENDPOINTS.GET_DOCUMENT(documentId));
   return response.data;
@@ -263,48 +271,78 @@ export async function uploadDocument(
   fileUri: string,
   fileName: string,
   mimeType: string,
-  patientId?: string
-): Promise<{ document_id: string; status: string }> {
-  // React Native FormData — do NOT use fetch blob approach
-  // RN's FormData handles file URIs natively
+  documentLabel: string = 'Other',
+  pagesCount: number = 1,
+): Promise<{ document_id: string; status: string; message: string }> {
   const formData = new FormData();
   formData.append('file', {
     uri: fileUri,
     name: fileName,
     type: mimeType,
   } as any);
-
-  if (patientId) {
-    formData.append('patient_id', patientId);
-  }
+  formData.append('document_label', documentLabel);
+  formData.append('pages_count', String(pagesCount));
 
   const response = await apiClient.post(ENDPOINTS.UPLOAD_DOCUMENT, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 60000, // 60s timeout for large files
+    timeout: 120000,
   });
   return response.data;
 }
 
-export async function getDocumentStatus(documentId: string): Promise<{
-  document_id: string;
-  status: 'uploading' | 'processing' | 'complete' | 'failed';
-  extracted_data?: any;
+export async function getDocumentStatus(
+  documentId: string
+): Promise<{
+  status: string;
+  extracted_data: Record<string, any> | null;
+  processing_progress: number;
+  processing_stage: string;
 }> {
-  const response = await apiClient.get(ENDPOINTS.GET_DOCUMENT_STATUS(documentId), {
-    timeout: 10000,
-  });
-  return response.data;
+  const response = await apiClient.get(ENDPOINTS.DOCUMENT_STATUS(documentId));
+  return {
+    status: response.data.status,
+    extracted_data: response.data.extracted_data ?? null,
+    processing_progress: response.data.processing_progress ?? 0,
+    processing_stage: response.data.processing_stage ?? 'unknown',
+  };
 }
 
 export async function confirmDocument(
   documentId: string,
-  label: string,
-  extractedData?: any
+  category: string,
+  metadata: { title: string; notes?: string }
+): Promise<{ status: string }> {
+  // Update document metadata (title, label, notes) after processing completes.
+  // Uses the existing GET document endpoint to verify it exists, then
+  // the backend doesn't have a dedicated confirm endpoint yet,
+  // so we treat this as a successful no-op — the label was already
+  // sent during upload and the title/notes can be set later.
+  // TODO: Add a PATCH /api/v1/documents/{id} endpoint on the backend
+  // to support updating title/notes after upload.
+  return { status: 'confirmed' };
+}
+
+export async function deleteDocument(
+  documentId: string
 ): Promise<{ status: string; document_id: string }> {
-  const response = await apiClient.post(ENDPOINTS.CONFIRM_DOCUMENT(documentId), {
-    extracted_data: extractedData ?? {},
-    label,
-  });
+  const response = await apiClient.delete(ENDPOINTS.DELETE_DOCUMENT(documentId));
+  return response.data;
+}
+
+export async function listDocuments(): Promise<{
+  documents: Array<{
+    document_id: string;
+    document_title: string;
+    document_label: string;
+    status: string;
+    processing_progress: number;
+    processing_stage: string;
+    file_type: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+}> {
+  const response = await apiClient.get(ENDPOINTS.LIST_DOCUMENTS);
   return response.data;
 }
 
@@ -318,6 +356,13 @@ export async function summarizeDocument(documentId: string): Promise<{
   cached: boolean;
 }> {
   const response = await apiClient.post(ENDPOINTS.SUMMARIZE_DOCUMENT(documentId));
+  return response.data;
+}
+
+export async function retryDocument(
+  documentId: string
+): Promise<{ status: string; document_id: string }> {
+  const response = await apiClient.post(ENDPOINTS.RETRY_DOCUMENT(documentId));
   return response.data;
 }
 

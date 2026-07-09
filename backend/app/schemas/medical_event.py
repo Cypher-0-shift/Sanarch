@@ -2,7 +2,6 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime
-from uuid import UUID
 
 class MedicationItem(BaseModel):
     name: str
@@ -17,9 +16,9 @@ class LabValueItem(BaseModel):
     flag: Optional[str] = None  # normal | high | low | null
 
 class MedicalEventResponse(BaseModel):
-    id: UUID
-    patient_id: UUID
-    document_id: Optional[UUID] = None
+    id: str
+    patient_id: str
+    document_id: Optional[str] = None
     event_date: date
     hospital_name: Optional[str] = None
     doctor_name: Optional[str] = None

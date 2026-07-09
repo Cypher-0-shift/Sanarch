@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
 from app.logging_config import setup_logging, logger
-from app.database import check_db_connection
+from app.firestore import check_db_connection
 from app.routers import documents, auth, users, timeline, sharing, search, patients, profiles, doctor_view
 
 setup_logging("DEBUG" if settings.environment == "development" else "INFO")
@@ -43,10 +43,8 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Sanarch API shutting down gracefully")
-    # Close DB connection pool
-    from app.database import engine
-    engine.dispose()
-    logger.info("Database connection pool closed")
+    # Firestore client does not require explicit connection pool disposal
+    logger.info("Database connection closed")
 
 app = FastAPI(
     title="Sanarch API",

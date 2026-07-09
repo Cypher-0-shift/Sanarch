@@ -131,7 +131,7 @@ export default function DataStorageScreen() {
         </View>
 
         {/* Trust notice */}
-        <View className="bg-[#F8FAF9] rounded-2xl p-4 flex-row items-start gap-3 mb-8 border border-[#E8F0EA]">
+        <View className="bg-[#F8FAF9] rounded-xl p-4 flex-row items-start gap-3 mb-8 border border-[#E8F0EA]">
           <MaterialCommunityIcons name="information-outline" size={18} color="#819685" style={{ marginTop: 1 }} />
           <Text className="text-[11px] font-display text-[#5C6E60] flex-1 leading-4">
             You own your data. You can export all records at any time or permanently delete everything. Deletion is irreversible and fully removes your data from Sanarch servers within 30 days.
@@ -166,7 +166,7 @@ export default function DataStorageScreen() {
                 placeholder="DELETE"
                 placeholderTextColor="#D1D5DB"
                 autoCapitalize="characters"
-                className="w-full h-[52px] bg-red-50 border border-red-200 rounded-2xl px-4 text-center text-base font-display-bold text-[#EF4444]"
+                className="w-full h-[52px] bg-red-50 border border-red-200 rounded-xl px-4 text-center text-base font-display-bold text-[#EF4444]"
                 style={{ fontSize: 16, letterSpacing: 4 }}
               />
             </View>

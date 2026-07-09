@@ -1,12 +1,8 @@
 # app/routers/doctor_view.py
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.user import User
-from app.models.share_token import ShareToken
-from app.models.medical_event import MedicalEvent
-from app.models.document import Document
+from google.cloud.firestore import Client, SERVER_TIMESTAMP
+from app.firestore import get_db
 from app.schemas.share_token import DoctorViewResponse, DoctorEventItem
 from app.logging_config import logger
 import json
@@ -14,70 +10,93 @@ import json
 router = APIRouter(prefix="/doctor-view", tags=["doctor_view"])
 
 @router.get("/{token}", response_model=DoctorViewResponse)
-def get_doctor_view(token: str, db: Session = Depends(get_db)):
-    share = db.query(ShareToken).filter(ShareToken.token == token).first()
+def get_doctor_view(token: str, db: Client = Depends(get_db)):
+    doc_ref = db.collection("share_tokens").document(token)
+    doc_snap = doc_ref.get()
     
-    if not share:
+    if not doc_snap.exists:
         raise HTTPException(status_code=404, detail="invalid or expired link")
         
-    expires_at = share.expires_at
+    share = doc_snap.to_dict()
+        
+    expires_at = share.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+        
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
         
-    if share.is_revoked or expires_at < datetime.now(timezone.utc):
+    if share.get("is_revoked") or expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=404, detail="invalid or expired link")
         
-    share.accessed_at = datetime.now(timezone.utc)
-    db.commit()
+    doc_ref.update({"accessed_at": SERVER_TIMESTAMP})
     
-    user = db.query(User).filter(User.id == share.owner_id).first()
-    if not user:
+    user_snap = db.collection("users").document(share.get("owner_id")).get()
+    if not user_snap.exists:
         raise HTTPException(status_code=404, detail="user not found")
         
-    events = db.query(MedicalEvent).filter(MedicalEvent.id.in_(share.event_ids)).order_by(MedicalEvent.event_date.desc()).all()
-    
+    user = user_snap.to_dict()
+        
     doctor_events = []
-    for e in events:
+    
+    for eid in share.get("event_ids", []):
+        e_snap = db.collection("medical_events").document(eid).get()
+        if not e_snap.exists:
+            continue
+            
+        e = e_snap.to_dict()
         doc_label = None
         doc_filename = None
         doc_ai_summary = None
         
-        if e.document_id:
-            doc = db.query(Document).filter(Document.id == e.document_id).first()
-            if doc:
-                doc_label = doc.label
-                doc_filename = doc.original_filename
+        doc_id = e.get("document_id")
+        if doc_id:
+            d_snap = db.collection("documents").document(doc_id).get()
+            if d_snap.exists:
+                doc = d_snap.to_dict()
+                doc_label = doc.get("label")
+                doc_filename = doc.get("original_filename")
                 
-                if doc.ai_summary:
+                ai_summary_str = doc.get("ai_summary")
+                if ai_summary_str:
                     try:
-                        # doc.ai_summary is a JSON string of AISummaryResponse
-                        parsed_summary = json.loads(doc.ai_summary)
-                        # We just want the plain english summary from it
+                        parsed_summary = json.loads(ai_summary_str)
                         doc_ai_summary = parsed_summary.get("summary")
                     except Exception as err:
-                        logger.warning(f"Failed to parse ai_summary for doc {doc.id}: {err}")
+                        logger.warning(f"Failed to parse ai_summary for doc {doc_id}: {err}")
         
+        event_date = e.get("event_date")
+        if isinstance(event_date, datetime):
+            event_date = event_date.isoformat()
+            
         doctor_events.append(
             DoctorEventItem(
-                event_id=str(e.id),
-                event_date=e.event_date.isoformat() if hasattr(e.event_date, "isoformat") else str(e.event_date),
-                hospital_name=e.hospital_name,
-                doctor_name=e.doctor_name,
-                diagnosis=e.diagnosis or [],
-                medications=e.medications or [],
-                lab_values=e.lab_values or [],
-                summary=e.summary,
+                event_id=eid,
+                event_date=str(event_date) if event_date else "",
+                hospital_name=e.get("hospital_name"),
+                doctor_name=e.get("doctor_name"),
+                diagnosis=e.get("diagnosis", []),
+                medications=e.get("medications", []),
+                lab_values=e.get("lab_values", []),
+                summary=e.get("summary"),
                 ai_summary=doc_ai_summary,
                 document_label=doc_label,
                 document_filename=doc_filename,
             )
         )
         
+    # Sort events by date descending
+    doctor_events.sort(key=lambda x: x.event_date, reverse=True)
+        
+    accessed_at = share.get("accessed_at")
+    if isinstance(accessed_at, str):
+        accessed_at = datetime.fromisoformat(accessed_at)
+        
     return DoctorViewResponse(
-        patient_sanarch_id=user.sanarch_id or "UNKNOWN",
-        patient_name=user.full_name,
-        accessed_at=share.accessed_at,
-        expires_at=share.expires_at,
+        patient_sanarch_id=user.get("sanarch_id", "UNKNOWN"),
+        patient_name=user.get("full_name"),
+        accessed_at=accessed_at or datetime.now(timezone.utc),
+        expires_at=expires_at,
         token_valid=True,
         events=doctor_events,
         total_events=len(doctor_events)

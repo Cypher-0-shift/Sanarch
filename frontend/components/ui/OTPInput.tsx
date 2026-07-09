@@ -8,47 +8,20 @@ interface OTPInputProps {
 }
 
 export default function OTPInput({ length = 4, value, onChange }: OTPInputProps) {
-  const inputs = useRef<Array<TextInput | null>>([]);
-
-  const handleChangeText = (text: string, index: number) => {
-    const newOTP = value.split('');
-    newOTP[index] = text;
-    const combined = newOTP.join('');
-    onChange(combined);
-
-    if (text && index < length - 1) {
-      inputs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !value[index] && index > 0) {
-      inputs.current[index - 1]?.focus();
-      const newOTP = value.split('');
-      newOTP[index - 1] = '';
-      onChange(newOTP.join(''));
-    }
-  };
-
   return (
-    <View className="flex-row justify-between mt-2">
-      {Array(length)
-        .fill(0)
-        .map((_, index) => (
-          <TextInput
-            key={index}
-            style={{ width: '22%' }}
-            className="h-14 text-center text-xl font-display-bold rounded-xl border border-[#E5E2DE] bg-white text-[#004D36]"
-            keyboardType="number-pad"
-            maxLength={1}
-            value={value[index] || ''}
-            onChangeText={(text) => handleChangeText(text, index)}
-            onKeyPress={(e) => handleKeyPress(e, index)}
-            ref={(ref) => {
-              inputs.current[index] = ref;
-            }}
-          />
-        ))}
+    <View className="mt-2">
+      <TextInput
+        style={{ letterSpacing: 16 }}
+        className="h-16 px-4 text-center text-3xl font-display-bold rounded-xl border-2 border-[#E5E2DE] bg-white text-[#004D36]"
+        keyboardType="number-pad"
+        maxLength={length}
+        value={value}
+        onChangeText={onChange}
+        placeholder={Array(length).fill('·').join(' ')}
+        placeholderTextColor="#C8D5CA"
+        textContentType="oneTimeCode"
+        autoComplete="one-time-code"
+      />
     </View>
   );
 }

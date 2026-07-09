@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
   FadeInUp,
@@ -281,7 +281,7 @@ export default function OnboardingScreen() {
       console.error('[Onboarding] Failed:', error);
       // Go back to form with error
       setStep('2');
-      Alert.alert(
+      useAlertStore.getState().showAlert(
         'Setup Failed',
         error?.response?.data?.detail ?? 'Could not create your account. Please try again.',
         [{ text: 'OK' }]
@@ -434,7 +434,7 @@ export default function OnboardingScreen() {
                   activeOpacity={0.75}
                   onPress={() => { setAccountType('self'); setTimeout(() => setStep('2'), 300); }}
                 >
-                  <View className={`w-12 h-12 rounded-2xl items-center justify-center mb-4 ${accountType === 'self' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
+                  <View className={`w-12 h-12 rounded-xl items-center justify-center mb-4 ${accountType === 'self' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
                     }`}>
                     <MaterialCommunityIcons name="account-outline" size={24} color={accountType === 'self' ? 'white' : '#819685'} />
                   </View>
@@ -450,7 +450,7 @@ export default function OnboardingScreen() {
                   activeOpacity={0.75}
                   onPress={() => { setAccountType('patient'); setTimeout(() => setStep('1b'), 300); }}
                 >
-                  <View className={`w-12 h-12 rounded-2xl items-center justify-center mb-4 ${accountType === 'patient' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
+                  <View className={`w-12 h-12 rounded-xl items-center justify-center mb-4 ${accountType === 'patient' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
                     }`}>
                     <MaterialCommunityIcons name="account-group-outline" size={24} color={accountType === 'patient' ? 'white' : '#819685'} />
                   </View>
@@ -674,11 +674,13 @@ export default function OnboardingScreen() {
 
                 {/* Row 3: ID + QR */}
                 <View className="flex-row justify-between items-end">
-                  <View>
+                  <View className="flex-1 mr-4">
                     <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] mb-1" style={{ color: 'rgba(255,255,255,0.6)' }}>Sanarch ID</Text>
-                    <Text className="text-white font-mono text-base font-bold tracking-widest">{sanarchIdMain}</Text>
+                    <Text className="text-white font-mono text-sm font-bold tracking-wider">{sanarchIdMain}</Text>
                   </View>
-                  <MaterialCommunityIcons name="qrcode" size={36} color="white" />
+                  <View className="bg-white p-1 rounded-md">
+                    <QRCode value={sanarchIdMain} size={42} backgroundColor="white" color="#004D36" />
+                  </View>
                 </View>
               </View>
 
@@ -717,11 +719,13 @@ export default function OnboardingScreen() {
 
                     {/* Row 3: ID + QR */}
                     <View className="flex-row justify-between items-end">
-                      <View>
+                      <View className="flex-1 mr-4">
                         <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] text-[#819685] mb-1">Sanarch ID</Text>
-                        <Text className="text-[#004D36] font-mono text-base font-bold tracking-widest">{sanarchIdDependent}</Text>
+                        <Text className="text-[#004D36] font-mono text-sm font-bold tracking-wider">{sanarchIdDependent}</Text>
                       </View>
-                      <MaterialCommunityIcons name="qrcode" size={36} color="#004D36" />
+                      <View className="bg-white p-1 rounded-md border border-[#004D36]">
+                        <QRCode value={sanarchIdDependent} size={42} backgroundColor="white" color="#004D36" />
+                      </View>
                     </View>
                   </View>
                 </>

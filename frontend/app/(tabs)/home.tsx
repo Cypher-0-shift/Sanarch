@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, InteractionManager, Pressable, Animated, Alert, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, InteractionManager, Pressable, Animated, Modal, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useProfileStore, Profile } from '../../store/profileStore';
 import { useAuthStore } from '../../store/authStore';
 import { getTimeline, TimelineEvent } from '../../services/api';
+import { useAlertStore } from '../../store/alertStore';
 
 const SkeletonPulse = ({ style }: { style: any }) => {
   const anim = useRef(new Animated.Value(0.3)).current;
@@ -63,6 +64,15 @@ export default function HomeScreen() {
     const fetchTimeline = async () => {
       setLoading(true);
       try {
+        // Skip API call in dev mode — production backend rejects dev-mode-token
+        const { getToken } = await import('../../services/storage');
+        const token = await getToken();
+        if (token === 'dev-mode-token') {
+          setTimeline([]);
+          setLoading(false);
+          return;
+        }
+
         const patientId = activeProfile?.id ?? user?.id;
         if (!patientId) {
           setLoading(false);
@@ -96,7 +106,7 @@ export default function HomeScreen() {
     setShowUploadCard(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Camera access is needed to take photos of your documents.');
+      useAlertStore.getState().showAlert('Permission Required', 'Camera access is needed to take photos of your documents.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -120,12 +130,13 @@ export default function HomeScreen() {
     setShowUploadCard(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Gallery access is needed to select photos.');
+      useAlertStore.getState().showAlert('Permission Required', 'Gallery access is needed to select photos.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.92,
+      allowsMultipleSelection: true,
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
       const uri = result.assets[0].uri;
@@ -184,7 +195,7 @@ export default function HomeScreen() {
         {/* Search and Profile Selector */}
         <View className="mt-6 flex-row gap-2">
           <TouchableOpacity
-            className="flex-1 h-12 bg-white rounded-2xl flex-row items-center px-4 gap-3 border border-[#E5E2DE]"
+            className="flex-1 h-12 bg-white rounded-xl flex-row items-center px-4 gap-3 border border-[#E5E2DE]"
             onPress={handleSearchFocus}
             activeOpacity={0.8}
           >
@@ -194,7 +205,7 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="h-12 w-12 bg-white rounded-2xl items-center justify-center shadow-sm border border-[#E5E2DE]"
+            className="h-12 w-12 bg-white rounded-xl items-center justify-center shadow-sm border border-[#E5E2DE]"
             activeOpacity={0.75}
             onPress={() => setShowProfileSheet(true)}
           >
@@ -213,7 +224,7 @@ export default function HomeScreen() {
                 Tap the QR button below to share records with your doctor instantly.
               </Text>
             </View>
-            <TouchableOpacity onPress={() => setDismissQRHint(true)} activeOpacity={0.75} className="p-1 rounded-full bg-[#C8E6C9] opacity-50">
+            <TouchableOpacity onPress={() => setDismissQRHint(true)} activeOpacity={0.75} className="p-1 rounded-full bg-[#C8E6C9] opacity-50" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <MaterialCommunityIcons name="close" size={16} color="#004D36" />
             </TouchableOpacity>
           </View>
@@ -338,7 +349,7 @@ export default function HomeScreen() {
                   </View>
                   <TouchableOpacity 
                     activeOpacity={0.75}
-                    className="flex-1 bg-white p-4 rounded-2xl border border-[#E5E2DE] shadow-sm"
+                    className="flex-1 bg-white p-4 rounded-xl border border-[#E5E2DE] shadow-sm"
                     onPress={() => router.push(`/(tabs)/records/${event.id}` as any)}
                   >
                     <Text className="text-[#2D3A2F] font-display-bold text-base mb-1" numberOfLines={2}>
@@ -390,7 +401,7 @@ export default function HomeScreen() {
           {/* Title */}
           <View style={sheetStyles.titleRow}>
             <Text style={sheetStyles.title}>Switch Profile</Text>
-            <TouchableOpacity onPress={() => setShowProfileSheet(false)} activeOpacity={0.75} style={sheetStyles.closeBtn}>
+            <TouchableOpacity onPress={() => setShowProfileSheet(false)} activeOpacity={0.75} style={sheetStyles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <MaterialCommunityIcons name="close" size={20} color="#5C6E60" />
             </TouchableOpacity>
           </View>

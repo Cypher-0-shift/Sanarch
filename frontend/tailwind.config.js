@@ -1,3 +1,11 @@
+const { RADIUS } = require("./constants/theme.ts");
+
+// Convert the RADIUS object (numbers) to Tailwind format (pixel strings)
+const borderRadiusConfig = Object.entries(RADIUS).reduce((acc, [key, value]) => {
+  acc[key] = `${value}px`;
+  return acc;
+}, {});
+
 module.exports = {
   content: [
     "./app/**/*.{js,jsx,ts,tsx}",
@@ -24,14 +32,7 @@ module.exports = {
         "display-semibold": ["Inter_600SemiBold"],
         "display-bold":     ["Inter_700Bold"],
       },
-      borderRadius: {
-        DEFAULT: "8px",
-        "lg":    "16px",
-        "xl":    "24px",
-        "2xl":   "28px",
-        "3xl":   "32px",
-        "full":  "9999px",
-      },
+      borderRadius: borderRadiusConfig,
     },
   },
   plugins: [],

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.user import User
+from google.cloud.firestore import Client
+from app.firestore import get_db
 from app.logging_config import logger
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -15,7 +14,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
 
 def _mask_phone(phone: str) -> str:
-    if len(phone) < 6:
+    if not phone or len(phone) < 6:
         return "***"
     return phone[:3] + "X" * (len(phone) - 6) + phone[-3:]
 
@@ -24,7 +23,7 @@ class FirebaseTokenRequest(BaseModel):
 
 def create_access_token(user_id: str, sanarch_id: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
+        minutes=settings.jwt_expire_minutes
     )
     payload = {
         "sub": user_id,
@@ -40,7 +39,7 @@ def create_access_token(user_id: str, sanarch_id: str) -> str:
 async def verify_firebase_token(
     request: Request,
     body: FirebaseTokenRequest,
-    db: Session = Depends(get_db),
+    db: Client = Depends(get_db),
 ):
     """
     Accepts a Firebase ID token from the mobile app.
@@ -56,8 +55,11 @@ async def verify_firebase_token(
     firebase_uid = decoded["uid"]
     phone_number = decoded.get("phone_number")
 
-    existing_user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-    is_new = existing_user is None
+    users_ref = db.collection("users")
+    query = users_ref.where("firebase_uid", "==", firebase_uid).limit(1).stream()
+    existing_user_doc = next(query, None)
+    
+    is_new = existing_user_doc is None
 
     masked_phone = _mask_phone(phone_number) if phone_number else "none"
     logger.info(f"Auth: new_user={is_new}, phone={masked_phone}")
@@ -68,12 +70,16 @@ async def verify_firebase_token(
             "firebase_token": body.firebase_token
         }
     else:
-        access_token = create_access_token(str(existing_user.id), existing_user.sanarch_id)
+        user_data = existing_user_doc.to_dict()
+        user_id = existing_user_doc.id
+        user_data["id"] = user_id
+        
+        access_token = create_access_token(user_id, user_data.get("sanarch_id", ""))
         return {
             "is_new_user": False,
             "firebase_uid": firebase_uid,
             "phone_number": phone_number,
             "access_token": access_token,
             "token_type": "bearer",
-            "user": existing_user
+            "user": user_data
         }

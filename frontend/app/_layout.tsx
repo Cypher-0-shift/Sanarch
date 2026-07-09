@@ -11,9 +11,11 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
+import { useDocumentsStore } from '../store/documentsStore';
 import { getToken } from '../services/storage';
 import { setupTokenRefresh } from '../services/auth';
 import { getMe, getPatients } from '../services/api';
+import { useActiveDocumentListeners } from '../hooks/useDocumentListener';
 import { Dimensions, View, Text, TextInput } from 'react-native';
 import { vars } from 'nativewind';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -65,6 +67,19 @@ const queryClient = new QueryClient({
 import { CustomAlert } from '../components/ui/CustomAlert';
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
 
+// ── App-level listeners (never unmounted during navigation) ──────
+function AppListeners() {
+  const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  useActiveDocumentListeners();
+
+  return null;
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -76,75 +91,33 @@ export default function RootLayout() {
   const [authChecked, setAuthChecked] = useState(false);
   const login = useAuthStore((s) => s.login);
 
-  // Setup Firebase token auto-refresh and hydrate user profile
+  // Setup Firebase token auto-refresh
   useEffect(() => {
     setupTokenRefresh();
-
-    const hydrateUser = async () => {
-      const token = await getToken();
-      if (!token || token === 'dev-mode-token') return;
-
-      try {
-        const [userData, patients] = await Promise.all([
-          getMe(),
-          getPatients(),
-        ]);
-
-        // Update auth store
-        useAuthStore.getState().login(userData, token);
-
-        // Build main profile
-        const mainProfile = {
-          id: userData.id,
-          sanarchId: userData.sanarch_id,
-          name: userData.full_name,
-          relation: 'self' as const,
-          isMainAccount: true,
-          dob: userData.date_of_birth ?? undefined,
-          heightCm: userData.height_cm ?? undefined,
-          weightKg: userData.weight_kg ?? undefined,
-          phone: userData.phone_number,
-          email: userData.email ?? undefined,
-        };
-
-        // Build dependent profiles from patients
-        const dependentProfiles = patients.map(p => ({
-          id: p.id,
-          sanarchId: p.sanarch_id,
-          name: p.name,
-          relation: p.relation as any,
-          isMainAccount: false,
-          dob: p.date_of_birth ?? undefined,
-          heightCm: p.height_cm ?? undefined,
-          weightKg: p.weight_kg ?? undefined,
-        }));
-
-        // Init profile store with main profile
-        useProfileStore.getState().initProfiles(mainProfile, undefined);
-
-        // Add additional dependents
-        dependentProfiles.forEach(dep => {
-          useProfileStore.getState().addFamilyMember(dep);
-        });
-      } catch (error) {
-        console.error('[App] Profile hydration failed:', error);
-        // Do not crash — user sees empty state
-      }
-    };
-
-    hydrateUser();
   }, []);
 
   useEffect(() => {
     async function checkAuth() {
-      const token = await getToken();
-      if (token && token !== 'dev-mode-token') {
-        // Token exists — fetch /users/me here later
-        // For now: set authenticated with empty user
-        const { EMPTY_USER } = await import('../constants/placeholders');
-        login(EMPTY_USER, token);
+      try {
+        const token = await getToken();
+        if (token) {
+          const userData = await getMe();
+          login(userData, token);
+          
+          useProfileStore.getState().initProfiles({
+            id: userData.id,
+            sanarchId: userData.sanarch_id,
+            name: userData.full_name,
+            relation: 'self',
+            isMainAccount: true,
+            phone: userData.phone_number,
+          }, undefined);
+        }
+      } catch (error) {
+        console.error('checkAuth failed:', error);
+      } finally {
+        setAuthChecked(true);
       }
-      setAuthChecked(true);
     }
     checkAuth();
   }, []);
@@ -160,6 +133,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <View style={theme} className="flex-1">
           <ErrorBoundary>
+            <AppListeners />
             <Stack
               screenOptions={{
                 headerShown: false,

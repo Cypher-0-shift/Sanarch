@@ -75,7 +75,7 @@ const MedicalEventCard: React.FC<MedicalEventCardProps> = ({
       <View className="flex-row gap-4">
         {/* Left Icon Block */}
         <View 
-          className="w-12 h-12 rounded-2xl items-center justify-center shrink-0"
+          className="w-12 h-12 rounded-xl items-center justify-center shrink-0"
           style={{ backgroundColor: config.bg }}
         >
           <MaterialCommunityIcons name={config.icon} size={24} color={config.color} />

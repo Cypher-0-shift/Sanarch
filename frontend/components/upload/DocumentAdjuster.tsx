@@ -9,13 +9,13 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import Svg, { Polygon, Polyline, Rect } from 'react-native-svg';
+import { useAlertStore } from '../../store/alertStore';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -216,7 +216,7 @@ export default function DocumentAdjuster({
       setHasEdited(true);
       onAdjusted(result.uri);
     } catch {
-      Alert.alert('Error', 'Could not rotate the image.');
+      useAlertStore.getState().showAlert('Error', 'Could not rotate the image.');
     } finally {
       setIsProcessing(false);
     }
@@ -252,7 +252,7 @@ export default function DocumentAdjuster({
       setHasEdited(true);
       onAdjusted(result.uri);
     } catch {
-      Alert.alert('Error', 'Could not apply crop. Please try again.');
+      useAlertStore.getState().showAlert('Error', 'Could not apply crop. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -306,7 +306,7 @@ export default function DocumentAdjuster({
 
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => setShowDiscardAlert(true)} activeOpacity={0.7} style={styles.closeBtn}>
+        <TouchableOpacity onPress={() => setShowDiscardAlert(true)} activeOpacity={0.7} style={styles.closeBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
           <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
         </TouchableOpacity>
         
@@ -708,6 +708,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#F5F3F0',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBtnSecondaryText: {
     fontFamily: 'Inter_700Bold',
@@ -715,11 +716,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   modalBtnDestructive: {
-    flex: 1,
+    flex: 1.2,
     paddingVertical: 14,
     borderRadius: 14,
     backgroundColor: '#E65100',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBtnDestructiveText: {
     fontFamily: 'Inter_700Bold',
@@ -727,15 +729,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   modalBtnPrimary: {
-    flex: 1,
+    flex: 1.2,
     paddingVertical: 14,
     borderRadius: 14,
     backgroundColor: '#004D36',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBtnPrimaryText: {
     fontFamily: 'Inter_700Bold',
     color: 'white',
     fontSize: 15,
+    textAlign: 'center',
   },
 });

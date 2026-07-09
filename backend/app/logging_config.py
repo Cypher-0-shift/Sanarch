@@ -32,6 +32,6 @@ def setup_logging(level: str = "INFO") -> None:
     root_logger.addHandler(handler)
     # Suppress noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
 
 logger = logging.getLogger("sanarch")

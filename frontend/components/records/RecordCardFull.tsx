@@ -46,7 +46,7 @@ export default function RecordCardFull({ id, title, subtitle, icon, previewImage
           <Text className="text-sm font-display-semibold text-primary">View</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity className="h-9 w-9 rounded-lg bg-primary/5 items-center justify-center" activeOpacity={0.75}>
+        <TouchableOpacity className="h-9 w-9 rounded-lg bg-primary/5 items-center justify-center" activeOpacity={0.75} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
           <MaterialCommunityIcons name="download" size={18} color="#143832" />
         </TouchableOpacity>
       </View>

@@ -1,11 +1,7 @@
 # app/routers/timeline.py
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc
-from app.database import get_db
-from app.models.user import User
-from app.models.medical_event import MedicalEvent
-from app.models.patient import Patient
+from google.cloud.firestore import Client, Query as FirestoreQuery
+from app.firestore import get_db
 from app.middleware.auth_middleware import get_current_user
 from app.schemas.medical_event import MedicalEventListResponse, MedicalEventResponse
 from app.logging_config import logger
@@ -25,31 +21,26 @@ def get_patient_timeline(
     patient_id: str,
     limit: int = Query(default=20, le=100),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Returns the chronological medical timeline for a patient.
     Cached in Redis for 5 minutes per patient.
     Cache invalidated when new documents complete processing.
     """
-    # Verify ownership — user can only access their own patients
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id,
-        Patient.owner_id == current_user.id,
-    ).first()
-
-    # Also allow access to own timeline (patient_id == user's own record)
-    if not patient:
-        # Check if patient_id refers to the user themselves
-        if str(current_user.id) != patient_id:
+    if str(current_user["id"]) != patient_id:
+        patient_snap = db.collection("patients").document(patient_id).get()
+        if not patient_snap.exists:
+            raise HTTPException(403, "access denied")
+        patient_data = patient_snap.to_dict()
+        if patient_data.get("owner_id") != current_user["id"]:
             raise HTTPException(403, "access denied")
 
     cache_key = f"timeline:{patient_id}:{offset}:{limit}"
-    r = _get_redis()
 
-    # Try cache first
     try:
+        r = _get_redis()
         cached = r.get(cache_key)
         if cached:
             logger.info(f"Timeline cache hit: {cache_key}")
@@ -59,23 +50,31 @@ def get_patient_timeline(
         logger.warning(f"Redis cache read failed: {e} — falling through to DB")
 
     # Query DB
-    query = db.query(MedicalEvent).options(
-        joinedload(MedicalEvent.document)
-    ).filter(
-        MedicalEvent.patient_id == patient_id
-    ).order_by(desc(MedicalEvent.event_date))
+    docs_stream = db.collection("medical_events")\
+        .where("patient_id", "==", patient_id)\
+        .stream()
 
-    total = query.count()
-    events = query.offset(offset).limit(limit).all()
+    all_events = []
+    for d in docs_stream:
+        data = d.to_dict()
+        data["id"] = d.id
+        # Convert date string to date object for pydantic if necessary, but pydantic can parse ISO strings
+        all_events.append(data)
+
+    # Sort in memory to avoid requiring a Firestore composite index
+    all_events.sort(key=lambda x: x.get("event_date", ""), reverse=True)
+
+    total = len(all_events)
+    paginated = all_events[offset:offset+limit]
 
     result = MedicalEventListResponse(
-        events=[MedicalEventResponse.model_validate(e) for e in events],
-        items=[MedicalEventResponse.model_validate(e) for e in events],
+        events=[MedicalEventResponse(**e) for e in paginated],
+        items=[MedicalEventResponse(**e) for e in paginated],
         total=total,
     )
 
-    # Write to cache
     try:
+        r = _get_redis()
         r.setex(cache_key, CACHE_TTL, result.model_dump_json())
     except Exception as e:
         logger.warning(f"Redis cache write failed: {e}")

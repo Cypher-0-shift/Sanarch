@@ -11,6 +11,16 @@ import SanarchLogo from '../../components/shared/SanarchLogo';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const REF_WIDTH = 390;
+const REF_HEIGHT = 844;
+
+// Responsive computed dimensions
+const PHONE_FRAME_WIDTH = Math.max(Math.min(SCREEN_WIDTH * (240 / REF_WIDTH), 300), 200);
+const PHONE_FRAME_HEIGHT = Math.max(Math.min(SCREEN_HEIGHT * (480 / REF_HEIGHT), 600), 380);
+
+const TOP_CIRCLE_SIZE = Math.max(Math.min(SCREEN_WIDTH * (260 / REF_WIDTH), 340), 200);
+const BOTTOM_CIRCLE_SIZE = Math.max(Math.min(SCREEN_WIDTH * (200 / REF_WIDTH), 280), 150);
+
 // Page data configuration
 const PAGES = [
   { id: '0', type: 'brand', bgColor: '#004D36' },
@@ -266,14 +276,14 @@ function CTAPage({ onGetStarted, topInset, bottomInset, bgColor }: { onGetStarte
       {/* Top-right circle */}
       <View style={{
         position: 'absolute', top: -80, right: -80,
-        width: 260, height: 260, borderRadius: 130,
+        width: TOP_CIRCLE_SIZE, height: TOP_CIRCLE_SIZE, borderRadius: TOP_CIRCLE_SIZE / 2,
         backgroundColor: 'rgba(255,255,255,0.05)',
       }} pointerEvents="none" />
 
       {/* Bottom-left circle */}
       <View style={{
         position: 'absolute', bottom: -60, left: -60,
-        width: 200, height: 200, borderRadius: 100,
+        width: BOTTOM_CIRCLE_SIZE, height: BOTTOM_CIRCLE_SIZE, borderRadius: BOTTOM_CIRCLE_SIZE / 2,
         backgroundColor: 'rgba(255,255,255,0.04)',
       }} pointerEvents="none" />
 
@@ -819,8 +829,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   phoneFrame: {
-    width: 240,
-    height: 480,
+    width: PHONE_FRAME_WIDTH,
+    height: PHONE_FRAME_HEIGHT,
     backgroundColor: 'white',
     borderRadius: 28,
     borderWidth: 6,

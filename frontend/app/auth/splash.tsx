@@ -4,11 +4,13 @@ import { useRouter } from 'expo-router';
 import { getToken } from '../../services/storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SanarchLogo from '../../components/shared/SanarchLogo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
 export default function SplashScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [progress, setProgress] = useState(0);
   const [progressText, setProgressText] = useState(0);
 
@@ -75,7 +77,7 @@ export default function SplashScreen() {
       setTimeout(async () => {
         try {
           const token = await getToken();
-          if (token && token !== 'dev-mode-token') {
+          if (token) {
             router.replace('/(tabs)/home');
           } else {
             router.replace('/auth/hero');
@@ -105,7 +107,13 @@ export default function SplashScreen() {
       </View>
 
       {/* Progress area */}
-      <Animated.View style={[styles.progressArea, { opacity: barOpacity }]}>
+      <Animated.View style={[
+        styles.progressArea, 
+        { 
+          opacity: barOpacity,
+          bottom: Math.max(60, insets.bottom + 24)
+        }
+      ]}>
         <Text style={styles.progressLabel}>Initialising</Text>
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${progress}%` }]} />
@@ -191,7 +199,6 @@ const styles = StyleSheet.create({
   },
   progressArea: {
     position: 'absolute',
-    bottom: 60,
     left: 48,
     right: 48,
     alignItems: 'center',

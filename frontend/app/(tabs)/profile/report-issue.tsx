@@ -87,7 +87,7 @@ export default function ReportIssueScreen() {
                   key={type.id}
                   onPress={() => setSelectedType(type.id)}
                   activeOpacity={0.75}
-                  className={`flex-row items-center gap-2 px-4 py-3 rounded-2xl border ${
+                  className={`flex-row items-center gap-2 px-4 py-3 rounded-xl border ${
                     isSelected
                       ? 'bg-[#004D36] border-[#004D36]'
                       : 'bg-white border-[#E5E2DE]'

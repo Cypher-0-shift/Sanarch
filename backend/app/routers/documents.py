@@ -1,433 +1,439 @@
 # app/routers/documents.py
-import uuid
+"""
+Decoupled document upload & background processing.
+Upload returns immediately; AI processing happens in Celery.
+"""
 import re
 import base64
 import json
 import httpx
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request, Query, Body
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request, Query
+from typing import Optional, List
+from google.cloud.firestore import Client, SERVER_TIMESTAMP
 from app.config import settings as _settings
-from app.database import get_db
-from app.models.document import Document, DocumentStatus
-from app.models.user import User
+from app.firestore import get_db
 from app.services.storage import upload_to_tmp, get_presigned_url, delete_object
+from app.services.virus_scan import scan_bytes
 from app.middleware.auth_middleware import get_current_user
 from app.workers.extraction_task import process_document
-from app.schemas.document import DocumentUploadResponse, DocumentStatusResponse, DocumentConfirmRequest, AISummaryResponse
+from app.schemas.document import (
+    DocumentUploadResponse,
+    DocumentListItem,
+    DocumentListResponse,
+    DocumentDetailResponse,
+    AISummaryResponse,
+)
 from app.logging_config import logger
-from app.routers.timeline import invalidate_timeline_cache
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from typing import Optional
 import magic  # python-magic for true MIME detection
 import fitz  # PyMuPDF
+from datetime import datetime
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 limiter = Limiter(key_func=get_remote_address)
 
-def get_user_or_ip(request: Request) -> str:
-    # Use user ID from JWT if available, else fall back to IP
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer ") and auth != "Bearer dev-mode-token":
-        return f"user:{auth[7:27]}"  # first 20 chars of token as key
-    return get_remote_address(request)
+# --- Constants ---
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+MAX_SIZE_BYTES = _settings.max_upload_size_bytes  # 20MB default
 
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "application/pdf"}
-ALLOWED_EXTENSIONS = _settings.allowed_extensions_set
-MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20MB
-
-def _validate_file_extension(filename: str) -> bool:
-    """Check file extension — independent of content-type header."""
-    import os
-    ext = os.path.splitext(filename or "")[1].lower()
-    return ext in ALLOWED_EXTENSIONS
-
-MAGIC_HEADERS = {
-    "image/jpeg": [b"\xff\xd8\xff"],
-    "image/png":  [b"\x89PNG"],
-    "application/pdf": [b"%PDF"],
-}
-
-def _verify_magic_header(file_bytes: bytes, mime: str) -> bool:
-    expected = MAGIC_HEADERS.get(mime, [])
-    return any(file_bytes.startswith(h) for h in expected)
 
 def _detect_true_mime(file_bytes: bytes) -> str:
-    """Use libmagic to detect actual MIME type from file bytes, not client header."""
+    """Use libmagic to detect actual MIME type from raw bytes."""
     try:
         return magic.from_buffer(file_bytes, mime=True)
     except Exception:
         return "application/octet-stream"
 
+
+def _get_user_or_ip(request: Request) -> str:
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer ") and auth != "Bearer dev-mode-token":
+        return f"user:{auth[7:27]}"
+    return get_remote_address(request)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /upload — Upload document, return immediately, process in background
+# ─────────────────────────────────────────────────────────────────────────────
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=201)
-@limiter.limit("10/minute", key_func=get_user_or_ip)
+@limiter.limit("10/minute", key_func=_get_user_or_ip)
 async def upload_document(
     request: Request,
-    file: UploadFile = File(...),
-    patient_id: str = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    file: UploadFile = File(None),
+    files: Optional[List[UploadFile]] = File(None),
+    document_label: str = Form("Other"),
+    pages_count: int = Form(1),
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    # 1. Validate extension (client-controlled, but first line of defense)
-    if len(file.filename or "") > 200:
-        raise HTTPException(400, "filename too long")
+    owner_id = current_user["id"]
 
-    if not _validate_file_extension(file.filename):
-        raise HTTPException(400, f"file extension not allowed. accepted: {ALLOWED_EXTENSIONS}")
+    # Determine if this is a multi-page upload
+    multi_page = files is not None and len(files) > 0
 
-    # 2. Read file
-    file_bytes = await file.read()
+    if not multi_page and file is None:
+        raise HTTPException(400, "No file provided")
 
-    # 3. Check size
-    if len(file_bytes) > MAX_SIZE_BYTES:
-        raise HTTPException(400, f"file exceeds {MAX_SIZE_BYTES // 1024 // 1024}mb limit")
+    if multi_page:
+        # ── Multi-page upload path ──────────────────────────────────────
+        if len(files) > 20:
+            raise HTTPException(400, "Maximum 20 pages per document")
 
-    if len(file_bytes) == 0:
-        raise HTTPException(400, "file is empty")
+        b2_page_keys = []
+        for i, page_file in enumerate(files):
+            if len(page_file.filename or "") > 200:
+                raise HTTPException(400, f"filename too long for page {i+1}")
 
-    # 4. Detect TRUE MIME type from bytes (not from header — headers are spoofable)
-    true_mime = _detect_true_mime(file_bytes)
-    if true_mime not in ALLOWED_MIME_TYPES:
-        logger.warning(
-            f"User {current_user.id} uploaded file with claimed type {file.content_type} "
-            f"but true type is {true_mime}"
-        )
-        raise HTTPException(400, f"file type not allowed. detected: {true_mime}")
+            page_bytes = await page_file.read()
 
-    if not _verify_magic_header(file_bytes, true_mime):
-        raise HTTPException(400, "file content does not match type")
+            if len(page_bytes) == 0:
+                raise HTTPException(400, f"page {i+1} is empty")
+            if len(page_bytes) > MAX_SIZE_BYTES:
+                raise HTTPException(400, f"page {i+1} exceeds {MAX_SIZE_BYTES // 1024 // 1024}MB limit")
 
-    # 5. Validate patient_id format if provided
-    if patient_id:
-        try:
-            uuid.UUID(patient_id)
-        except ValueError:
-            raise HTTPException(400, "invalid patient_id format")
+            # MIME verification
+            true_mime = _detect_true_mime(page_bytes)
+            if true_mime not in ALLOWED_MIME_TYPES:
+                raise HTTPException(
+                    415,
+                    f"Page {i+1}: unsupported file type {true_mime}. "
+                    f"Allowed: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
+                )
 
-    # 6. Upload to B2 tmp prefix
-    doc_id = uuid.uuid4()
-    safe_filename = re.sub(r"[^\w\-.]", "_", file.filename or "upload")[:100]
+            # ClamAV scan
+            is_clean, reason = scan_bytes(page_bytes)
+            if not is_clean:
+                logger.warning(f"User {owner_id} page {i+1} infected: {reason}")
+                raise HTTPException(422, f"Page {i+1} rejected by virus scan: {reason}")
 
-    try:
-        tmp_key = upload_to_tmp(
-            file_bytes,
-            f"{doc_id}_{safe_filename}",
-            true_mime,  # use detected MIME, not client-provided
-        )
-    except Exception as e:
-        logger.error(f"B2 upload failed for doc {doc_id}: {e}")
-        raise HTTPException(503, "storage service unavailable — try again")
+            # Upload to B2
+            safe_filename = re.sub(r"[^\w\-.]", "_", page_file.filename or "upload")[:100]
+            try:
+                b2_key = upload_to_tmp(
+                    page_bytes,
+                    f"{owner_id}/{safe_filename}_page_{i+1}",
+                    true_mime,
+                )
+                b2_page_keys.append(b2_key)
+            except Exception as e:
+                logger.error(f"B2 upload failed for page {i+1}: {e}")
+                raise HTTPException(503, "Storage service unavailable — try again")
 
-    # 7. Create DB record
-    doc = Document(
-        id=doc_id,
-        owner_id=current_user.id,
-        patient_id=patient_id,
-        original_filename=safe_filename,
-        s3_tmp_key=tmp_key,
-        mime_type=true_mime,
-        status=DocumentStatus.uploading,
-    )
-    db.add(doc)
-    db.commit()
+        actual_pages_count = len(files)
 
-    # 8. Queue background processing
-    process_document.apply_async(
-        args=[str(doc_id)],
-        queue="documents",
-        task_id=str(doc_id),  # use doc_id as task_id for easy lookup
-    )
-
-    logger.info(f"Document {doc_id} queued for processing by user {current_user.id}")
-    return DocumentUploadResponse(document_id=str(doc_id), status="processing")
-
-
-@router.get("/")
-def list_documents(
-    status: Optional[str] = None,
-    patient_id: Optional[str] = None,
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """List documents for the current user with optional filters."""
-    query = db.query(Document).filter(Document.owner_id == current_user.id)
-
-    if status:
-        query = query.filter(Document.status == status)
-    if patient_id:
-        try:
-            uuid.UUID(patient_id)
-        except ValueError:
-            raise HTTPException(400, "invalid patient_id format")
-        query = query.filter(Document.patient_id == uuid.UUID(patient_id))
-
-    total = query.count()
-    docs = query.order_by(Document.uploaded_at.desc()).offset(offset).limit(limit).all()
-
-    docs_list = [
-        {
-            "id": str(d.id),
-            "original_filename": d.original_filename,
-            "status": d.status.value if d.status else None,
-            "label": d.label,
-            "mime_type": d.mime_type,
-            "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
-            "patient_id": str(d.patient_id) if d.patient_id else None,
+        # Create Firestore document with page keys
+        doc_data = {
+            "owner_id": owner_id,
+            "file_name": f"{actual_pages_count}_pages",
+            "file_type": "multi-page/images",
+            "b2_file_id": "",  # No single file
+            "b2_file_url": "",
+            "b2_page_keys": b2_page_keys,
+            "document_label": document_label,
+            "document_title": "",
+            "status": "uploaded",
+            "processing_progress": 20,
+            "processing_stage": "uploaded",
+            "extracted_data": {},
+            "summary": "",
+            "pages_count": actual_pages_count,
+            "created_at": SERVER_TIMESTAMP,
+            "updated_at": SERVER_TIMESTAMP,
         }
-        for d in docs
-    ]
-    return {
-        "items": docs_list,
-        "documents": docs_list,
-        "total": total,
-    }
+    else:
+        # ── Single-file upload path (unchanged) ────────────────────────
+        # 1. Basic validation
+        if len(file.filename or "") > 200:
+            raise HTTPException(400, "filename too long")
+
+        file_bytes = await file.read()
+
+        if len(file_bytes) == 0:
+            raise HTTPException(400, "file is empty")
+
+        if len(file_bytes) > MAX_SIZE_BYTES:
+            raise HTTPException(400, f"file exceeds {MAX_SIZE_BYTES // 1024 // 1024}MB limit")
+
+        # 2. MIME verification via python-magic on raw bytes
+        true_mime = _detect_true_mime(file_bytes)
+        if true_mime not in ALLOWED_MIME_TYPES:
+            logger.warning(
+                f"User {owner_id} uploaded file with true type {true_mime} — rejected"
+            )
+            raise HTTPException(
+                415,
+                f"Unsupported file type: {true_mime}. Allowed: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
+            )
+
+        # 3. ClamAV virus scan
+        is_clean, reason = scan_bytes(file_bytes)
+        if not is_clean:
+            logger.warning(f"User {owner_id} uploaded infected file: {reason}")
+            raise HTTPException(422, f"File rejected by virus scan: {reason}")
+
+        # 4. Upload to Backblaze B2
+        safe_filename = re.sub(r"[^\w\-.]", "_", file.filename or "upload")[:100]
+        try:
+            b2_key = upload_to_tmp(file_bytes, f"{owner_id}/{safe_filename}", true_mime)
+        except Exception as e:
+            logger.error(f"B2 upload failed for user {owner_id}: {e}")
+            raise HTTPException(503, "Storage service unavailable — try again")
+
+        # Generate a presigned URL for the uploaded file
+        try:
+            b2_url = get_presigned_url(b2_key, expires_in=86400)  # 24h
+        except Exception:
+            b2_url = ""
+
+        # 5. Create Firestore document
+        doc_data = {
+            "owner_id": owner_id,
+            "file_name": safe_filename,
+            "file_type": true_mime,
+            "b2_file_id": b2_key,
+            "b2_file_url": b2_url,
+            "document_label": document_label,
+            "document_title": "",
+            "status": "uploaded",
+            "processing_progress": 20,
+            "processing_stage": "uploaded",
+            "extracted_data": {},
+            "summary": "",
+            "pages_count": pages_count,
+            "created_at": SERVER_TIMESTAMP,
+            "updated_at": SERVER_TIMESTAMP,
+        }
+
+    doc_ref = db.collection("documents").document()
+    doc_ref.set(doc_data)
+    document_id = doc_ref.id
+
+    # 6. Queue Celery task & update status to "queued"
+    doc_ref.update({
+        "status": "queued",
+        "processing_progress": 25,
+        "processing_stage": "queued",
+        "updated_at": SERVER_TIMESTAMP,
+    })
+
+    process_document.apply_async(
+        args=[document_id, owner_id],
+        queue="documents",
+        task_id=document_id,
+    )
+
+    logger.info(f"Document {document_id} uploaded and queued for user {owner_id}")
+
+    # 7. Return immediately
+    return DocumentUploadResponse(
+        document_id=document_id,
+        status="queued",
+        message="Document uploaded successfully. AI processing has started.",
+    )
 
 
-@router.get("/{document_id}")
+# ─────────────────────────────────────────────────────────────────────────────
+# GET / — List all documents for authenticated user
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("", response_model=DocumentListResponse)
+def list_documents(
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    owner_id = current_user["id"]
+    query = db.collection("documents").where("owner_id", "==", owner_id)
+    docs_stream = query.stream()
+
+    documents = []
+    for d in docs_stream:
+        data = d.to_dict()
+        documents.append(DocumentListItem(
+            document_id=d.id,
+            document_title=data.get("document_title", ""),
+            document_label=data.get("document_label", ""),
+            status=data.get("status", "unknown"),
+            processing_progress=data.get("processing_progress", 0),
+            processing_stage=data.get("processing_stage", "unknown"),
+            file_type=data.get("file_type", ""),
+            created_at=data.get("created_at").isoformat() if isinstance(data.get("created_at"), datetime) else None,
+            updated_at=data.get("updated_at").isoformat() if isinstance(data.get("updated_at"), datetime) else None,
+        ))
+
+    # Sort newest first
+    documents.sort(key=lambda x: x.created_at or "", reverse=True)
+
+    return DocumentListResponse(documents=documents)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /{document_id} — Document detail with extracted data
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/{document_id}", response_model=DocumentDetailResponse)
 def get_document(
     document_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Fetch a single document with full details and presigned URL."""
-    try:
-        uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(400, "invalid document_id")
+    doc_snap = db.collection("documents").document(document_id).get()
+    if not doc_snap.exists:
+        raise HTTPException(404, "Document not found")
 
-    doc = db.query(Document).filter(
-        Document.id == uuid.UUID(document_id),
-        Document.owner_id == current_user.id,
-    ).first()
+    doc = doc_snap.to_dict()
 
-    if not doc:
-        raise HTTPException(404, "document not found")
+    # Ownership check — return 403 if not owner
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(403, "You do not have access to this document")
 
-    presigned_url = None
-    if doc.status == DocumentStatus.complete and doc.s3_key:
-        presigned_url = get_presigned_url(doc.s3_key)
+    # Generate fresh presigned URL if we have a B2 key
+    b2_url = None
+    b2_key = doc.get("b2_file_id")
+    if b2_key:
+        try:
+            b2_url = get_presigned_url(b2_key)
+        except Exception:
+            b2_url = doc.get("b2_file_url")
 
-    return {
-        "id": str(doc.id),
-        "owner_id": str(doc.owner_id),
-        "patient_id": str(doc.patient_id) if doc.patient_id else None,
-        "original_filename": doc.original_filename,
-        "s3_key": doc.s3_key,
-        "mime_type": doc.mime_type,
-        "label": doc.label,
-        "status": doc.status.value if doc.status else None,
-        "extracted_data": doc.extracted_data,
-        "page_count": doc.page_count,
-        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
-        "presigned_url": presigned_url,
-    }
-
-
-@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
-def get_document_status(
-    document_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(400, "invalid document_id")
-
-    doc = db.query(Document).filter(
-        Document.id == uuid.UUID(document_id),
-        Document.owner_id == current_user.id,
-    ).first()
-
-    if not doc:
-        raise HTTPException(404, "document not found")
-
-    return DocumentStatusResponse(
+    return DocumentDetailResponse(
         document_id=document_id,
-        status=doc.status.value,
-        extracted_data=doc.extracted_data if doc.status == DocumentStatus.pending_review else None,
+        document_title=doc.get("document_title", ""),
+        document_label=doc.get("document_label", ""),
+        status=doc.get("status", "unknown"),
+        processing_progress=doc.get("processing_progress", 0),
+        processing_stage=doc.get("processing_stage", "unknown"),
+        file_name=doc.get("file_name", ""),
+        file_type=doc.get("file_type", ""),
+        extracted_data=doc.get("extracted_data", {}),
+        summary=doc.get("summary", ""),
+        b2_file_url=b2_url,
+        created_at=doc.get("created_at").isoformat() if isinstance(doc.get("created_at"), datetime) else None,
+        updated_at=doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else None,
     )
 
 
-@router.post("/{document_id}/confirm")
-def confirm_document(
-    document_id: str,
-    body: DocumentConfirmRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """User reviews and confirms/edits extracted data."""
-    try:
-        uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(400, "invalid document_id")
-
-    doc = db.query(Document).filter(
-        Document.id == uuid.UUID(document_id),
-        Document.owner_id == current_user.id,
-        Document.status == DocumentStatus.pending_review,
-    ).first()
-
-    if not doc:
-        raise HTTPException(404, "document not found or not in review state")
-
-    doc.extracted_data = body.extracted_data
-    doc.label = body.label
-    doc.status = DocumentStatus.complete
-
-    try:
-        patient_to_invalidate = str(doc.patient_id) if doc.patient_id else str(doc.owner_id)
-        invalidate_timeline_cache(patient_to_invalidate)
-    except Exception as e:
-        logger.warning(f"Cache invalidation failed (non-fatal): {e}")
-
-    db.commit()
-    logger.info(f"Document {document_id} confirmed by user {current_user.id}")
-    return {"status": "complete", "document_id": str(document_id), "cache_invalidated": True}
-
-
+# ─────────────────────────────────────────────────────────────────────────────
+# DELETE /{document_id} — Delete document + B2 file
+# ─────────────────────────────────────────────────────────────────────────────
 @router.delete("/{document_id}")
 def delete_document(
     document_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Delete a document and its B2 storage objects."""
-    try:
-        uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(400, "invalid document_id")
+    doc_ref = db.collection("documents").document(document_id)
+    doc_snap = doc_ref.get()
 
-    doc = db.query(Document).filter(
-        Document.id == uuid.UUID(document_id),
-        Document.owner_id == current_user.id,
-    ).first()
+    if not doc_snap.exists:
+        raise HTTPException(404, "Document not found")
 
-    if not doc:
-        raise HTTPException(404, "document not found")
+    doc = doc_snap.to_dict()
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(403, "You do not have access to this document")
 
-    # Clean up B2 storage — best-effort, don't fail delete if B2 is down
-    if doc.s3_key:
+    # Delete from B2
+    b2_key = doc.get("b2_file_id")
+    if b2_key:
         try:
-            delete_object(doc.s3_key)
+            delete_object(b2_key)
         except Exception as e:
-            logger.warning(f"Failed to delete B2 object {doc.s3_key}: {e}")
+            logger.warning(f"Failed to delete B2 object {b2_key}: {e}")
 
-    if doc.s3_tmp_key:
+    # Delete multi-page files if present
+    b2_page_keys = doc.get("b2_page_keys", [])
+    for page_key in b2_page_keys:
         try:
-            delete_object(doc.s3_tmp_key)
+            delete_object(page_key)
         except Exception as e:
-            logger.warning(f"Failed to delete B2 tmp object {doc.s3_tmp_key}: {e}")
+            logger.warning(f"Failed to delete B2 page object {page_key}: {e}")
 
-    db.delete(doc)
-    db.commit()
-    logger.info(f"Document {document_id} deleted by user {current_user.id}")
-    return {"status": "deleted", "document_id": str(document_id)}
+    # Also clean up any old tmp/final keys
+    for key_field in ["s3_key", "s3_tmp_key"]:
+        old_key = doc.get(key_field)
+        if old_key and old_key != b2_key:
+            try:
+                delete_object(old_key)
+            except Exception:
+                pass
+
+    # Delete from Firestore
+    doc_ref.delete()
+    logger.info(f"Document {document_id} deleted by user {current_user['id']}")
+
+    return {"status": "deleted", "document_id": document_id}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /pdf/convert — Convert PDF to page images (used by frontend)
+# ─────────────────────────────────────────────────────────────────────────────
 @router.post("/pdf/convert")
 async def convert_pdf_to_images(
-    pdf_uri: str = Body(..., embed=True),
-    current_user: User = Depends(get_current_user),
+    pdf_uri: str = Form(...),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Convert PDF pages to base64-encoded JPEG images for editing.
-    Accepts a local file URI and returns array of base64 image strings.
-    """
     try:
-        # For mobile apps, the URI will be a local file path
-        # In production, you might want to accept a file upload instead
-        # For now, we'll accept base64-encoded PDF content
-        
-        # If the URI starts with 'data:', extract base64 content
-        if pdf_uri.startswith('data:'):
-            # Format: data:application/pdf;base64,<base64_content>
-            base64_content = pdf_uri.split(',', 1)[1]
+        if pdf_uri.startswith("data:"):
+            base64_content = pdf_uri.split(",", 1)[1]
             pdf_bytes = base64.b64decode(base64_content)
         else:
-            # For file:// URIs, we can't access them from backend
-            # Client should send base64 content instead
             raise HTTPException(400, "please send pdf as base64-encoded data uri")
-        
-        # Open PDF with PyMuPDF
+
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
         page_count = len(pdf_document)
-        
+
         if page_count == 0:
             raise HTTPException(400, "pdf has no pages")
-        
-        if page_count > 200:  # Reasonable limit
-            raise HTTPException(400, f"pdf has too many pages ({page_count}). maximum 200 pages allowed.")
-        
+        if page_count > 200:
+            raise HTTPException(400, f"pdf has too many pages ({page_count}). maximum 200.")
+
         images = []
-        
-        # Convert each page to image
         for page_num in range(page_count):
             page = pdf_document[page_num]
-            
-            # Render page to pixmap (image) at 2x resolution for better quality
-            mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better quality
+            mat = fitz.Matrix(2.0, 2.0)
             pix = page.get_pixmap(matrix=mat)
-            
-            # Convert pixmap to PIL Image
             img_data = pix.tobytes("jpeg")
-            
-            # Convert to base64 for transmission
-            img_base64 = base64.b64encode(img_data).decode('utf-8')
-            data_uri = f"data:image/jpeg;base64,{img_base64}"
-            
-            images.append(data_uri)
-        
+            img_base64 = base64.b64encode(img_data).decode("utf-8")
+            images.append(f"data:image/jpeg;base64,{img_base64}")
+
         pdf_document.close()
-        
-        logger.info(f"Converted PDF with {page_count} pages for user {current_user.id}")
-        
-        return {
-            "success": True,
-            "page_count": page_count,
-            "images": images
-        }
-        
+        logger.info(f"Converted PDF with {page_count} pages for user {current_user['id']}")
+
+        return {"success": True, "page_count": page_count, "images": images}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"PDF conversion failed: {str(e)}")
+        logger.error(f"PDF conversion failed: {e}")
         raise HTTPException(500, f"failed to convert pdf: {str(e)}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /{document_id}/summarize — AI summary (used by frontend)
+# ─────────────────────────────────────────────────────────────────────────────
 @router.post("/{document_id}/summarize", response_model=AISummaryResponse)
 @limiter.limit("10/minute")
 async def summarize_document(
     request: Request,
     document_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    try:
-        uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(400, "invalid document_id")
+    doc_snap = db.collection("documents").document(document_id).get()
+    if not doc_snap.exists:
+        raise HTTPException(404, "Document not found")
 
-    doc = db.query(Document).filter(
-        Document.id == uuid.UUID(document_id),
-        Document.owner_id == current_user.id,
-    ).first()
+    doc = doc_snap.to_dict()
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(403, "You do not have access to this document")
 
-    if not doc:
-        raise HTTPException(404, "document not found")
-
-    if doc.ai_summary:
+    # Return cached summary if available
+    if doc.get("ai_summary"):
         try:
-            cached_result = json.loads(doc.ai_summary)
-            return AISummaryResponse(**cached_result, cached=True, document_id=document_id)
-        except Exception as e:
-            logger.warning(f"Failed to parse cached ai_summary for doc {document_id}: {e}")
+            cached = json.loads(doc["ai_summary"])
+            return AISummaryResponse(**cached, cached=True, document_id=document_id)
+        except Exception:
             pass
 
-    if not doc.extracted_data:
-        raise HTTPException(400, "document not yet processed")
+    if not doc.get("extracted_data"):
+        raise HTTPException(400, "Document not yet processed")
 
     system_prompt = (
         "You are a friendly health assistant explaining a medical document to a patient in plain English.\n"
@@ -442,15 +448,14 @@ async def summarize_document(
         "}"
     )
 
-    user_message = json.dumps(doc.extracted_data, indent=2)
+    user_message = json.dumps(doc["extracted_data"], indent=2)
 
     try:
-        from app.config import settings
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {settings.groq_api_key}",
+                    "Authorization": f"Bearer {_settings.groq_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
@@ -465,8 +470,7 @@ async def summarize_document(
             )
             response.raise_for_status()
             raw = response.json()["choices"][0]["message"]["content"].strip()
-            
-            # Strip markdown fences if present
+
             if raw.startswith("```"):
                 parts = raw.split("```")
                 raw = parts[1] if len(parts) > 1 else raw
@@ -475,13 +479,57 @@ async def summarize_document(
             raw = raw.strip()
 
             result = json.loads(raw)
-            
-            # Store cache
-            doc.ai_summary = json.dumps(result)
-            db.commit()
+
+            # Cache the result
+            doc_ref = db.collection("documents").document(document_id)
+            doc_ref.update({"ai_summary": json.dumps(result)})
 
             return AISummaryResponse(**result, cached=False, document_id=document_id)
 
     except Exception as e:
         logger.error(f"AI summarization failed for doc {document_id}: {e}")
-        raise HTTPException(503, "ai service temporarily unavailable")
+        raise HTTPException(503, "AI service temporarily unavailable")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /{document_id}/retry — Re-queue a failed document for processing
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/{document_id}/retry")
+def retry_document(
+    document_id: str,
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    doc_ref = db.collection("documents").document(document_id)
+    doc_snap = doc_ref.get()
+
+    if not doc_snap.exists:
+        raise HTTPException(404, "Document not found")
+
+    doc = doc_snap.to_dict()
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(403, "You do not have access to this document")
+
+    if doc.get("status") != "failed":
+        raise HTTPException(409, "Only failed documents can be retried")
+
+    # Reset Firestore fields
+    doc_ref.update({
+        "status": "queued",
+        "processing_progress": 25,
+        "processing_stage": "queued",
+        "updated_at": SERVER_TIMESTAMP,
+    })
+
+    # Re-queue Celery task with a unique task_id to avoid conflicts
+    import time
+    retry_task_id = f"{document_id}-retry-{int(time.time())}"
+    process_document.apply_async(
+        args=[document_id, current_user["id"]],
+        queue="documents",
+        task_id=retry_task_id,
+    )
+
+    logger.info(f"Document {document_id} retried by user {current_user['id']}")
+
+    return {"status": "queued", "document_id": document_id}

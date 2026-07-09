@@ -1,21 +1,16 @@
 # app/routers/search.py
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from app.database import get_db
-from app.models.user import User
-from app.models.document import Document, DocumentStatus
-from app.models.medical_event import MedicalEvent
+from google.cloud.firestore import Client
+from app.firestore import get_db
 from app.middleware.auth_middleware import get_current_user
 from app.logging_config import logger
 from pydantic import BaseModel
 from typing import List, Optional
-from uuid import UUID
 
 router = APIRouter(prefix="/search", tags=["search"])
 
 class SearchResult(BaseModel):
-    id: UUID
+    id: str
     type: str  # "document" or "event"
     title: str
     subtitle: Optional[str] = None
@@ -32,64 +27,89 @@ class SearchResponse(BaseModel):
 def search_records(
     q: str = Query(..., min_length=3, max_length=100),
     limit: int = Query(default=20, le=50),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    Full-text search across documents and medical events owned by the user.
-    Searches: filename, label, hospital name, doctor name, diagnosis summary.
+    Search across documents and medical events owned by the user.
+    Since Firestore doesn't support full text search natively, we filter in memory 
+    for the specific user's records.
     """
-    q = q.strip()
+    q = q.strip().lower()
     if len(q) < 3:
         return SearchResponse(results=[], items=[], total=0, query=q)
 
-    search_term = f"%{q}%"
     results = []
 
-    # Search documents
-    docs = db.query(Document).filter(
-        Document.owner_id == current_user.id,
-        Document.status == DocumentStatus.complete,
-        or_(
-            Document.original_filename.ilike(search_term),
-            Document.label.ilike(search_term),
-        )
-    ).limit(limit).all()
+    # 1. Fetch user's documents
+    docs_stream = db.collection("documents")\
+        .where("owner_id", "==", current_user["id"])\
+        .where("status", "==", "complete")\
+        .stream()
 
-    for doc in docs:
-        results.append(SearchResult(
-            id=doc.id,
-            type="document",
-            title=doc.original_filename or "Untitled Document",
-            subtitle=doc.label,
-            date=doc.uploaded_at.date().isoformat() if doc.uploaded_at else None,
-            label=doc.label,
-        ))
-
-    # Search medical events
-    remaining = limit - len(results)
-    if remaining > 0:
-        events = db.query(MedicalEvent).filter(
-            MedicalEvent.patient_id.in_(
-                db.query(Document.patient_id).filter(
-                    Document.owner_id == current_user.id
-                )
-            ),
-            or_(
-                MedicalEvent.hospital_name.ilike(search_term),
-                MedicalEvent.doctor_name.ilike(search_term),
-                MedicalEvent.summary.ilike(search_term),
-            )
-        ).limit(remaining).all()
-
-        for event in events:
+    patient_ids = set()
+    
+    for doc in docs_stream:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        if data.get("patient_id"):
+            patient_ids.add(data["patient_id"])
+            
+        filename = (data.get("original_filename") or "").lower()
+        label = (data.get("label") or "").lower()
+        
+        if q in filename or q in label:
+            uploaded_at = data.get("uploaded_at")
+            date_str = None
+            if uploaded_at:
+                try:
+                    date_str = uploaded_at.date().isoformat() if hasattr(uploaded_at, "date") else str(uploaded_at)
+                except:
+                    pass
+                    
             results.append(SearchResult(
-                id=event.id,
-                type="event",
-                title=event.hospital_name or "Medical Event",
-                subtitle=event.doctor_name,
-                date=event.event_date.isoformat() if event.event_date else None,
+                id=doc.id,
+                type="document",
+                title=data.get("original_filename") or "Untitled Document",
+                subtitle=data.get("label"),
+                date=date_str,
+                label=data.get("label"),
             ))
 
-    logger.info(f"Search '{q}' returned {len(results)} results for user {current_user.id}")
+    # 2. Fetch medical events for all those patients
+    events_found = 0
+    if len(results) < limit and patient_ids:
+        # Firestore 'in' query has max 10 elements. We might need to query per patient.
+        for pid in list(patient_ids):
+            if events_found + len(results) >= limit:
+                break
+                
+            events_stream = db.collection("medical_events")\
+                .where("patient_id", "==", pid)\
+                .stream()
+                
+            for event in events_stream:
+                e_data = event.to_dict()
+                
+                hospital = (e_data.get("hospital_name") or "").lower()
+                doctor = (e_data.get("doctor_name") or "").lower()
+                summary = (e_data.get("summary") or "").lower()
+                
+                if q in hospital or q in doctor or q in summary:
+                    results.append(SearchResult(
+                        id=event.id,
+                        type="event",
+                        title=e_data.get("hospital_name") or "Medical Event",
+                        subtitle=e_data.get("doctor_name"),
+                        date=e_data.get("event_date")
+                    ))
+                    events_found += 1
+                    
+                if events_found + len(results) >= limit:
+                    break
+
+    # Sort results
+    results = results[:limit]
+
+    logger.info(f"Search '{q}' returned {len(results)} results for user {current_user['id']}")
     return SearchResponse(results=results, items=results, total=len(results), query=q)

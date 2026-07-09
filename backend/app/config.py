@@ -4,11 +4,7 @@ from pydantic import field_validator, model_validator
 from typing import Optional
 
 class Settings(BaseSettings):
-    # Database
-    database_url: str
-    db_pool_size: int = 3
-    db_max_overflow: int = 5
-    db_pool_timeout: int = 30
+    # Database (Firestore — uses service account, no connection string needed)
 
     # Redis
     redis_url: str

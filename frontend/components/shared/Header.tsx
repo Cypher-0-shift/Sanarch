@@ -26,7 +26,7 @@ export default function Header() {
         </View>
         
         <View className="flex-row items-center gap-4">
-          <TouchableOpacity onPress={() => setShowActivity(true)} activeOpacity={0.75}>
+          <TouchableOpacity onPress={() => setShowActivity(true)} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <MaterialCommunityIcons name="history" size={24} color="#143832" />
           </TouchableOpacity>
           
@@ -34,6 +34,7 @@ export default function Header() {
             className="h-10 w-10 rounded-full bg-primary/20 items-center justify-center"
             onPress={() => router.push('/(tabs)/profile')}
             activeOpacity={0.75}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           >
             <MaterialCommunityIcons name="account" size={24} color="#143832" />
           </TouchableOpacity>

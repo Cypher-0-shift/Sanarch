@@ -1,7 +1,6 @@
 # app/schemas/user.py
 from pydantic import BaseModel, field_validator
 from typing import Optional
-from uuid import UUID
 from datetime import datetime
 import re
 
@@ -34,7 +33,7 @@ class UserCreateRequest(BaseModel):
         return v
 
 class UserResponse(BaseModel):
-    id: UUID
+    id: str
     sanarch_id: str
     phone_number: str
     full_name: Optional[str]

@@ -52,6 +52,8 @@ def upload_to_tmp(file_bytes: bytes, filename: str, content_type: str) -> str:
 
 def move_to_final(tmp_key: str, final_key: str) -> None:
     """Move from tmp/ to docs/ after scan passes."""
+    if tmp_key == final_key:
+        return
     client = get_b2_client()
     try:
         client.copy_object(

@@ -89,7 +89,7 @@ export default function SearchScreen() {
       {/* Header */}
       <View className="bg-white border-b border-[#E5E2DE] px-4 pt-4 pb-4 z-10">
         <View className="flex-row items-center mb-4">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+          <TouchableOpacity onPress={() => router.back()} className="mr-3" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
           </TouchableOpacity>
           <Text className="text-xl font-display-bold text-[#004D36]">Search</Text>
@@ -109,7 +109,7 @@ export default function SearchScreen() {
             autoFocus
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <MaterialCommunityIcons name="close-circle" size={20} color="#819685" />
             </TouchableOpacity>
           )}
@@ -148,7 +148,7 @@ export default function SearchScreen() {
             {results.map((result) => (
               <TouchableOpacity
                 key={result.id}
-                className="bg-white rounded-2xl p-4 border border-[#E5E2DE] shadow-sm"
+                className="bg-white rounded-xl p-4 border border-[#E5E2DE] shadow-sm"
                 activeOpacity={0.75}
                 onPress={() => router.push(`/(tabs)/records/${result.id}` as any)}
               >

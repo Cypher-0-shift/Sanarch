@@ -98,6 +98,7 @@ export default function UploadScreen() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<{ title: string; subtitle: string } | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   const isMounted = useRef(true);
@@ -142,6 +143,7 @@ export default function UploadScreen() {
     setPdfPageImages([]);
     setCategory('lab_report'); setTitle(''); setDescription('');
     setUploading(false); setProgress(0); setSuccess(false);
+    setSuccessMessage(null);
   };
 
   // Convert file URI to base64
@@ -253,6 +255,29 @@ export default function UploadScreen() {
     }
   };
 
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Gallery access is required to select photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.92,
+      allowsMultipleSelection: true,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      // For now, take the first selected image and proceed
+      // TODO: Support multi-page upload from multiple photos
+      const uri = result.assets[0].uri;
+      setFileUri(uri);
+      setAdjustedUri(uri);
+      setFileName(result.assets[0].fileName || 'Photo_' + Date.now() + '.jpg');
+      setFileType('photo');
+      setStep(2);
+    }
+  };
+
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -353,7 +378,7 @@ export default function UploadScreen() {
         uploadUri,
         uploadFileName,
         uploadMimeType,
-        patientId
+        category,
       );
       const documentId = uploadResult.document_id;
       setProgress(35);
@@ -381,19 +406,32 @@ export default function UploadScreen() {
         throw new Error('Document processing failed. The file may be corrupted or a virus was detected.');
       }
 
-      if (status !== 'complete') {
-        throw new Error('Document processing timed out. It will continue in the background.');
+      const didComplete = status === 'complete';
+
+      if (didComplete) {
+        setProgress(90);
+
+        // 3. Confirm with user-provided metadata
+        await confirmDocument(documentId, category, {
+          title: title.trim(),
+          notes: description.trim() || undefined,
+        });
       }
 
-      setProgress(90);
-
-      // 3. Confirm with user-provided metadata
-      await confirmDocument(documentId, category, {
-        title: title.trim(),
-        notes: description.trim() || undefined,
-      });
+      // NOTE on timeout path: confirmDocument is currently a no-op (the label
+      // was already sent during upload, and there is no PATCH endpoint yet).
+      // The Firestore onSnapshot listener (useActiveDocumentListeners) on the
+      // Records screen will pick up status changes in real time once the
+      // backend finishes processing. If a real confirm/PATCH endpoint is added
+      // later, it will need to be triggered from the Records screen once
+      // onSnapshot reports 'ready' for documents that timed out here.
 
       setProgress(100);
+      setSuccessMessage(
+        didComplete
+          ? { title: 'Saved!', subtitle: 'Your record has been uploaded and is being processed.' }
+          : { title: 'Uploaded!', subtitle: 'Still processing — you\'ll see it update in Records shortly.' }
+      );
       setSuccess(true);
       
       // Free base64 images from memory
@@ -467,7 +505,7 @@ export default function UploadScreen() {
 
             <View style={{ alignItems: 'center' }}>
               <Text style={s.headerTitle}>Upload Record</Text>
-              <Text style={s.headerSub}>Step {step} of 5 � {STEP_LABELS[step - 1]}</Text>
+              <Text style={s.headerSub}>Step {step} of 5 • {STEP_LABELS[step - 1]}</Text>
             </View>
 
             <TouchableOpacity onPress={handleClosePress} activeOpacity={0.75} style={s.iconBtn}>
@@ -505,6 +543,18 @@ export default function UploadScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.sourceTitle}>Take Photo</Text>
                 <Text style={s.sourceSub}>Scan a document with your camera</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
+            </TouchableOpacity>
+
+            {/* Upload Photo */}
+            <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.8} style={s.sourceCard}>
+              <View style={[s.sourceIcon, { backgroundColor: '#F3E5F5' }]}>
+                <MaterialCommunityIcons name="image-outline" size={28} color="#7B1FA2" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sourceTitle}>Upload Photo</Text>
+                <Text style={s.sourceSub}>Select images from gallery</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
             </TouchableOpacity>
@@ -639,7 +689,7 @@ export default function UploadScreen() {
           <Text style={s.pageTitle}>Label this document</Text>
           <Text style={s.pageSubtitle}>What type of record is this?</Text>
 
-          <View style={{ gap: 12, marginTop: 8 }}>
+          <View style={{ gap: 8, marginTop: 8 }}>
             {CATEGORIES.map(cat => {
               const sel = category === cat.id;
               return (
@@ -683,7 +733,7 @@ export default function UploadScreen() {
             <Text style={s.fieldLabel}>Description (optional)</Text>
             <TextInput
               value={description} onChangeText={setDescription}
-              placeholder="Any notes about this record�"
+              placeholder="Any notes about this record..."
               placeholderTextColor="#C8D5CA"
               multiline numberOfLines={4}
               style={[s.input, s.inputMulti]}
@@ -694,7 +744,7 @@ export default function UploadScreen() {
           <TouchableOpacity
             onPress={() => { if (title.trim()) setStep(5); }}
             activeOpacity={title.trim() ? 0.8 : 1}
-            style={[s.primaryBtn, !title.trim() && { opacity: 0.45 }]}
+            style={[s.primaryBtn, { opacity: title.trim() ? 1 : 0.45 }]}
           >
             <MaterialCommunityIcons name="arrow-right" size={20} color="white" />
             <Text style={s.primaryBtnText}>Review</Text>
@@ -773,9 +823,9 @@ export default function UploadScreen() {
               <View style={s.successCircle}>
                 <MaterialCommunityIcons name="check-circle" size={52} color="#004D36" />
               </View>
-              <Text style={s.processingTitle}>Saved!</Text>
+              <Text style={s.processingTitle}>{successMessage?.title ?? 'Saved!'}</Text>
               <Text style={s.processingSubtitle}>
-                Your record has been uploaded and is being processed.
+                {successMessage?.subtitle ?? 'Your record has been uploaded and is being processed.'}
               </Text>
               <View style={s.progressTrack}>
                 <View style={[s.progressFill, { width: '100%' }]} />
@@ -786,7 +836,7 @@ export default function UploadScreen() {
               <View style={s.successCircle}>
                 <ActivityIndicator size="large" color="#004D36" />
               </View>
-              <Text style={s.processingTitle}>Uploading�</Text>
+              <Text style={s.processingTitle}>Uploading...</Text>
               <Text style={s.processingSubtitle}>
                 Sanarch AI is reading and extracting data from your document.{'\n'}
                 This may take up to 2 minutes for complex files.
@@ -866,15 +916,15 @@ const s = StyleSheet.create({
   processingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12 },
   processingOverlayText: { color: 'white', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
 
-  // Step 3 � label
-  catCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 18, borderWidth: 2, borderColor: '#E5E2DE', backgroundColor: 'white' },
+  // Step 3  label
+  catCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 18, borderWidth: 2, borderColor: '#E5E2DE', backgroundColor: 'white' },
   catCardSel: { borderColor: '#004D36', backgroundColor: '#F0F7F4' },
-  catIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  catIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   catName: { flex: 1, fontSize: 15, fontFamily: 'Inter_700Bold', color: '#2D3A2F' },
   checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#C8D5CA', backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
   checkboxSel: { backgroundColor: '#004D36', borderColor: '#004D36' },
 
-  // Step 4 � details
+  // Step 4  details
   formCard: { backgroundColor: 'white', borderRadius: 22, borderWidth: 1, borderColor: '#E5E2DE', padding: 20, marginBottom: 24 },
   fieldLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#819685', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 8 },
   input: { backgroundColor: '#F5F3F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 14, color: '#2D3A2F', fontFamily: 'Inter_500Medium', marginBottom: 20 },

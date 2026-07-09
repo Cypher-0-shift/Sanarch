@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, 
-  Alert, InteractionManager, ActivityIndicator
+  InteractionManager, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useAlertStore } from '../../store/alertStore';
 import QRDisplay from '../../components/doctors/QRDisplay';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
@@ -97,7 +98,7 @@ export default function ShareRecordsScreen() {
               const scannedToken = data.split('/').pop();
               router.push(`/(tabs)/doctors?token=${scannedToken}`);
             } else {
-              Alert.alert('Invalid QR', 'This is not a valid SANARCH share code.');
+              useAlertStore.getState().showAlert('Invalid QR', 'This is not a valid SANARCH share code.');
             }
           }}
         />
@@ -162,7 +163,7 @@ export default function ShareRecordsScreen() {
 
   const handleGenerateQR = async () => {
     if (selectedIds.size === 0) {
-      Alert.alert('No records selected', 'Select at least one record to share.');
+      useAlertStore.getState().showAlert('No records selected', 'Select at least one record to share.');
       return;
     }
 
@@ -187,7 +188,7 @@ export default function ShareRecordsScreen() {
         `Expires in ${accessDuration}`
       );
     } catch (error: any) {
-      Alert.alert(
+      useAlertStore.getState().showAlert(
         'Failed',
         error?.response?.data?.detail ?? 'Could not generate QR code.'
       );
@@ -350,7 +351,7 @@ export default function ShareRecordsScreen() {
                 </>
               ) : (
                 <>
-                  <View className="bg-[#004D36] p-4 rounded-2xl flex-row items-start gap-3 mb-6 w-full">
+                  <View className="bg-[#004D36] p-4 rounded-xl flex-row items-start gap-3 mb-6 w-full">
                     <MaterialCommunityIcons name="information-outline" size={20} color="white" />
                     <Text className="text-white text-xs font-display flex-1 leading-tight">
                       This QR gives {accessLevel === 'read_only' ? 'read-only' : 'full'} access to {selectedIds.size} record{selectedIds.size !== 1 ? 's' : ''}. It expires automatically for your security.

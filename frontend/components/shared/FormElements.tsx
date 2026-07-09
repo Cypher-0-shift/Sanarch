@@ -23,7 +23,7 @@ export function FormField({ label, value, onChangeText, locked, lockReason, plac
           activeOpacity={0.75}
           onPress={() => useAlertStore.getState().showAlert('Field Locked', `${label} cannot be edited. This field is permanently set to protect your identity.`)}
         >
-          <View className="w-full h-[52px] bg-[#F8F7F5] border border-[#E5E2DE] rounded-2xl px-4 flex-row items-center">
+          <View className="w-full h-[52px] bg-[#F8F7F5] border border-[#E5E2DE] rounded-xl px-4 flex-row items-center">
             <Text className="text-sm font-display-medium text-[#A0A0A0] flex-1">{value || '—'}</Text>
             <MaterialCommunityIcons name="lock-outline" size={16} color="#C5C5C5" />
           </View>
@@ -33,7 +33,7 @@ export function FormField({ label, value, onChangeText, locked, lockReason, plac
           value={value} onChangeText={onChangeText} placeholder={placeholder}
           placeholderTextColor="#B0B0B0" keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          className={`w-full h-[52px] bg-white border rounded-2xl px-4 text-sm font-display-medium ${value ? 'border-[#004D36] text-[#004D36]' : 'border-[#E5E2DE] text-[#2D3A2F]'}`}
+          className={`w-full h-[52px] bg-white border rounded-xl px-4 text-sm font-display-medium ${value ? 'border-[#004D36] text-[#004D36]' : 'border-[#E5E2DE] text-[#2D3A2F]'}`}
           style={{ fontSize: 14 }}
         />
       )}
@@ -49,7 +49,7 @@ export function SelectorField({ label, value, placeholder, onPress }: {
     <View className="mb-5">
       <Text className="text-[11px] font-display-bold uppercase tracking-[0.1em] text-[#819685] mb-2 ml-1">{label}</Text>
       <TouchableOpacity activeOpacity={0.75} onPress={onPress}
-        className={`w-full h-[52px] bg-white border rounded-2xl px-4 flex-row items-center justify-between ${value ? 'border-[#004D36]' : 'border-[#E5E2DE]'}`}>
+        className={`w-full h-[52px] bg-white border rounded-xl px-4 flex-row items-center justify-between ${value ? 'border-[#004D36]' : 'border-[#E5E2DE]'}`}>
         <Text className={`text-sm font-display-medium ${value ? 'text-[#004D36]' : 'text-[#B0B0B0]'}`}>{value || placeholder}</Text>
         <MaterialCommunityIcons name="chevron-down" size={20} color="#819685" />
       </TouchableOpacity>
@@ -78,7 +78,7 @@ export function ScrollStringPickerModal({ visible, onClose, title, options, valu
       <View className="flex-1 bg-black/50 justify-center px-6">
         <View className="bg-white rounded-[32px] p-6 shadow-sm">
           <Text className="text-lg font-display-bold text-[#2D3A2F] mb-4 text-center">{title}</Text>
-          <View className="bg-[#F5F3F0] rounded-2xl overflow-hidden" style={{ height: ITEM_H * 3 }}>
+          <View className="bg-[#F5F3F0] rounded-xl overflow-hidden" style={{ height: ITEM_H * 3 }}>
             <View className="absolute left-0 right-0 bg-[#E8F5E9] border-y border-[#C8E6C9] z-0" style={{ top: ITEM_H, height: ITEM_H }} />
             <FlatList
               ref={flatListRef}
@@ -133,7 +133,7 @@ export function DropdownModal({ visible, onClose, title, options, value, onSelec
         <View className="bg-white rounded-t-[32px] p-6 pb-10 max-h-[80%]">
           <View className="flex-row justify-between items-center mb-6">
             <Text className="text-xl font-display-bold text-[#2D3A2F]">{title}</Text>
-            <TouchableOpacity onPress={onClose} className="p-2 bg-[#F5F3F0] rounded-full" activeOpacity={0.75}>
+            <TouchableOpacity onPress={onClose} className="p-2 bg-[#F5F3F0] rounded-full" activeOpacity={0.75} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
               <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
             </TouchableOpacity>
           </View>
@@ -141,7 +141,7 @@ export function DropdownModal({ visible, onClose, title, options, value, onSelec
             {options.map((opt) => (
               <TouchableOpacity key={opt} activeOpacity={0.75}
                 onPress={() => { onSelect(opt); onClose(); }}
-                className={`px-5 py-4 rounded-2xl mb-2 flex-row items-center justify-between ${value === opt ? 'bg-[#E8F5E9]' : 'bg-[#F5F3F0]'}`}>
+                className={`px-5 py-4 rounded-xl mb-2 flex-row items-center justify-between ${value === opt ? 'bg-[#E8F5E9]' : 'bg-[#F5F3F0]'}`}>
                 <Text className={`text-base font-display-medium ${value === opt ? 'text-[#004D36]' : 'text-[#2D3A2F]'}`}>{opt}</Text>
                 {value === opt && <MaterialCommunityIcons name="check-circle" size={20} color="#004D36" />}
               </TouchableOpacity>

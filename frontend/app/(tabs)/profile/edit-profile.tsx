@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, Modal, Animated, FlatList, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, Modal, Animated, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -54,7 +54,7 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!fullName.trim()) {
-      Alert.alert('Required', 'Name cannot be empty.');
+      useAlertStore.getState().showAlert('Required', 'Name cannot be empty.');
       return;
     }
     
@@ -87,10 +87,10 @@ export default function EditProfileScreen() {
       );
       useProfileStore.setState({ familyMembers: updatedMembers });
 
-      Alert.alert('Saved', 'Your profile has been updated.');
+      useAlertStore.getState().showAlert('Saved', 'Your profile has been updated.');
       router.push('/(tabs)/profile');
     } catch (error: any) {
-      Alert.alert(
+      useAlertStore.getState().showAlert(
         'Save Failed',
         error?.response?.data?.detail ?? 'Could not update profile.'
       );
@@ -103,7 +103,10 @@ export default function EditProfileScreen() {
     <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
       {/* Header */}
       <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.75} className="w-10 h-10 rounded-full bg-[#F5F3F0] items-center justify-center">
+        <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} 
+          activeOpacity={0.75} 
+          hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+          className="w-10 h-10 rounded-full bg-[#F5F3F0] items-center justify-center">
           <MaterialCommunityIcons name="chevron-left" size={24} color="#2D3A2F" />
         </TouchableOpacity>
         <Text className="text-[#2D3A2F] text-xl font-display-bold tracking-tight">Edit Profile</Text>
@@ -140,7 +143,7 @@ export default function EditProfileScreen() {
               <View className="mb-5">
                 <Text className="text-[11px] font-display-bold uppercase tracking-[0.1em] text-[#819685] mb-2">Date of Birth</Text>
                 <TouchableOpacity activeOpacity={0.75} onPress={() => setShowCalendar(true)}
-                  className={`w-full h-[52px] bg-white border rounded-2xl px-4 flex-row items-center justify-between ${dob ? 'border-[#004D36]' : 'border-[#E5E2DE]'}`}>
+                  className={`w-full h-[52px] bg-white border rounded-xl px-4 flex-row items-center justify-between ${dob ? 'border-[#004D36]' : 'border-[#E5E2DE]'}`}>
                   <Text className={`text-sm font-display-medium ${dob ? 'text-[#004D36]' : 'text-[#B0B0B0]'}`}>{dob || 'DD / MM / YYYY'}</Text>
                   <MaterialCommunityIcons name="calendar" size={20} color="#819685" />
                 </TouchableOpacity>

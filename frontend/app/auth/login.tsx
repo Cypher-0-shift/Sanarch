@@ -125,51 +125,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleDevLogin = async () => {
-    setIsLoading(true);
-    setErrorMsg(null);
-    try {
-      const { saveToken } = await import('../../services/storage');
-      const REAL_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzA5NGY0ZS0yYmZjLTQzZmMtOWI5NS00OTIxNmQzYzQxZDEiLCJzYW5hcmNoX2lkIjoiU0FOLUlOLTI2LU0tMTgtUC0wMC1UUUVMRVItS0EiLCJleHAiOjE3ODAyMjg1NzQsImlhdCI6MTc4MDIyNDk3NH0.r5M8BvPMSwrKNH0W9shJ6-pvUBkFv0icffXqJzIfgVE';
-      await saveToken(REAL_JWT);
-      useAuthStore.getState().setToken(REAL_JWT);
-      
-      // Mock user data for offline dev mode
-      const userData = {
-        id: '57094f4e-2bfc-43fc-9b95-49216d3c41d1',
-        sanarch_id: 'SAN-IN-26-M-18-P-00-TQELER-KA',
-        full_name: 'Developer User',
-        phone_number: '+919999999999',
-        email: 'dev@sanarch.io',
-        role: 'user',
-        created_at: new Date().toISOString(),
-      };
-      
-      useAuthStore.getState().login(userData, REAL_JWT);
-      
-      const { useProfileStore } = await import('../../store/profileStore');
-      useProfileStore.getState().initProfiles(
-        {
-          id: userData.id,
-          sanarchId: userData.sanarch_id,
-          name: userData.full_name,
-          relation: 'self',
-          isMainAccount: true,
-          phone: userData.phone_number,
-        },
-        undefined
-      );
-      
-      router.replace('/(tabs)/home');
-    } catch (err: any) {
-      console.error('Dev Login failed:', err);
-      setErrorMsg('Dev login failed.');
-      useAuthStore.getState().setToken(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleAcceptLegal = () => {
     if (hasReadTerms && hasReadPrivacy) {
       setAgreed(true);
@@ -329,25 +284,6 @@ export default function LoginScreen() {
                     </>
                   )}
                 </TouchableOpacity>
-
-                {/* Dev Buttons */}
-                <View style={styles.devButtonsContainer}>
-                  <TouchableOpacity onPress={handleDevLogin} activeOpacity={0.75}>
-                    <Text style={styles.devButtonText}>Developer Mode</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    activeOpacity={0.75} 
-                    onPress={() => {
-                      const simulatedPhone = phone.length >= 8 ? phone : '9999999999';
-                      router.replace({
-                        pathname: '/auth/onboarding',
-                        params: { phone: `${selectedCountry.code}${simulatedPhone}` }
-                      });
-                    }}
-                  >
-                    <Text style={styles.devButtonText}>New User (Dev)</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
             ) : (
               // OTP STEP
@@ -922,19 +858,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
   },
 
-  // Dev Buttons
-  devButtonsContainer: {
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
-  },
-  devButtonText: {
-    fontSize: 12,
-    color: '#C8D5CA',
-    fontFamily: 'Inter_400Regular',
-    textDecorationLine: 'underline',
-  },
 
   // OTP Step
   backButton: {

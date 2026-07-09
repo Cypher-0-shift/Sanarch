@@ -203,17 +203,19 @@ async def ocr_with_azure_di(image_bytes: bytes) -> Tuple[str, float]:
 
 
 # ---------------------------------------------------------------------------
-# 9. PDF → image conversion
+# 9. PDF → image conversion (legacy — kept for backward compatibility)
 # ---------------------------------------------------------------------------
 def pdf_first_page_to_image(pdf_bytes: bytes) -> bytes:
-    """Convert first PDF page to PNG bytes for OCR."""
+    """Convert first PDF page to PNG bytes. Legacy helper."""
     try:
         import fitz  # PyMuPDF — lazy import
 
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc.load_page(0)
         pix = page.get_pixmap(dpi=200)
-        return pix.tobytes("png")
+        img_bytes = pix.tobytes("png")
+        doc.close()
+        return img_bytes
     except Exception as e:
         raise RuntimeError(
             f"Failed to convert PDF first page to image: {e}"
@@ -224,10 +226,16 @@ def pdf_first_page_to_image(pdf_bytes: bytes) -> bytes:
 # 10. Full extraction pipeline
 # ---------------------------------------------------------------------------
 async def extract_from_image(image_bytes: bytes, mime_type: str) -> dict:
-    """Full pipeline: Azure DI OCR → Med7 NER → Groq structuring."""
-    if mime_type == "application/pdf":
-        image_bytes = pdf_first_page_to_image(image_bytes)
+    """
+    Full pipeline: Azure DI OCR → Med7 NER → Groq structuring.
 
+    For PDFs, the raw bytes are sent directly to Azure DI which natively
+    handles multi-page documents via its `prebuilt-read` model.  This
+    ensures ALL pages are OCR'd (previously only the first page was
+    converted to an image and processed).
+    """
+    # Azure DI accepts both image bytes and PDF bytes directly —
+    # no conversion needed. It iterates all pages internally.
     text, confidence = await ocr_with_azure_di(image_bytes)
 
     if not text.strip():

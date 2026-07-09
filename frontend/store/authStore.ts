@@ -11,7 +11,6 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   login: (user: UserPlaceholder, token: string) => void;
   logout: () => void;
-  devLogin: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -31,18 +30,4 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () =>
     set({ user: EMPTY_USER, token: null, isAuthenticated: false, isLoading: false }),
-
-  devLogin: () =>
-    set({
-      user: {
-        id: 'dev-usr-001',
-        sanarch_id: 'SAN-DEV01',
-        full_name: 'Developer',
-        phone_number: '+91 00000 00000',
-        email: 'dev@sanarch.io',
-      },
-      token: 'dev-mode-token',
-      isAuthenticated: true,
-      isLoading: false,
-    }),
 }));

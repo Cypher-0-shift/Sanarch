@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, Switch, Alert,
+  View, Text, TouchableOpacity, ScrollView, Switch,
   Modal, TextInput, Animated, Linking, Platform, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -172,7 +172,7 @@ export default function Settings() {
           onPress: async () => {
             try {
               await firebaseLogout();
-            } catch {}
+            } catch { }
             useAuthStore.getState().logout();
             useProfileStore.getState().clearProfile();
             router.replace('/auth/login');
@@ -189,6 +189,7 @@ export default function Settings() {
         <TouchableOpacity
           onPress={() => router.back()}
           activeOpacity={0.75}
+          hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F5F3F0', alignItems: 'center', justifyContent: 'center' }}
         >
           <MaterialCommunityIcons name="chevron-left" size={24} color="#2D3A2F" />
@@ -281,10 +282,10 @@ export default function Settings() {
             label="Terms & Conditions"
             sublabel="Read our full terms of service"
             right={
-              <MaterialCommunityIcons 
-                name="open-in-new" 
-                size={18} 
-                color="#819685" 
+              <MaterialCommunityIcons
+                name="open-in-new"
+                size={18}
+                color="#819685"
               />
             }
             onPress={() => Linking.openURL(LEGAL_URLS.TERMS_AND_CONDITIONS)}
@@ -297,10 +298,10 @@ export default function Settings() {
             label="Privacy Policy"
             sublabel="How we protect your health data"
             right={
-              <MaterialCommunityIcons 
-                name="open-in-new" 
-                size={18} 
-                color="#819685" 
+              <MaterialCommunityIcons
+                name="open-in-new"
+                size={18}
+                color="#819685"
               />
             }
             onPress={() => Linking.openURL(LEGAL_URLS.PRIVACY_POLICY)}
@@ -313,10 +314,10 @@ export default function Settings() {
             label="Account Deletion Policy"
             sublabel="How to delete your account and data"
             right={
-              <MaterialCommunityIcons 
-                name="open-in-new" 
-                size={18} 
-                color="#819685" 
+              <MaterialCommunityIcons
+                name="open-in-new"
+                size={18}
+                color="#819685"
               />
             }
             onPress={() => Linking.openURL(LEGAL_URLS.ACCOUNT_DELETION)}
@@ -363,7 +364,7 @@ export default function Settings() {
                     useProfileStore.getState().clearProfile();
                     router.replace('/auth/login');
                   } catch (error: any) {
-                    Alert.alert(
+                    useAlertStore.getState().showAlert(
                       'Error',
                       error?.response?.data?.detail ?? 'Could not delete account. Please contact support@sanarch.io'
                     );
