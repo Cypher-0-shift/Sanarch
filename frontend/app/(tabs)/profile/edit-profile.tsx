@@ -7,6 +7,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { useProfileStore } from '../../../store/profileStore';
 import { useAlertStore } from '../../../store/alertStore';
 import { updateMe } from '../../../services/api';
+import { toast } from '../../../components/feedback/toastStore';
 
 const GENDER_OPTIONS = ['Female', 'Male', 'Non-Binary', 'Other'];
 const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown'];
@@ -87,7 +88,7 @@ export default function EditProfileScreen() {
       );
       useProfileStore.setState({ familyMembers: updatedMembers });
 
-      useAlertStore.getState().showAlert('Saved', 'Your profile has been updated.');
+      toast.show({ message: 'Profile updated ✓', type: 'success' });
       router.push('/(tabs)/profile');
     } catch (error: any) {
       useAlertStore.getState().showAlert(

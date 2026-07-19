@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.96)',
     borderRadius: RADIUS.xl,
-    padding: SPACING.md,
+    padding: SPACING[4],
     width: 240,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,77,54,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: SPACING.md,
+    marginRight: SPACING[3],
   },
   textContainer: {
     flex: 1,

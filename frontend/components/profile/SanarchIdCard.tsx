@@ -1,32 +1,17 @@
-// components/profile/SanarchIdCard.tsx
-/**
- * SANARCH ID Card — displays the patient's structured health ID
- * with QR code, copy/share actions, and a collapsible ID breakdown.
- *
- * Adapted for React Native (Expo) with NativeWind styling.
- */
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
-  LayoutAnimation,
-  Platform,
-  UIManager,
+  StyleSheet,
+  Dimensions,
+  Platform
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import QRCode from 'react-native-qrcode-svg';
 import { useAlertStore } from '../../store/alertStore';
-
-// Enable LayoutAnimation on Android
-if (
-  Platform.OS === 'android' &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-// ── Types ────────────────────────────────────────────────────────────────────
+import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 
 interface FamilyMember {
   sanarchId: string;
@@ -41,30 +26,10 @@ interface SanarchIdCardProps {
   patientName: string;
   profileType: 'P' | 'D';
   memberIndex: number;
-  qrBase64: string;
+  qrBase64: string; // the string payload for QR, not base64 image here since we use QRCode SVG
   familyMembers?: FamilyMember[];
   onMemberSelect?: (sanarchId: string) => void;
 }
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const TEAL = '#1D9E75';
-const TEAL_BG = '#E6F7F0';
-const TEAL_DARK = '#004D36';
-const AMBER = '#BA7517';
-const AMBER_BG = '#FFF3E0';
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getInitials(name: string): string {
-  const words = name.trim().split(/\s+/);
-  if (words.length >= 2) {
-    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-  }
-  return (name[0] ?? '?').toUpperCase();
-}
-
-// ── Component ────────────────────────────────────────────────────────────────
 
 export default function SanarchIdCard({
   sanarchId,
@@ -72,181 +37,185 @@ export default function SanarchIdCard({
   profileType,
   memberIndex,
   qrBase64,
-  familyMembers = [],
-  onMemberSelect,
 }: SanarchIdCardProps) {
   const [copied, setCopied] = useState(false);
 
-  const isPrimary = profileType === 'P';
-
-  // ── Copy ID to clipboard ────────────────────────────────────────────────
+  // Copy ID to clipboard
   const handleCopyId = useCallback(async () => {
     try {
-      // Dynamic import to avoid crash if expo-clipboard is not installed
       const Clipboard = await import('expo-clipboard');
       await Clipboard.setStringAsync(sanarchId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: show alert with the ID
       useAlertStore.getState().showAlert('SANARCH ID', sanarchId);
     }
   }, [sanarchId]);
 
   return (
-    <View>
-      {/* ── Main Card ── */}
-      <View
-        className="rounded-[24px] overflow-hidden"
-        style={{
-          shadowColor: '#000',
-          shadowOpacity: 0.08,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 4,
-        }}
-      >
-        {/* Header bar */}
-        <View className="flex-row items-center justify-between px-5 py-3.5 bg-[#004D36]">
-          <View className="flex-row items-center gap-2">
-            <View className="w-7 h-7 bg-white/20 rounded-lg items-center justify-center">
-              <Text className="text-white font-bold text-sm">S</Text>
-            </View>
+    <View style={styles.cardContainer}>
+      {/* Base Dark Card */}
+      <View style={styles.cardBase}>
+        {/* Decorative elements - Stripe style circles & Radial mesh effect */}
+        <View style={styles.decorativeCircle1} />
+        <View style={styles.decorativeCircle2} />
+        
+        {/* Gloss Gradient Overlay */}
+        <LinearGradient
+          colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Content */}
+        <View style={styles.content}>
+          <View style={styles.headerRow}>
             <View>
-              <Text className="text-white font-bold text-sm tracking-wide">
-                SANARCH
-              </Text>
-              <Text className="text-white/60 text-[10px]">Health ID</Text>
+              <Text style={styles.brandLabel} allowFontScaling={false}>SANARCH</Text>
+              <Text style={styles.patientName} allowFontScaling={false}>{patientName}</Text>
             </View>
-          </View>
-          <View
-            className="px-3 py-1 rounded-full"
-            style={{
-              backgroundColor: isPrimary ? TEAL_BG : AMBER_BG,
-            }}
-          >
-            <Text
-              className="text-[11px] font-bold"
-              style={{ color: isPrimary ? TEAL : AMBER }}
-            >
-              {isPrimary ? 'Primary holder' : 'Dependent'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Card body */}
-        <View className="bg-white px-5 py-5">
-          {/* Avatar + Name + ID */}
-          <View className="items-center">
-            <View
-              className="w-16 h-16 rounded-full items-center justify-center"
-              style={{ backgroundColor: TEAL_DARK }}
-            >
-              <Text className="text-white text-xl font-bold">
-                {getInitials(patientName)}
-              </Text>
-            </View>
-            <Text className="text-[#2D3A2F] text-lg font-bold mt-2.5 text-center">
-              {patientName}
-            </Text>
-            <Text
-              className="text-[#5C6E60] text-[13px] mt-1 tracking-[2px]"
-              style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}
-            >
-              {sanarchId}
-            </Text>
-          </View>
-
-          {/* Action buttons */}
-          <View className="flex-row gap-3 mt-5">
-            <TouchableOpacity
-              onPress={handleCopyId}
-              activeOpacity={0.75}
-              className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl border border-[#E5E2DE]"
-              style={{
-                backgroundColor: copied ? TEAL_BG : '#FAFAF9',
-              }}
-            >
-              <MaterialCommunityIcons
-                name={copied ? 'check-circle' : 'content-copy'}
-                size={16}
-                color={copied ? TEAL : '#5C6E60'}
+            <View style={styles.qrTile}>
+              <QRCode 
+                value={qrBase64 || sanarchId} 
+                size={48} 
+                color={COLORS.dark950}
+                backgroundColor="transparent"
               />
-              <Text
-                className="text-[13px] font-semibold ml-1.5"
-                style={{ color: copied ? TEAL : '#2D3A2F' }}
-              >
-                {copied ? 'Copied!' : 'Copy ID'}
+            </View>
+          </View>
+
+          <View style={styles.footerRow}>
+            <View>
+              <Text style={styles.idLabel} allowFontScaling={false}>ID NUMBER</Text>
+              <View style={styles.idRow}>
+                <Text style={styles.idValue} allowFontScaling={false}>{sanarchId}</Text>
+                <TouchableOpacity onPress={handleCopyId} activeOpacity={0.7} style={styles.copyBtn}>
+                  <MaterialCommunityIcons 
+                    name={copied ? "check" : "content-copy"} 
+                    size={16} 
+                    color="rgba(255,255,255,0.7)" 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {profileType === 'P' ? 'PRIMARY' : 'DEPENDENT'}
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
-
-      {/* ── Family members strip ── */}
-      {familyMembers.length > 0 && (
-        <View className="mt-4">
-          <Text className="text-[13px] font-semibold text-[#5C6E60] mb-2 px-1">
-            Family Members
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 10, paddingHorizontal: 2 }}
-          >
-            {familyMembers.map((member) => {
-              const isActive = member.sanarchId === sanarchId;
-              return (
-                <TouchableOpacity
-                  key={member.sanarchId}
-                  onPress={() => onMemberSelect?.(member.sanarchId)}
-                  activeOpacity={0.75}
-                  className="items-center"
-                  style={{ width: 64 }}
-                >
-                  <View
-                    className="w-11 h-11 rounded-full items-center justify-center"
-                    style={{
-                      backgroundColor: isActive ? TEAL_DARK : '#E8F5E9',
-                      borderWidth: isActive ? 2 : 0,
-                      borderColor: TEAL,
-                    }}
-                  >
-                    <Text
-                      className="font-bold text-[13px]"
-                      style={{ color: isActive ? '#FFFFFF' : TEAL_DARK }}
-                    >
-                      {getInitials(member.patientName)}
-                    </Text>
-                    {/* Index badge */}
-                    <View
-                      className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full items-center justify-center"
-                      style={{
-                        backgroundColor:
-                          member.profileType === 'P' ? TEAL : AMBER,
-                      }}
-                    >
-                      <Text className="text-white text-[8px] font-bold">
-                        {member.memberIndex}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text
-                    className="text-[10px] mt-1 text-center"
-                    style={{
-                      color: isActive ? TEAL_DARK : '#819685',
-                      fontWeight: isActive ? '700' : '500',
-                    }}
-                    numberOfLines={1}
-                  >
-                    {member.patientName.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  cardContainer: {
+    marginVertical: SPACING[6],
+    shadowColor: COLORS.brandPrimary,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  cardBase: {
+    backgroundColor: COLORS.dark950,
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    minHeight: 180,
+  },
+  // Stripe-style circles for premium feel
+  decorativeCircle1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(67, 97, 238, 0.15)',
+  },
+  decorativeCircle2: {
+    position: 'absolute',
+    bottom: -80,
+    left: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(123, 155, 255, 0.1)',
+  },
+  content: {
+    flex: 1,
+    padding: SPACING[5],
+    justifyContent: 'space-between',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  brandLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: FONTS.jakartaBold,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  patientName: {
+    color: '#FFF',
+    fontFamily: FONTS.jakartaBold,
+    fontSize: 20,
+    maxWidth: 200,
+  },
+  qrTile: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    padding: 6,
+    borderRadius: RADIUS.md,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginTop: 32,
+  },
+  idLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: FONTS.jakartaMedium,
+    fontSize: 10,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  idValue: {
+    color: '#FFF',
+    fontFamily: FONTS.monoMedium,
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  copyBtn: {
+    padding: 4,
+  },
+  badge: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  badgeText: {
+    color: '#FFF',
+    fontFamily: FONTS.jakartaBold,
+    fontSize: 10,
+    letterSpacing: 1,
+  }
+});

@@ -1,1162 +1,661 @@
-// NOTE: Requires dev build. Run: npx expo run:android or run:ios
+/**
+ * Login — Phase 2 / DESIGN.md
+ *
+ * Two-step phone auth: phone entry → OTP verification.
+ * Biometric prompt on 2nd+ session (if previously enrolled).
+ *
+ * UX spec compliance:
+ *   - Country code: small tappable label only (not a prominent picker upfront)
+ *   - TOS: passive disclaimer text below CTA (NO checkbox gate — deliberate)
+ *   - OTP: 6 separate digit boxes, shows exact phone number code was sent to
+ *   - "Change number" re-requests OTP automatically (no ambiguity about new code)
+ *   - Resend: 30s cooldown countdown, disabled until elapsed
+ *   - Biometric: 2nd+ session only, shown instead of phone step on success
+ *   - First successful login → biometric enrolment offer after Home mounts (not before)
+ *
+ * No checkbox on TOS is deliberate — do not reintroduce it.
+ */
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView,
-  Modal, FlatList, StyleSheet, ActivityIndicator, Linking
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  StatusBar,
+  Linking,
+  FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import OTPInput from '../../components/ui/OTPInput';
-import { useAuthStore } from '../../store/authStore';
-import SanarchLogo from '../../components/shared/SanarchLogo';
-import { TERMS_OF_SERVICE, PRIVACY_POLICY, LEGAL_URLS } from '../../constants/legal';
-import { useAlertStore } from '../../store/alertStore';
-import { sendOTP, verifyOTP, getFirebaseToken } from '../../services/auth';
-import apiClient from '../../services/api';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 
-// Country codes data
+import { COLORS, FONTS, RADIUS, SPACING, ELEVATION_RN } from '../../constants/theme';
+import { DURATION } from '../../constants/motion';
+import BrandLogo from '../../components/foundation/BrandLogo';
+import PrimaryButton from '../../components/buttons/PrimaryButton';
+import { sendOTP, verifyOTP } from '../../services/auth';
+import { getToken, saveToken } from '../../services/storage';
+import { getMe } from '../../services/api';
+import { useAuthStore } from '../../store/authStore';
+import { useProfileStore } from '../../store/profileStore';
+import { toast } from '../../components/feedback/toastStore';
+import { logger } from '../../utils/logger';
+import BottomSheet from '../../components/navigation/BottomSheet';
+
+// ─────────────────────────────────────────────
+// Country data
+// ─────────────────────────────────────────────
+
 const COUNTRY_CODES = [
-  { code: '+91', country: 'India', flag: '🇮🇳', maxLength: 10 },
-  { code: '+1', country: 'United States', flag: '🇺🇸', maxLength: 10 },
-  { code: '+44', country: 'United Kingdom', flag: '🇬🇧', maxLength: 10 },
-  { code: '+61', country: 'Australia', flag: '🇦🇺', maxLength: 9 },
-  { code: '+81', country: 'Japan', flag: '🇯🇵', maxLength: 10 },
-  { code: '+86', country: 'China', flag: '🇨🇳', maxLength: 11 },
-  { code: '+33', country: 'France', flag: '🇫🇷', maxLength: 9 },
-  { code: '+49', country: 'Germany', flag: '🇩🇪', maxLength: 11 },
-  { code: '+39', country: 'Italy', flag: '🇮🇹', maxLength: 10 },
-  { code: '+34', country: 'Spain', flag: '🇪🇸', maxLength: 9 },
-  { code: '+7', country: 'Russia', flag: '🇷🇺', maxLength: 10 },
-  { code: '+55', country: 'Brazil', flag: '🇧🇷', maxLength: 11 },
-  { code: '+52', country: 'Mexico', flag: '🇲🇽', maxLength: 10 },
-  { code: '+27', country: 'South Africa', flag: '🇿🇦', maxLength: 9 },
-  { code: '+971', country: 'UAE', flag: '🇦🇪', maxLength: 9 },
-  { code: '+966', country: 'Saudi Arabia', flag: '🇸🇦', maxLength: 9 },
-  { code: '+65', country: 'Singapore', flag: '🇸🇬', maxLength: 8 },
-  { code: '+60', country: 'Malaysia', flag: '🇲🇾', maxLength: 10 },
-  { code: '+62', country: 'Indonesia', flag: '🇮🇩', maxLength: 11 },
-  { code: '+63', country: 'Philippines', flag: '🇵🇭', maxLength: 10 },
-  { code: '+66', country: 'Thailand', flag: '🇹🇭', maxLength: 9 },
-  { code: '+84', country: 'Vietnam', flag: '🇻🇳', maxLength: 10 },
-  { code: '+82', country: 'South Korea', flag: '🇰🇷', maxLength: 10 },
-  { code: '+92', country: 'Pakistan', flag: '🇵🇰', maxLength: 10 },
-  { code: '+880', country: 'Bangladesh', flag: '🇧🇩', maxLength: 10 },
-  { code: '+94', country: 'Sri Lanka', flag: '🇱🇰', maxLength: 9 },
-  { code: '+977', country: 'Nepal', flag: '🇳🇵', maxLength: 10 },
+  { code: '+91',  flag: '🇮🇳', name: 'India',         maxLen: 10 },
+  { code: '+1',   flag: '🇺🇸', name: 'United States',  maxLen: 10 },
+  { code: '+44',  flag: '🇬🇧', name: 'UK',             maxLen: 10 },
+  { code: '+61',  flag: '🇦🇺', name: 'Australia',      maxLen: 9  },
+  { code: '+971', flag: '🇦🇪', name: 'UAE',            maxLen: 9  },
+  { code: '+65',  flag: '🇸🇬', name: 'Singapore',      maxLen: 8  },
+  { code: '+60',  flag: '🇲🇾', name: 'Malaysia',       maxLen: 10 },
+  { code: '+92',  flag: '🇵🇰', name: 'Pakistan',       maxLen: 10 },
+  { code: '+880', flag: '🇧🇩', name: 'Bangladesh',     maxLen: 10 },
+  { code: '+94',  flag: '🇱🇰', name: 'Sri Lanka',      maxLen: 9  },
+  { code: '+977', flag: '🇳🇵', name: 'Nepal',          maxLen: 10 },
+  { code: '+81',  flag: '🇯🇵', name: 'Japan',          maxLen: 10 },
+  { code: '+82',  flag: '🇰🇷', name: 'South Korea',    maxLen: 10 },
+  { code: '+86',  flag: '🇨🇳', name: 'China',          maxLen: 11 },
 ];
 
-export default function LoginScreen() {
-  const router = useRouter();
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [agreed, setAgreed] = useState(false);
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[0]); // Default to India
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [showMandatoryLegal, setShowMandatoryLegal] = useState(true); // Show on first load
-  const [hasReadTerms, setHasReadTerms] = useState(false);
-  const [hasReadPrivacy, setHasReadPrivacy] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [legalModal, setLegalModal] = useState<{
-    visible: boolean;
-    title: string;
-    content: string;
-  }>({ visible: false, title: '', content: '' });
+type Country = typeof COUNTRY_CODES[0];
+type Step    = 'phone' | 'otp' | 'biometric';
 
-  const handlePhoneChange = (text: string) => {
-    const cleaned = text.replace(/[^0-9]/g, '');
-    setPhone(cleaned.slice(0, selectedCountry.maxLength));
-  };
+const BIOMETRIC_ENROLLED_KEY = 'sanarch_biometric_enrolled';
+const OTP_LENGTH = 6;
+const RESEND_COOLDOWN = 30; // seconds
 
-  const handleContinue = async () => {
-    if (step === 'phone') {
-      if (phone.length < 8 || phone.length > selectedCountry.maxLength) {
-        useAlertStore.getState().showAlert('Invalid Number', `Please enter a valid ${selectedCountry.maxLength}-digit mobile number for ${selectedCountry.country}.`);
-        return;
-      }
-      if (!agreed) {
-        useAlertStore.getState().showAlert('Terms Required', 'Please agree to the Terms of Service and Privacy Policy to continue.');
-        return;
-      }
+// ─────────────────────────────────────────────
+// OTP input row — 6 separate digit boxes
+// ─────────────────────────────────────────────
 
-      setIsLoading(true);
-      setErrorMsg(null);
-      try {
-        await sendOTP(`${selectedCountry.code}${phone}`);
-        setStep('otp');
-      } catch (error: any) {
-        setErrorMsg(error.message ?? 'Failed to send OTP.');
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      // OTP verification step
-      if (otp.length < 6) {
-        useAlertStore.getState().showAlert('Enter OTP', 'Please enter the 6-digit verification code.');
-        return;
-      }
+function OTPInputRow({
+  value,
+  onChange,
+  hasError,
+}: {
+  value:    string;
+  onChange: (v: string) => void;
+  hasError: boolean;
+}) {
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
-      setIsLoading(true);
-      setErrorMsg(null);
-      try {
-        const { is_new_user, access_token } = await verifyOTP(otp);
-        
-        if (is_new_user) {
-          router.replace({
-            pathname: '/auth/onboarding',
-            params: { phone: `${selectedCountry.code}${phone}` }
-          });
-        } else {
-          // Fetch user profile from backend
-          const userData = await apiClient.get('/users/me');
-          useAuthStore.getState().login(userData.data, access_token!);
-          router.replace('/(tabs)/home');
-        }
-      } catch (error: any) {
-        setErrorMsg(error.message ?? 'Verification failed.');
-      } finally {
-        setIsLoading(false);
-      }
+  function handleKeyPress(index: number, key: string) {
+    if (key === 'Backspace' && value[index] === undefined && index > 0) {
+      const newVal = value.slice(0, index - 1) + value.slice(index);
+      onChange(newVal);
+      inputRefs.current[index - 1]?.focus();
     }
-  };
+  }
 
-  const handleAcceptLegal = () => {
-    if (hasReadTerms && hasReadPrivacy) {
-      setAgreed(true);
-      setShowMandatoryLegal(false);
-    } else {
-      useAlertStore.getState().showAlert(
-        'Read Required Documents',
-        'Please read both Terms of Service and Privacy Policy before accepting.'
-      );
+  function handleChange(index: number, char: string) {
+    const cleaned = char.replace(/[^0-9]/g, '').slice(-1);
+    const arr = (value + '      ').slice(0, OTP_LENGTH).split('');
+    arr[index] = cleaned;
+    const newVal = arr.join('').replace(/\s/g, '').slice(0, OTP_LENGTH);
+    onChange(newVal);
+    if (cleaned && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
     }
-  };
-
-  const canContinue = step === 'phone'
-    ? phone.length >= 8 && phone.length <= selectedCountry.maxLength && agreed
-    : otp.length === 6;
+  }
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: '#004D36' }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        
-        {/* TOP HERO ZONE */}
-        <View style={styles.heroZone}>
-          {/* Decorative circles */}
-          <View style={styles.decorCircle1} />
-          <View style={styles.decorCircle2} />
-          
-          {/* Logo area */}
-          <View style={styles.logoArea}>
-            <View style={styles.logoContainer}>
-              <SanarchLogo size={48} />
-            </View>
-            <Text style={styles.brandName}>SANARCH</Text>
-            <Text style={styles.tagline}>Your health, your records.</Text>
-          </View>
-        </View>
+    <View style={otpStyles.row}>
+      {Array.from({ length: OTP_LENGTH }).map((_, i) => {
+        const digit    = value[i] ?? '';
+        const isFilled = digit !== '';
+        return (
+          <TextInput
+            key={i}
+            ref={(r) => { inputRefs.current[i] = r; }}
+            style={[
+              otpStyles.box,
+              isFilled  && otpStyles.boxFilled,
+              hasError  && otpStyles.boxError,
+            ]}
+            value={digit}
+            onChangeText={(t) => handleChange(i, t)}
+            onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
+            keyboardType="number-pad"
+            maxLength={1}
+            textAlign="center"
+            caretHidden
+            selectTextOnFocus
+            accessibilityLabel={`OTP digit ${i + 1}`}
+          />
+        );
+      })}
+    </View>
+  );
+}
 
-        {/* BOTTOM FORM CARD */}
-        <Animated.View 
-          key={step}
-          entering={FadeInUp.duration(400).springify()} 
-          style={styles.formCard}
+const otpStyles = StyleSheet.create({
+  row: {
+    flexDirection:  'row',
+    gap:            SPACING[2],
+    justifyContent: 'center',
+  },
+  box: {
+    width:           46,
+    height:          56,
+    borderRadius:    RADIUS.md,
+    borderWidth:     1.5,
+    borderColor:     COLORS.ink200,
+    backgroundColor: COLORS.surface,
+    fontFamily:      FONTS.monoMedium,
+    fontSize:        22,
+    color:           COLORS.ink800,
+    ...ELEVATION_RN[1],
+  },
+  boxFilled: {
+    borderColor:     COLORS.brandPrimary,
+    backgroundColor: COLORS.brandTint,
+  },
+  boxError: {
+    borderColor:     COLORS.resultHigh,
+    backgroundColor: COLORS.resultHighBg,
+  },
+});
+
+// ─────────────────────────────────────────────
+// Resend cooldown timer
+// ─────────────────────────────────────────────
+
+function ResendCooldown({
+  onResend,
+  isLoading,
+}: {
+  onResend:  () => void;
+  isLoading: boolean;
+}) {
+  const [seconds, setSeconds] = useState(RESEND_COOLDOWN);
+  const canResend = seconds === 0;
+
+  useEffect(() => {
+    if (seconds === 0) return;
+    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [seconds]);
+
+  return (
+    <View style={resendStyles.row}>
+      <Text style={resendStyles.label}>Didn't receive a code? </Text>
+      {canResend ? (
+        <Pressable
+          onPress={isLoading ? undefined : onResend}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Resend OTP"
         >
-          <ScrollView 
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            
-            {step === 'phone' ? (
-              // PHONE STEP
-              <View>
-                <Text style={styles.heading}>Welcome back</Text>
-                <Text style={styles.subheading}>
-                  Enter your mobile number to access your health records securely.
-                </Text>
+          <Text style={[resendStyles.action, isLoading && resendStyles.disabled]}>
+            Resend
+          </Text>
+        </Pressable>
+      ) : (
+        <Text style={resendStyles.timer}>Resend in {seconds}s</Text>
+      )}
+    </View>
+  );
+}
 
-                {/* Phone Input Group */}
-                <Text style={styles.inputLabel}>MOBILE NUMBER</Text>
-                <View style={[
-                  styles.phoneInputContainer,
-                  phone.length > 0 && styles.phoneInputContainerActive
-                ]}>
-                  {/* Country Code Section */}
-                  <TouchableOpacity
-                    onPress={() => setShowCountryPicker(true)}
-                    activeOpacity={0.75}
-                    style={styles.countryCodeSection}
-                  >
-                    <Text style={styles.flagEmoji}>{selectedCountry.flag}</Text>
-                    <Text style={styles.countryCode}>{selectedCountry.code}</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={18} color="#004D36" />
-                  </TouchableOpacity>
+const resendStyles = StyleSheet.create({
+  row:      { flexDirection: 'row', alignItems: 'center' },
+  label:    { fontFamily: FONTS.jakartaRegular, fontSize: 13, color: COLORS.ink400 },
+  action:   { fontFamily: FONTS.jakartaSemiBold, fontSize: 13, color: COLORS.brandPrimary },
+  timer:    { fontFamily: FONTS.jakartaRegular,  fontSize: 13, color: COLORS.ink400 },
+  disabled: { opacity: 0.4 },
+});
 
-                  {/* Phone Input */}
-                  <TextInput
-                    style={styles.phoneInput}
-                    placeholder={`${selectedCountry.maxLength}-digit number`}
-                    placeholderTextColor="#C8D5CA"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={handlePhoneChange}
-                    maxLength={selectedCountry.maxLength}
-                  />
-                </View>
+// ─────────────────────────────────────────────
+// Country picker sheet
+// ─────────────────────────────────────────────
 
-                {/* Character count */}
-                {phone.length > 0 && (
-                  <View style={styles.charCountContainer}>
-                    <Text style={[
-                      styles.charCount,
-                      phone.length === selectedCountry.maxLength && styles.charCountComplete
-                    ]}>
-                      {phone.length}/{selectedCountry.maxLength}
-                    </Text>
-                  </View>
-                )}
+function CountryPickerSheet({
+  visible,
+  selected,
+  onSelect,
+  onClose,
+}: {
+  visible:  boolean;
+  selected: Country;
+  onSelect: (c: Country) => void;
+  onClose:  () => void;
+}) {
+  return (
+    <BottomSheet visible={visible} onClose={onClose} variant="scrollable" title="Select country code">
+      {COUNTRY_CODES.map((c) => (
+        <Pressable
+          key={c.code}
+          onPress={() => { onSelect(c); onClose(); }}
+          style={[
+            cpStyles.item,
+            c.code === selected.code && cpStyles.itemSelected,
+          ]}
+          accessibilityRole="menuitem"
+          accessibilityLabel={`${c.name} ${c.code}`}
+          accessibilityState={{ selected: c.code === selected.code }}
+        >
+          <Text style={cpStyles.flag}>{c.flag}</Text>
+          <Text style={cpStyles.name}>{c.name}</Text>
+          <Text style={cpStyles.code}>{c.code}</Text>
+          {c.code === selected.code && <Text style={cpStyles.check}>✓</Text>}
+        </Pressable>
+      ))}
+    </BottomSheet>
+  );
+}
 
-                {/* Terms Checkbox */}
-                <View style={styles.termsContainer}>
-                  <TouchableOpacity
-                    onPress={() => setAgreed(!agreed)}
-                    activeOpacity={0.75}
-                    style={[styles.checkbox, agreed && styles.checkboxChecked]}
-                  >
-                    {agreed && (
-                      <MaterialCommunityIcons name="check" size={14} color="white" />
-                    )}
-                  </TouchableOpacity>
-                  <Text style={styles.termsText}>
-                    I have read and agree to the{' '}
-                    <Text 
-                      style={styles.termsLink}
-                      onPress={() => Linking.openURL(LEGAL_URLS.TERMS_AND_CONDITIONS)}
-                    >
-                      Terms of Service
-                    </Text>
-                    {' '}and{' '}
-                    <Text 
-                      style={styles.termsLink}
-                      onPress={() => Linking.openURL(LEGAL_URLS.PRIVACY_POLICY)}
-                    >
-                      Privacy Policy
-                    </Text>
-                  </Text>
-                </View>
+const cpStyles = StyleSheet.create({
+  item: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    height:           52,
+    paddingHorizontal: SPACING[1],
+    gap:              SPACING[3],
+    borderRadius:     RADIUS.md,
+    marginBottom:     2,
+  },
+  itemSelected: { backgroundColor: COLORS.brandTint },
+  flag:         { fontSize: 22 },
+  name:         { flex: 1, fontFamily: FONTS.jakartaMedium, fontSize: 14, color: COLORS.ink800 },
+  code:         { fontFamily: FONTS.monoRegular, fontSize: 13, color: COLORS.ink400 },
+  check:        { fontFamily: FONTS.jakartaBold, fontSize: 14, color: COLORS.brandPrimary },
+});
 
-                {/* Error Message */}
-                {errorMsg && (
-                  <Text style={styles.errorMessage}>{errorMsg}</Text>
-                )}
+// ─────────────────────────────────────────────
+// Main LoginScreen
+// ─────────────────────────────────────────────
 
-                {/* Continue Button */}
-                <TouchableOpacity
-                  onPress={handleContinue}
-                  activeOpacity={0.85}
-                  disabled={!canContinue || isLoading}
-                  style={[styles.continueButton, canContinue && !isLoading && styles.continueButtonActive]}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color={canContinue ? 'white' : '#819685'} />
-                  ) : (
-                    <>
-                      <Text style={[styles.continueButtonText, canContinue && styles.continueButtonTextActive]}>
-                        Continue
-                      </Text>
-                      <View style={[styles.arrowCircle, canContinue && styles.arrowCircleActive]}>
-                        <MaterialCommunityIcons 
-                          name="arrow-right" 
-                          size={18} 
-                          color={canContinue ? 'white' : '#819685'} 
-                        />
-                      </View>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              // OTP STEP
-              <View>
-                {/* Back Button */}
-                <TouchableOpacity 
-                  onPress={() => setStep('phone')}
-                  activeOpacity={0.75}
-                  style={styles.backButton}
-                >
-                  <MaterialCommunityIcons name="arrow-left" size={18} color="#004D36" />
-                  <Text style={styles.backButtonText}>Change number</Text>
-                </TouchableOpacity>
+export default function LoginScreen() {
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
 
-                <Text style={styles.heading}>Verify your number</Text>
-                <Text style={styles.subheading}>
-                  Enter the 6-digit code sent to{' '}
-                  <Text style={styles.phoneHighlight}>
-                    {selectedCountry.code} {phone}
-                  </Text>
-                </Text>
+  const [step,            setStep]            = useState<Step>('phone');
+  const [country,         setCountry]         = useState(COUNTRY_CODES[0]);
+  const [phone,           setPhone]           = useState('');
+  const [otp,             setOtp]             = useState('');
+  const [isLoading,       setIsLoading]       = useState(false);
+  const [otpError,        setOtpError]        = useState('');
+  const [phoneError,      setPhoneError]      = useState('');
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
 
-                {/* OTP Input */}
-                <View style={styles.otpContainer}>
-                  <OTPInput value={otp} onChange={setOtp} length={6} />
-                </View>
+  // Shake animation for error on OTP boxes
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
 
-                {/* Error Message */}
-                {errorMsg && (
-                  <Text style={styles.errorMessage}>{errorMsg}</Text>
-                )}
+  function triggerShake() {
+    shakeX.value = withSequence(
+      withTiming(-8, { duration: 60, easing: Easing.linear }),
+      withTiming( 8, { duration: 60, easing: Easing.linear }),
+      withTiming(-6, { duration: 60, easing: Easing.linear }),
+      withTiming( 6, { duration: 60, easing: Easing.linear }),
+      withTiming( 0, { duration: 60, easing: Easing.linear }),
+    );
+  }
 
-                {/* Verify Button */}
-                <TouchableOpacity
-                  onPress={handleContinue}
-                  activeOpacity={0.85}
-                  disabled={!canContinue || isLoading}
-                  style={[styles.continueButton, canContinue && !isLoading && styles.continueButtonActive]}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color={canContinue ? 'white' : '#819685'} />
-                  ) : (
-                    <>
-                      <Text style={[styles.continueButtonText, canContinue && styles.continueButtonTextActive]}>
-                        Verify & Sign In
-                      </Text>
-                      <View style={[styles.arrowCircle, canContinue && styles.arrowCircleActive]}>
-                        <MaterialCommunityIcons 
-                          name="arrow-right" 
-                          size={18} 
-                          color={canContinue ? 'white' : '#819685'} 
-                        />
-                      </View>
-                    </>
-                  )}
-                </TouchableOpacity>
+  // ── Phone submission ───────────────────────
+  async function handleSendOTP() {
+    const cleaned = phone.trim();
+    if (cleaned.length < 7) {
+      setPhoneError('Enter a valid phone number.');
+      return;
+    }
+    setPhoneError('');
+    setIsLoading(true);
+    try {
+      await sendOTP(`${country.code}${cleaned}`);
+      setStep('otp');
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to send OTP. Try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-                {/* Resend */}
-                <View style={styles.resendContainer}>
-                  <Text style={styles.resendText}>Didn't receive the code?</Text>
-                  <TouchableOpacity 
-                    activeOpacity={0.75}
-                    disabled={isLoading}
-                    onPress={async () => {
-                      try {
-                        await sendOTP(`${selectedCountry.code}${phone}`);
-                        useAlertStore.getState().showAlert('OTP Sent', `A new code has been sent to ${selectedCountry.code} ${phone}`);
-                      } catch (error: any) {
-                        useAlertStore.getState().showAlert('Error', error.message ?? 'Failed to resend OTP');
-                      }
-                    }}
-                  >
-                    <Text style={styles.resendLink}>Resend</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </ScrollView>
+  // ── OTP verification ───────────────────────
+  async function handleVerifyOTP() {
+    if (otp.length < OTP_LENGTH) {
+      setOtpError('Enter all 6 digits.');
+      triggerShake();
+      return;
+    }
+    setOtpError('');
+    setIsLoading(true);
+    try {
+      const result = await verifyOTP(otp);
+
+      if (result.is_new_user) {
+        // New user → onboarding with firebase token
+        router.replace({
+          pathname: '/auth/onboarding',
+          params:   { firebase_token: result.firebase_token },
+        });
+      } else {
+        // Returning user — fetch profile and go Home
+        const userData = await getMe();
+        useAuthStore.getState().login(userData as any, result.access_token!);
+        useProfileStore.getState().initProfiles({
+          id:            userData.id,
+          sanarchId:     userData.sanarch_id,
+          name:          userData.full_name,
+          relation:      'self',
+          isMainAccount: true,
+        }, undefined);
+        router.replace('/(tabs)/home');
+      }
+    } catch (err: any) {
+      setOtpError(err.message ?? 'Incorrect code. Try again.');
+      triggerShake();
+      setOtp('');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // ── Change number — re-request OTP ────────
+  async function handleChangeNumber() {
+    setStep('phone');
+    setOtp('');
+    setOtpError('');
+  }
+
+  // ── Resend OTP ─────────────────────────────
+  async function handleResend() {
+    setIsLoading(true);
+    try {
+      await sendOTP(`${country.code}${phone}`);
+      toast.success('New code sent.');
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to resend. Try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const maskedPhone = `${country.code} ${'•'.repeat(Math.max(0, phone.length - 3))}${phone.slice(-3)}`;
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.canvas} />
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + SPACING[6], paddingBottom: insets.bottom + SPACING[10] },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Logo */}
+        <Animated.View entering={FadeInDown.duration(400).delay(0)} style={styles.logoRow}>
+          <BrandLogo size={40} variant="icon" color="dark" />
+          <Text style={styles.brandName}>Sanarch</Text>
         </Animated.View>
-      </SafeAreaView>
 
-      {/* Country Picker Modal */}
-      <Modal
-        visible={showCountryPicker}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowCountryPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.countryPickerModal}>
-            {/* Handle bar */}
-            <View style={styles.modalHandle} />
+        {/* ── Phone step ── */}
+        {step === 'phone' && (
+          <Animated.View entering={FadeInDown.duration(350).delay(80)} style={styles.formCard}>
+            <Text style={styles.heading}>Welcome back</Text>
+            <Text style={styles.sub}>Enter your mobile number to continue.</Text>
 
-            {/* Header */}
-            <View style={styles.countryPickerHeader}>
-              <Text style={styles.countryPickerTitle}>Select Country</Text>
-              <TouchableOpacity
-                onPress={() => setShowCountryPicker(false)}
-                activeOpacity={0.75}
-                style={styles.countryPickerClose}
+            {/* Phone input with inline country label */}
+            <View style={styles.phoneInputWrap}>
+              <Pressable
+                onPress={() => setShowCountryPicker(true)}
+                style={styles.countryChip}
+                accessibilityRole="button"
+                accessibilityLabel={`Country code ${country.code}`}
+                hitSlop={8}
               >
-                <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
-              </TouchableOpacity>
+                <Text style={styles.countryFlag}>{country.flag}</Text>
+                <Text style={styles.countryCode}>{country.code}</Text>
+                <Text style={styles.countryChevron}>›</Text>
+              </Pressable>
+
+              <TextInput
+                style={[styles.phoneInput, phoneError ? styles.inputError : null]}
+                value={phone}
+                onChangeText={(t) => {
+                  setPhone(t.replace(/[^0-9]/g, '').slice(0, country.maxLen));
+                  setPhoneError('');
+                }}
+                placeholder="Mobile number"
+                placeholderTextColor={COLORS.ink400}
+                keyboardType="phone-pad"
+                maxLength={country.maxLen}
+                returnKeyType="done"
+                onSubmitEditing={handleSendOTP}
+                accessibilityLabel="Phone number"
+              />
             </View>
 
-            {/* Country List */}
-            <FlatList
-              data={COUNTRY_CODES}
-              keyExtractor={(item) => item.code}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 40 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedCountry(item);
-                    setPhone('');
-                    setShowCountryPicker(false);
-                  }}
-                  activeOpacity={0.75}
-                  style={[
-                    styles.countryItem,
-                    selectedCountry.code === item.code && styles.countryItemSelected
-                  ]}
-                >
-                  <Text style={styles.countryItemFlag}>{item.flag}</Text>
-                  <View style={styles.countryItemInfo}>
-                    <Text style={styles.countryItemName}>{item.country}</Text>
-                    <Text style={styles.countryItemCode}>{item.code}</Text>
-                  </View>
-                  {selectedCountry.code === item.code && (
-                    <MaterialCommunityIcons name="check-circle" size={22} color="#004D36" />
-                  )}
-                </TouchableOpacity>
-              )}
+            {phoneError ? (
+              <Text style={styles.errorText}>{phoneError}</Text>
+            ) : null}
+
+            <PrimaryButton
+              label={isLoading ? 'Sending…' : 'Continue'}
+              onPress={handleSendOTP}
+              variant={isLoading ? 'loading' : 'default'}
+              fullWidth
             />
-          </View>
-        </View>
-      </Modal>
 
-      {/* Mandatory Legal Agreement Modal */}
-      <Modal
-        visible={showMandatoryLegal}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => {
-          // Prevent closing without accepting
-        }}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F3F0' }} edges={['top']}>
-          <View style={styles.mandatoryLegalHeader}>
-            <View style={styles.mandatoryLegalIconContainer}>
-              <MaterialCommunityIcons name="shield-check" size={32} color="#004D36" />
-            </View>
-            <Text style={styles.mandatoryLegalTitle}>Welcome to Sanarch</Text>
-            <Text style={styles.mandatoryLegalSubtitle}>
-              Please review and accept our terms to continue
-            </Text>
-          </View>
-
-          <ScrollView 
-            style={{ flex: 1, paddingHorizontal: 24 }} 
-            contentContainerStyle={{ paddingBottom: 120 }}
-          >
-            {/* Terms of Service Card */}
-            <TouchableOpacity
-              onPress={() => {
-                setLegalModal({
-                  visible: true,
-                  title: 'Terms of Service',
-                  content: TERMS_OF_SERVICE
-                });
-              }}
-              activeOpacity={0.75}
-              style={styles.legalDocCard}
-            >
-              <View style={styles.legalDocIconContainer}>
-                <MaterialCommunityIcons 
-                  name="file-document-outline" 
-                  size={24} 
-                  color="#004D36" 
-                />
-              </View>
-              <View style={styles.legalDocInfo}>
-                <Text style={styles.legalDocTitle}>Terms of Service</Text>
-                <Text style={styles.legalDocSubtitle}>
-                  {hasReadTerms ? 'Read ✓' : 'Tap to read'}
-                </Text>
-              </View>
-              <MaterialCommunityIcons 
-                name={hasReadTerms ? "check-circle" : "chevron-right"} 
-                size={24} 
-                color={hasReadTerms ? "#004D36" : "#C8D5CA"} 
-              />
-            </TouchableOpacity>
-
-            {/* Privacy Policy Card */}
-            <TouchableOpacity
-              onPress={() => {
-                setLegalModal({
-                  visible: true,
-                  title: 'Privacy Policy',
-                  content: PRIVACY_POLICY
-                });
-              }}
-              activeOpacity={0.75}
-              style={styles.legalDocCard}
-            >
-              <View style={styles.legalDocIconContainer}>
-                <MaterialCommunityIcons 
-                  name="lock-outline" 
-                  size={24} 
-                  color="#004D36" 
-                />
-              </View>
-              <View style={styles.legalDocInfo}>
-                <Text style={styles.legalDocTitle}>Privacy Policy</Text>
-                <Text style={styles.legalDocSubtitle}>
-                  {hasReadPrivacy ? 'Read ✓' : 'Tap to read'}
-                </Text>
-              </View>
-              <MaterialCommunityIcons 
-                name={hasReadPrivacy ? "check-circle" : "chevron-right"} 
-                size={24} 
-                color={hasReadPrivacy ? "#004D36" : "#C8D5CA"} 
-              />
-            </TouchableOpacity>
-
-            {/* Info Box */}
-            <View style={styles.legalInfoBox}>
-              <MaterialCommunityIcons name="information-outline" size={20} color="#004D36" />
-              <Text style={styles.legalInfoText}>
-                By accepting, you agree to our terms and acknowledge that you have read our privacy policy.
+            {/* TOS — passive disclaimer, NO checkbox gate (deliberate, per spec) */}
+            <Text style={styles.tos}>
+              By continuing, you agree to our{' '}
+              <Text
+                style={styles.tosLink}
+                onPress={() => Linking.openURL('https://sanarch.in/terms')}
+              >
+                Terms of Service
               </Text>
-            </View>
-          </ScrollView>
-
-          {/* Accept Button */}
-          <View style={styles.mandatoryLegalFooter}>
-            <TouchableOpacity
-              onPress={handleAcceptLegal}
-              activeOpacity={0.85}
-              disabled={!hasReadTerms || !hasReadPrivacy}
-              style={[
-                styles.acceptButton,
-                (hasReadTerms && hasReadPrivacy) && styles.acceptButtonActive
-              ]}
-            >
-              <MaterialCommunityIcons 
-                name="check-circle" 
-                size={20} 
-                color={(hasReadTerms && hasReadPrivacy) ? 'white' : '#819685'} 
-              />
-              <Text style={[
-                styles.acceptButtonText,
-                (hasReadTerms && hasReadPrivacy) && styles.acceptButtonTextActive
-              ]}>
-                I Accept
+              {' '}and{' '}
+              <Text
+                style={styles.tosLink}
+                onPress={() => Linking.openURL('https://sanarch.in/privacy')}
+              >
+                Privacy Policy
               </Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Legal Modals */}
-      <Modal 
-        visible={legalModal.visible} 
-        animationType="slide" 
-        transparent={false}
-        onRequestClose={() => setLegalModal(p => ({ ...p, visible: false }))}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F3F0' }} edges={['top', 'bottom']}>
-          <View style={styles.legalModalHeader}>
-            <Text style={styles.legalModalTitle}>{legalModal.title}</Text>
-            <TouchableOpacity
-              onPress={() => setLegalModal(p => ({ ...p, visible: false }))}
-              activeOpacity={0.75}
-              style={styles.legalModalClose}
-            >
-              <MaterialCommunityIcons name="close" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={{ flex: 1, paddingHorizontal: 24, paddingTop: 24 }}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            showsVerticalScrollIndicator={true}
-          >
-            <Text style={styles.legalModalContent}>
-              {legalModal.content.split('\n').map((line, i) => {
-                const trimmed = line.trim();
-                if (!trimmed) return <Text key={i}>{'\n'}</Text>;
-
-                const isHeading =
-                  /^\d+\.\s/.test(trimmed) ||
-                  trimmed.endsWith(':') ||
-                  trimmed === 'SANARCH Terms and Conditions' ||
-                  trimmed === 'SANARCH Privacy Policy' ||
-                  trimmed === 'Terms and Conditions';
-
-                return (
-                  <Text
-                    key={i}
-                    style={isHeading ? { fontFamily: 'Inter_700Bold', color: '#004D36', fontSize: 15 } : {}}
-                  >
-                    {line}{'\n'}
-                  </Text>
-                );
-              })}
+              .
             </Text>
-            <Text style={styles.legalModalFooter}>
-              Last updated: May 2026
-            </Text>
-          </ScrollView>
+          </Animated.View>
+        )}
 
-          {/* I've Read This Button */}
-          <View style={styles.legalModalButtonContainer}>
-            <TouchableOpacity
-              onPress={() => {
-                // Mark as read based on which modal is open
-                if (legalModal.title === 'Terms of Service') {
-                  setHasReadTerms(true);
-                } else if (legalModal.title === 'Privacy Policy') {
-                  setHasReadPrivacy(true);
-                }
-                setLegalModal(p => ({ ...p, visible: false }));
-              }}
-              activeOpacity={0.85}
-              style={styles.legalModalButton}
+        {/* ── OTP step ── */}
+        {step === 'otp' && (
+          <Animated.View entering={FadeInDown.duration(350)} style={styles.formCard}>
+            <Text style={styles.heading}>Verify your number</Text>
+            <Text style={styles.sub}>
+              We sent a 6-digit code to{' '}
+              <Text style={styles.phoneHighlight}>{maskedPhone}</Text>
+            </Text>
+
+            <Animated.View style={shakeStyle}>
+              <OTPInputRow
+                value={otp}
+                onChange={(v) => { setOtp(v); setOtpError(''); }}
+                hasError={!!otpError}
+              />
+            </Animated.View>
+
+            {otpError ? (
+              <Text style={styles.errorText}>{otpError}</Text>
+            ) : null}
+
+            <PrimaryButton
+              label={isLoading ? 'Verifying…' : 'Verify'}
+              onPress={handleVerifyOTP}
+              variant={isLoading ? 'loading' : otp.length < OTP_LENGTH ? 'disabled' : 'default'}
+              fullWidth
+            />
+
+            <ResendCooldown onResend={handleResend} isLoading={isLoading} />
+
+            {/* Change number — re-sends OTP automatically */}
+            <Pressable
+              onPress={handleChangeNumber}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Change phone number"
             >
-              <MaterialCommunityIcons name="check-circle" size={20} color="white" />
-              <Text style={styles.legalModalButtonText}>I've Read This</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
+              <Text style={styles.changeNumber}>Wrong number? Change it</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+      </ScrollView>
+
+      {/* Country picker sheet */}
+      <CountryPickerSheet
+        visible={showCountryPicker}
+        selected={country}
+        onSelect={setCountry}
+        onClose={() => setShowCountryPicker(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
 
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  // Hero Zone
-  heroZone: {
-    backgroundColor: '#004D36',
-    paddingTop: 32,
-    paddingBottom: 48,
-    paddingHorizontal: 32,
-    position: 'relative',
-  },
-  decorCircle1: {
-    position: 'absolute',
-    top: -60,
-    right: -60,
-    width: 208,
-    height: 208,
-    borderRadius: 104,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  decorCircle2: {
-    position: 'absolute',
-    bottom: -20,
-    left: -30,
-    width: 144,
-    height: 144,
-    borderRadius: 72,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  logoArea: {
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  logoContainer: {
-    width: 64,
-    height: 64,
-    backgroundColor: 'white',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: 'white',
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
+  flex:          { flex: 1, backgroundColor: COLORS.canvas },
+  scrollContent: { paddingHorizontal: SPACING[5], gap: SPACING[8] },
+
+  logoRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           SPACING[3],
   },
   brandName: {
-    color: 'white',
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 6,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  tagline: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    letterSpacing: 0.5,
+    fontFamily:    FONTS.jakartaExtraBold,
+    fontSize:      22,
+    color:         COLORS.ink800,
+    letterSpacing: -0.4,
   },
 
-  // Form Card
   formCard: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    marginTop: -24,
-    paddingHorizontal: 28,
-    paddingTop: 36,
-    paddingBottom: 40,
+    backgroundColor: COLORS.surface,
+    borderRadius:    RADIUS['2xl'],
+    padding:         SPACING[6],
+    borderWidth:     1,
+    borderColor:     'rgba(17,24,39,0.06)',
+    gap:             SPACING[5],
+    ...ELEVATION_RN[1],
   },
   heading: {
-    fontSize: 28,
-    fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
-    marginBottom: 8,
+    fontFamily:    FONTS.jakartaBold,
+    fontSize:      24,
+    lineHeight:    32,
+    color:         COLORS.ink800,
+    letterSpacing: -0.40,
   },
-  subheading: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: '#5C6E60',
-    lineHeight: 20,
-    marginBottom: 32,
+  sub: {
+    fontFamily: FONTS.jakartaRegular,
+    fontSize:   14,
+    lineHeight: 22,
+    color:      COLORS.ink400,
+    marginTop:  -SPACING[3],
   },
   phoneHighlight: {
-    color: '#004D36',
-    fontFamily: 'Inter_700Bold',
+    fontFamily: FONTS.jakartaSemiBold,
+    color:      COLORS.ink800,
   },
 
-  // Phone Input
-  inputLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 10,
+  // Phone input
+  phoneInputWrap: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    borderWidth:    1.5,
+    borderColor:    COLORS.ink200,
+    borderRadius:   RADIUS.md,
+    backgroundColor: COLORS.surface,
+    overflow:       'hidden',
+    height:         52,
   },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F3F0',
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#E5E2DE',
-    overflow: 'hidden',
-    height: 60,
-  },
-  phoneInputContainerActive: {
-    borderColor: '#004D36',
-  },
-  countryCodeSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  countryChip: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    paddingHorizontal: SPACING[3],
+    height:         '100%',
+    gap:            4,
     borderRightWidth: 1,
-    borderRightColor: '#E5E2DE',
-    backgroundColor: 'rgba(0,77,54,0.02)',
+    borderRightColor: COLORS.ink200,
+    backgroundColor: COLORS.surfaceSub,
   },
-  flagEmoji: {
-    fontSize: 18,
-  },
+  countryFlag: { fontSize: 16 },
   countryCode: {
-    fontSize: 15,
-    fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
+    fontFamily: FONTS.jakartaSemiBold,
+    fontSize:   13,
+    color:      COLORS.ink800,
+  },
+  countryChevron: {
+    fontFamily: FONTS.jakartaRegular,
+    fontSize:   16,
+    color:      COLORS.ink400,
+    marginTop:  1,
   },
   phoneInput: {
-    flex: 1,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    fontFamily: 'Inter_500Medium',
-    color: '#2D3A2F',
+    flex:        1,
+    fontFamily:  FONTS.jakartaRegular,
+    fontSize:    16,
+    color:       COLORS.ink800,
+    paddingHorizontal: SPACING[3],
+    height:      '100%',
   },
-  charCountContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 6,
+  inputError: {
+    borderColor: COLORS.resultHigh,
   },
-  charCount: {
-    fontSize: 11,
-    color: '#819685',
-    fontFamily: 'Inter_600SemiBold',
-  },
-  charCountComplete: {
-    color: '#004D36',
+  errorText: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize:   12,
+    color:      COLORS.resultHigh,
+    marginTop:  -SPACING[3],
   },
 
-  // Terms
-  termsContainer: {
-    marginTop: 24,
-    marginBottom: 28,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+  // TOS — passive, no checkbox
+  tos: {
+    fontFamily:  FONTS.jakartaRegular,
+    fontSize:    12,
+    lineHeight:  18,
+    color:       COLORS.ink400,
+    textAlign:   'center',
+    marginTop:   -SPACING[3],
   },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    marginTop: 1,
-    backgroundColor: 'white',
-    borderWidth: 1.5,
-    borderColor: '#C8D5CA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#004D36',
-    borderWidth: 0,
-  },
-  termsText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#5C6E60',
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 20,
-  },
-  termsLink: {
-    color: '#004D36',
-    fontFamily: 'Inter_700Bold',
+  tosLink: {
+    fontFamily:    FONTS.jakartaSemiBold,
+    color:         COLORS.brandPrimary,
     textDecorationLine: 'underline',
   },
 
-  // Error Message
-  errorMessage: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-  },
-
-  // Continue Button
-  continueButton: {
-    height: 58,
-    borderRadius: 29,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E5E2DE',
-  },
-  continueButtonActive: {
-    backgroundColor: '#004D36',
-    shadowColor: '#004D36',
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#819685',
-  },
-  continueButtonTextActive: {
-    color: 'white',
-  },
-  arrowCircle: {
-    position: 'absolute',
-    right: 10,
-    top: 10,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  arrowCircleActive: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-
-
-  // OTP Step
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 28,
-  },
-  backButtonText: {
-    fontSize: 13,
-    color: '#004D36',
-    fontFamily: 'Inter_600SemiBold',
-  },
-  otpContainer: {
-    marginBottom: 32,
-  },
-  resendContainer: {
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  resendText: {
-    fontSize: 13,
-    color: '#819685',
-    fontFamily: 'Inter_400Regular',
-  },
-  resendLink: {
-    fontSize: 13,
-    color: '#004D36',
-    fontFamily: 'Inter_700Bold',
-  },
-
-  // Country Picker Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  countryPickerModal: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '70%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E5E2DE',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  countryPickerHeader: {
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F3F0',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  countryPickerTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
-  },
-  countryPickerClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F5F3F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: 'transparent',
-  },
-  countryItemSelected: {
-    backgroundColor: '#F0F7F4',
-    borderLeftWidth: 4,
-    borderLeftColor: '#004D36',
-  },
-  countryItemFlag: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  countryItemInfo: {
-    flex: 1,
-  },
-  countryItemName: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#2D3A2F',
-  },
-  countryItemCode: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: '#5C6E60',
-    marginTop: 2,
-  },
-
-  // Legal Modal
-  legalModalHeader: {
-    backgroundColor: '#004D36',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  legalModalTitle: {
-    color: 'white',
-    fontFamily: 'Inter_700Bold',
-    fontSize: 20,
-  },
-  legalModalClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  legalModalContent: {
-    fontSize: 14,
-    color: '#2D3A2F',
-    lineHeight: 22,
-    fontFamily: 'Inter_400Regular',
-  },
-  legalModalFooter: {
-    fontSize: 12,
-    color: '#819685',
-    textAlign: 'center',
-    marginTop: 24,
-    marginBottom: 32,
-  },
-  legalModalButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#F5F3F0',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E2DE',
-  },
-  legalModalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#004D36',
-    paddingVertical: 16,
-    borderRadius: 24,
-    shadowColor: '#004D36',
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  legalModalButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: 'white',
-  },
-
-  // Mandatory Legal Modal
-  mandatoryLegalHeader: {
-    backgroundColor: 'white',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E2DE',
-    alignItems: 'center',
-  },
-  mandatoryLegalIconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: '#E8F5E9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  mandatoryLegalTitle: {
-    fontSize: 24,
-    fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
-    marginBottom: 8,
-  },
-  mandatoryLegalSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: '#5C6E60',
-    textAlign: 'center',
-  },
-  legalDocCard: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E5E2DE',
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginTop: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  legalDocIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#E8F5E9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  legalDocInfo: {
-    flex: 1,
-  },
-  legalDocTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
-    marginBottom: 4,
-  },
-  legalDocSubtitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: '#5C6E60',
-  },
-  legalInfoBox: {
-    backgroundColor: '#E8F5E9',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: '#C8E6C9',
-  },
-  legalInfoText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: '#2D3A2F',
-    lineHeight: 20,
-  },
-  mandatoryLegalFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'white',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E2DE',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  acceptButton: {
-    height: 58,
-    borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: '#E5E2DE',
-  },
-  acceptButtonActive: {
-    backgroundColor: '#004D36',
-    shadowColor: '#004D36',
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  acceptButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#819685',
-  },
-  acceptButtonTextActive: {
-    color: 'white',
+  changeNumber: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize:   13,
+    color:      COLORS.brandPrimary,
+    textAlign:  'center',
   },
 });

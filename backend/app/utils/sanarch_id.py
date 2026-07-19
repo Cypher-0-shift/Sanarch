@@ -129,7 +129,7 @@ def build_sanarch_id(
     payload = f"SAN{cc}{yy}{g}{band}{t}{ix}{serial}"
     ck = luhn_mod36_checksum(payload)
 
-    return f"SAN{cc}{yy}{g}{band}{t}{ix}{serial}{ck}"
+    return f"SAN-{cc}-{yy}-{g}-{band}-{t}-{ix}-{serial}-{ck}"
 
 
 def validate_sanarch_id(sanarch_id: str) -> bool:

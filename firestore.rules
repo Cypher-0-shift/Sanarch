@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to verify the Sanarch user document belongs to the requesting Firebase Auth user
+    function isOwner(sanarchUserId) {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(sanarchUserId)).data.firebase_uid == request.auth.uid;
+    }
+
+    match /documents/{docId} {
+      allow read: if isOwner(resource.data.owner_id);
+      allow write: if false; // All writes must go through the backend
+    }
+
+    match /users/{ownerId}/notifications/{notifId} {
+      allow read: if isOwner(ownerId);
+      allow write: if false; // All writes must go through the backend
+    }
+  }
+}

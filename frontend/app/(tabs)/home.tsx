@@ -1,541 +1,200 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, InteractionManager, Pressable, Animated, Modal, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+/**
+ * Home Screen — Phase 4
+ *
+ * Primary dashboard. Displays greeting, profile switcher, health summary, and timeline.
+ * Handles zero-document state natively (hiding stats).
+ */
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import SanarchLogo from '../../components/shared/SanarchLogo';
-import FAB from '../../components/shared/FAB';
-import GlassmorphismCard from '../../components/ui/GlassmorphismCard';
-import EmptyState from '../../components/ui/EmptyState';
-import { useProfileStore, Profile } from '../../store/profileStore';
+
+// Stores & API
 import { useAuthStore } from '../../store/authStore';
-import { getTimeline, TimelineEvent } from '../../services/api';
-import { useAlertStore } from '../../store/alertStore';
+import { useProfileStore } from '../../store/profileStore';
+import { useDocumentsStore } from '../../store/documentsStore';
+import { getTimeline, type TimelineEvent } from '../../services/api';
 
-const SkeletonPulse = ({ style }: { style: any }) => {
-  const anim = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, { toValue: 0.7, duration: 800, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.3, duration: 800, useNativeDriver: true })
-      ])
-    ).start();
-  }, [anim]);
-
-  return <Animated.View style={[style, { opacity: anim, backgroundColor: '#E5E2DE' }]} />;
-};
+// Components
+import HomeHeader from '../../components/home/HomeHeader';
+import SearchBar from '../../components/inputs/SearchBar';
+import HealthSummaryCard from '../../components/home/HealthSummaryCard';
+import TimelinePreview from '../../components/home/TimelinePreview';
+import FirstTimeEmptyState from '../../components/empty-states/FirstTimeEmptyState';
+import ProfileSwitcherSheet from '../../components/home/ProfileSwitcherSheet';
+import NotificationsSheet from '../../components/home/NotificationsSheet';
+import SanarchIDModal from '../../components/home/SanarchIDModal';
+import { COLORS, SPACING } from '../../constants/theme';
+import { logger } from '../../utils/logger';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [showUploadCard, setShowUploadCard] = useState(false);
-  const [showProfileSheet, setShowProfileSheet] = useState(false);
-  const [dismissQRHint, setDismissQRHint] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
 
+  // ── Stores ───────────────────────────────────────────────────────
   const user = useAuthStore((s) => s.user);
-  const activeProfile = useProfileStore((s) => s.activeProfile);
-  const familyMembers = useProfileStore((s) => s.familyMembers);
-  const setActiveProfile = useProfileStore((s) => s.setActiveProfile);
+  const { activeProfile, familyMembers, setActiveProfile } = useProfileStore();
+  const { documents } = useDocumentsStore();
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'Good morning,';
-    if (hour >= 12 && hour < 17) return 'Good afternoon,';
-    if (hour >= 17 && hour < 22) return 'Good evening,';
-    return 'Good night,';
-  };
+  // ── Local State ──────────────────────────────────────────────────
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [isTimelineLoading, setIsTimelineLoading] = useState(true);
+  const [isTimelineError, setIsTimelineError] = useState(false);
+  const [isIDModalVisible, setIsIDModalVisible] = useState(false);
+  const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
+  const [isNotifSheetVisible, setIsNotifSheetVisible] = useState(false);
 
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setIsReady(true);
+  // ── Derived Data ─────────────────────────────────────────────────
+  const docCount = documents.length;
+  const isFirstTime = docCount === 0;
+
+  // Combine active profile and family members for the switcher
+  const allProfiles = useMemo(() => {
+    const list = [];
+    if (activeProfile) list.push(activeProfile);
+    familyMembers.forEach(m => {
+      if (m.id !== activeProfile?.id) list.push(m);
     });
-    return () => task.cancel();
-  }, []);
+    return list;
+  }, [activeProfile, familyMembers]);
 
-  useEffect(() => {
-    if (!isReady) return;
-
-    const fetchTimeline = async () => {
-      setLoading(true);
-      try {
-        // Skip API call in dev mode — production backend rejects dev-mode-token
-        const { getToken } = await import('../../services/storage');
-        const token = await getToken();
-        if (token === 'dev-mode-token') {
-          setTimeline([]);
-          setLoading(false);
-          return;
-        }
-
-        const patientId = activeProfile?.id ?? user?.id;
-        if (!patientId) {
-          setLoading(false);
-          return;
-        }
-        const data = await getTimeline(patientId, 3, 0);
-        setTimeline(data.events);
-      } catch (error) {
-        console.error('[Home] Timeline fetch failed:', error);
-        // Show empty state, not crash
-        setTimeline([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTimeline();
-  }, [isReady, activeProfile?.id, user?.id]);
-
-  const handleUploadPress = useCallback(() => router.push('/(tabs)/upload'), [router]);
-  const handleRecordsPress = useCallback(() => router.push('/(tabs)/records'), [router]);
-  const handleSharePress = useCallback(() => router.push('/(tabs)/doctors'), [router]);
-  const handleProfilePress = useCallback(() => router.push('/(tabs)/profile'), [router]);
-  const handleSearchFocus = useCallback(() => router.push('/(tabs)/profile/search'), [router]);
-
-  // Get display name for greeting
-  const displayName = activeProfile?.name ?? user?.full_name ?? 'there';
-  const firstName = displayName.split(' ')[0];
-
-  const handleTakePhoto = async () => {
-    setShowUploadCard(false);
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      useAlertStore.getState().showAlert('Permission Required', 'Camera access is needed to take photos of your documents.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.92,
-    });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      const uri = result.assets[0].uri;
-      router.push({
-        pathname: '/(tabs)/upload',
-        params: {
-          fileUri: uri,
-          fileName: `Photo_${Date.now()}.jpg`,
-          fileType: 'photo',
-        },
-      });
-    }
-  };
-
-  const handleUploadPhoto = async () => {
-    setShowUploadCard(false);
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      useAlertStore.getState().showAlert('Permission Required', 'Gallery access is needed to select photos.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.92,
-      allowsMultipleSelection: true,
-    });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      const uri = result.assets[0].uri;
-      router.push({
-        pathname: '/(tabs)/upload',
-        params: {
-          fileUri: uri,
-          fileName: result.assets[0].fileName || `Photo_${Date.now()}.jpg`,
-          fileType: 'photo',
-        },
-      });
-    }
-  };
-
-  const handleUploadFile = async () => {
-    setShowUploadCard(false);
+  // Last activity from documents (simplistic approach: most recent document date)
+  const lastActivityDate = useMemo(() => {
+    if (docCount === 0) return null;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'application/pdf'],
-        copyToCacheDirectory: true,
+      const latest = documents[0]; // Assuming pre-sorted by created_at desc
+      return new Date(latest.created_at).toLocaleDateString('en-IN', {
+        month: 'short', day: 'numeric'
       });
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        const asset = result.assets[0];
-        const isPdf = asset.mimeType === 'application/pdf' || asset.name?.toLowerCase().endsWith('.pdf');
-        router.push({
-          pathname: '/(tabs)/upload',
-          params: {
-            fileUri: asset.uri,
-            fileName: asset.name || `Document_${Date.now()}`,
-            fileType: isPdf ? 'pdf' : 'photo',
-          },
-        });
-      }
-    } catch (err) {
-      console.log('Document picker cancelled or failed', err);
+    } catch {
+      return null;
+    }
+  }, [documents, docCount]);
+
+  // ── Data Fetching ────────────────────────────────────────────────
+  const fetchTimeline = async () => {
+    if (!activeProfile?.id) return;
+    setIsTimelineLoading(true);
+    setIsTimelineError(false);
+    try {
+      const res = await getTimeline(activeProfile.id, 5, 0);
+      setTimelineEvents(res.events || []);
+    } catch (error) {
+      logger.error('[Home] Failed to load timeline:', error);
+      setIsTimelineError(true);
+    } finally {
+      setIsTimelineLoading(false);
     }
   };
 
-  if (!isReady) return <View className="flex-1 bg-[#F5F3F0]" />;
+  useEffect(() => {
+    fetchTimeline();
+  }, [activeProfile?.id]);
+
+  // ── Handlers ─────────────────────────────────────────────────────
+  const handleSearchFocus = () => {
+    // For Phase 4, the spec says "expands into a bottom-sheet results panel. Do NOT navigate to a separate search screen."
+    // We will handle this inline later or via a dedicated search sheet.
+    // For now, it stays as a functional input that we can build upon.
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
-
-      {/* Header Section */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-[#F8FAF9] border-b border-[#E5E2DE] z-10">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-[#5C6E60] text-sm font-display-medium">{getGreeting()}</Text>
-            <Text className="text-[#2D3A2F] text-xl font-display-bold tracking-tight">Hello, {firstName}</Text>
-          </View>
-          <View className="flex-row items-center gap-3">
-            <SanarchLogo size={40} />
-          </View>
-        </View>
-
-        {/* Search and Profile Selector */}
-        <View className="mt-6 flex-row gap-2">
-          <TouchableOpacity
-            className="flex-1 h-12 bg-white rounded-xl flex-row items-center px-4 gap-3 border border-[#E5E2DE]"
-            onPress={handleSearchFocus}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons name="magnify" size={20} color="#819685" />
-            <Text className="flex-1 text-sm text-[#819685] font-display-medium">
-              Search records...
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="h-12 w-12 bg-white rounded-xl items-center justify-center shadow-sm border border-[#E5E2DE]"
-            activeOpacity={0.75}
-            onPress={() => setShowProfileSheet(true)}
-          >
-            <MaterialCommunityIcons name="account-switch-outline" size={20} color="#2D3A2F" />
-          </TouchableOpacity>
-        </View>
-
-        {/* QR Context Tip Strip */}
-        {!dismissQRHint && (
-          <View className="mt-4 bg-[#E8F5E9] p-3 rounded-xl flex-row items-center justify-between border border-[#C8E6C9]">
-            <View className="flex-1 mr-3 flex-row items-start gap-3">
-              <View className="mt-0.5">
-                <MaterialCommunityIcons name="qrcode-scan" size={18} color="#004D36" />
-              </View>
-              <Text className="flex-1 text-[#2D3A2F] text-[13px] font-display-medium leading-5">
-                Tap the QR button below to share records with your doctor instantly.
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => setDismissQRHint(true)} activeOpacity={0.75} className="p-1 rounded-full bg-[#C8E6C9] opacity-50" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <MaterialCommunityIcons name="close" size={16} color="#004D36" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Main Content Area */}
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-
-        {/* Profile/Analytics Card */}
-        <View className="mb-8">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-[#2D3A2F] font-display-bold text-lg">Health Summary</Text>
-            <View className="bg-[#E8F5E9] px-2 py-1 rounded-full">
-              <Text className="text-[10px] text-[#004D36] font-display-bold uppercase tracking-wider">
-                Active: {activeProfile?.relation === 'self' ? 'Self' : activeProfile?.name ?? 'Self'}
-              </Text>
-            </View>
-          </View>
-          <View className="bg-white rounded-[24px] p-5 shadow-sm border border-[#E5E2DE] overflow-hidden relative">
-            <MaterialCommunityIcons name="pulse" size={100} color="#004D36" style={{ position: 'absolute', top: -10, right: -10, opacity: 0.05 }} />
-
-            <View className="flex-row justify-between">
-              <View className="flex-1">
-                <Text className="text-[#5C6E60] text-xs font-display-medium uppercase tracking-wide mb-1">Documents</Text>
-                <Text className="text-[#2D3A2F] text-3xl font-display-bold">0</Text>
-              </View>
-              <View className="w-[1px] bg-[#E5E2DE] mx-4" />
-              <View className="flex-1">
-                <Text className="text-[#5C6E60] text-xs font-display-medium uppercase tracking-wide mb-1">Last Upload</Text>
-                <Text className="text-[#2D3A2F] text-3xl font-display-bold">—</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Timeline Preview */}
-        <View className="mb-8">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-[#2D3A2F] font-display-bold text-lg">Recent Timeline</Text>
-            <TouchableOpacity onPress={() => router.navigate('/(tabs)/records')} activeOpacity={0.75}>
-              <Text className="text-[#004D36] text-sm font-display-semibold">View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {loading ? (
-            <View className="relative flex-col gap-4">
-              <View className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#E5E2DE] z-0" />
-              {[1, 2, 3].map((_, i) => (
-                <View key={i} className="flex-row items-start gap-4">
-                  <View className="w-10 h-10 rounded-full bg-[#E5E2DE] items-center justify-center z-10" />
-                  <View className="flex-1 bg-white p-4 rounded-xl border border-[#E5E2DE]">
-                    <SkeletonPulse style={{ width: '60%', height: 16, borderRadius: 4, marginBottom: 8 }} />
-                    <SkeletonPulse style={{ width: '40%', height: 12, borderRadius: 4 }} />
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : timeline.length === 0 ? (
-            <View className="bg-white rounded-[24px] p-6 border border-[#E5E2DE] shadow-sm">
-              <View className="mb-8">
-                <View className="flex-row items-center gap-4">
-                  <View className="w-10 h-10 rounded-full bg-[#E8F5E9] items-center justify-center">
-                    <MaterialCommunityIcons name="file-upload-outline" size={20} color="#004D36" />
-                  </View>
-                  <Text className="flex-1 text-[#2D3A2F] text-sm font-display-bold">Upload any medical document</Text>
-                </View>
-
-                <View className="w-10 items-center my-1">
-                  <MaterialCommunityIcons name="arrow-down-bold" size={20} color="#819685" />
-                </View>
-
-                <View className="flex-row items-center gap-4">
-                  <View className="w-10 h-10 rounded-full bg-[#E3F2FD] items-center justify-center">
-                    <MaterialCommunityIcons name="robot-outline" size={20} color="#0277BD" />
-                  </View>
-                  <Text className="flex-1 text-[#2D3A2F] text-sm font-display-bold">AI reads and extracts the data</Text>
-                </View>
-
-                <View className="w-10 items-center my-1">
-                  <MaterialCommunityIcons name="arrow-down-bold" size={20} color="#819685" />
-                </View>
-
-                <View className="flex-row items-center gap-4">
-                  <View className="w-10 h-10 rounded-full bg-[#FFF3E0] items-center justify-center">
-                    <MaterialCommunityIcons name="timeline-clock-outline" size={20} color="#E65100" />
-                  </View>
-                  <Text className="flex-1 text-[#2D3A2F] text-sm font-display-bold">Your health timeline builds automatically</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                className="bg-[#004D36] rounded-xl py-4 items-center flex-row justify-center gap-2 shadow-sm"
-                onPress={handleUploadPress}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons name="cloud-upload" size={20} color="white" />
-                <Text className="text-white font-display-bold text-sm tracking-wide">Upload Now</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View className="relative flex-col gap-4">
-              <View className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#E5E2DE] z-0" />
-              {timeline.slice(0, 3).map((event, index) => (
-                <View key={event.id} className="flex-row items-start gap-4">
-                  <View className="w-10 h-10 rounded-full bg-[#E8F5E9] items-center justify-center z-10 border-2 border-white shadow-sm">
-                    <MaterialCommunityIcons 
-                      name={
-                        event.label === 'lab_report' ? 'test-tube' :
-                        event.label === 'prescription' ? 'pill' :
-                        event.label === 'scan' ? 'radiology-box' :
-                        'hospital-building'
-                      } 
-                      size={20} 
-                      color="#004D36" 
-                    />
-                  </View>
-                  <TouchableOpacity 
-                    activeOpacity={0.75}
-                    className="flex-1 bg-white p-4 rounded-xl border border-[#E5E2DE] shadow-sm"
-                    onPress={() => router.push(`/(tabs)/records/${event.id}` as any)}
-                  >
-                    <Text className="text-[#2D3A2F] font-display-bold text-base mb-1" numberOfLines={2}>
-                      {event.condition}
-                    </Text>
-                    <Text className="text-[#5C6E60] font-display text-xs mb-3">
-                      {new Date(event.date_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • {event.hospital}
-                    </Text>
-                    <View className="flex-row items-center gap-1 bg-[#F5F3F0] self-start px-2 py-1 rounded-md">
-                      <MaterialCommunityIcons name="file-document-outline" size={12} color="#5C6E60" />
-                      <Text className="text-[#5C6E60] text-[10px] font-display-bold uppercase tracking-wider">
-                        {event.document_count} Document{event.document_count > 1 ? 's' : ''}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-
-      </ScrollView>
-
-      {/* Floating Action Button — opens upload card */}
-      <FAB icon="plus" onPress={() => setShowUploadCard(true)} />
-
-      {/* Upload Action Card */}
-      <GlassmorphismCard
-        visible={showUploadCard}
-        onClose={() => setShowUploadCard(false)}
-        onTakePhoto={handleTakePhoto}
-        onUploadPhoto={handleUploadPhoto}
-        onUploadFile={handleUploadFile}
+    <View style={styles.container}>
+      {/* ── Sticky Header ── */}
+      <HomeHeader
+        profileFirstName={activeProfile?.name?.split(' ')[0] || 'User'}
+        onOpenProfileSwitcher={() => setIsProfileSheetVisible(true)}
+        onOpenSanarchID={() => setIsIDModalVisible(true)}
+        onOpenNotifications={() => setIsNotifSheetVisible(true)}
+        hasUnreadNotifications={false} // Mock for now
       />
 
-      {/* Profile Switcher Bottom Sheet */}
-      <Modal
-        visible={showProfileSheet}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowProfileSheet(false)}
+      <ScrollView 
+        contentContainerStyle={[
+          styles.scrollContent,
+          // Extra padding at bottom to clear the floating NavigationDock
+          { paddingBottom: insets.bottom + 100 }
+        ]}
+        showsVerticalScrollIndicator={false}
       >
-        <Pressable style={sheetStyles.backdrop} onPress={() => setShowProfileSheet(false)} />
-        <View style={sheetStyles.sheet}>
-          {/* Handle */}
-          <View style={sheetStyles.handleWrap}><View style={sheetStyles.handle} /></View>
-
-          {/* Title */}
-          <View style={sheetStyles.titleRow}>
-            <Text style={sheetStyles.title}>Switch Profile</Text>
-            <TouchableOpacity onPress={() => setShowProfileSheet(false)} activeOpacity={0.75} style={sheetStyles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <MaterialCommunityIcons name="close" size={20} color="#5C6E60" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Profile List */}
-          {familyMembers.length === 0 ? (
-            <View style={sheetStyles.emptyWrap}>
-              <MaterialCommunityIcons name="account-plus-outline" size={40} color="#819685" />
-              <Text style={sheetStyles.emptyText}>No profiles yet</Text>
-              <Text style={sheetStyles.emptySubtext}>Complete onboarding to set up your profiles.</Text>
-            </View>
-          ) : (
-            <ScrollView style={sheetStyles.list} showsVerticalScrollIndicator={false}>
-              {familyMembers.map((profile) => {
-                const isActive = activeProfile?.id === profile.id;
-                return (
-                  <TouchableOpacity
-                    key={profile.id}
-                    style={[sheetStyles.profileRow, isActive ? sheetStyles.profileRowActive : undefined]}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setActiveProfile(profile);
-                      setShowProfileSheet(false);
-                    }}
-                  >
-                    {/* Avatar */}
-                    <View style={[sheetStyles.avatar, isActive ? sheetStyles.avatarActive : undefined]}>
-                      <MaterialCommunityIcons
-                        name={profile.isMainAccount ? 'account' : 'account-heart'}
-                        size={22}
-                        color={isActive ? '#FFFFFF' : '#004D36'}
-                      />
-                    </View>
-
-                    {/* Info */}
-                    <View style={sheetStyles.infoWrap}>
-                      <View style={sheetStyles.nameRow}>
-                        <Text style={sheetStyles.profileName}>{profile.name}</Text>
-                        <View style={[sheetStyles.badge, isActive ? sheetStyles.badgeActive : undefined]}>
-                          <Text style={[sheetStyles.badgeText, isActive ? sheetStyles.badgeTextActive : undefined]}>
-                            {profile.relation.toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={sheetStyles.sanarchId}>{profile.sanarchId}</Text>
-                    </View>
-
-                    {/* Checkmark */}
-                    {isActive && (
-                      <View style={sheetStyles.checkWrap}>
-                        <MaterialCommunityIcons name="check-circle" size={22} color="#004D36" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
+        {/* ── Search Bar ── */}
+        <View style={styles.searchWrapper}>
+          <SearchBar
+            placeholder="Search documents, doctors..."
+          />
         </View>
-      </Modal>
-    </SafeAreaView>
+
+        {/* ── Main Content Area ── */}
+        {isFirstTime ? (
+          <FirstTimeEmptyState style={styles.emptyState} />
+        ) : (
+          <View style={styles.contentArea}>
+            <HealthSummaryCard
+              documentCount={docCount}
+              lastActivityDate={lastActivityDate}
+            />
+
+            <TimelinePreview
+              events={timelineEvents}
+              isLoading={isTimelineLoading}
+              isError={isTimelineError}
+              onRetry={fetchTimeline}
+              onViewAll={() => router.push('/(tabs)/records')}
+              onEventPress={(event) => {
+                // Navigate to specific event grouping in Records (or record detail)
+                router.push(`/(tabs)/records?eventId=${event.id}` as any);
+              }}
+            />
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Modals & Sheets ── */}
+      <ProfileSwitcherSheet
+        visible={isProfileSheetVisible}
+        onClose={() => setIsProfileSheetVisible(false)}
+        profiles={allProfiles}
+        activeProfileId={activeProfile?.id || ''}
+        onSelectProfile={(id) => {
+          const profile = allProfiles.find(p => p.id === id) || null;
+          setActiveProfile(profile);
+        }}
+      />
+
+      <NotificationsSheet
+        visible={isNotifSheetVisible}
+        onClose={() => setIsNotifSheetVisible(false)}
+        notifications={[]} // Empty for now, shows EmptyStateCard
+      />
+
+      <SanarchIDModal
+        visible={isIDModalVisible}
+        onClose={() => setIsIDModalVisible(false)}
+        sanarchId={user?.sanarch_id || activeProfile?.sanarchId || ''}
+        patientName={activeProfile?.name || ''}
+      />
+    </View>
   );
 }
 
-const sheetStyles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.canvas,
   },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '60%',
-    paddingBottom: 40,
+  scrollContent: {
+    paddingHorizontal: SPACING[4],
+    paddingTop: SPACING[2],
+    gap: SPACING[6],
   },
-  handleWrap: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E2DE' },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F3F0',
+  searchWrapper: {
+    // Add margin if needed
   },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 18, color: '#2D3A2F' },
-  closeBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#F5F3F0', alignItems: 'center', justifyContent: 'center',
+  emptyState: {
+    marginTop: SPACING[4],
   },
-  list: { paddingHorizontal: 24, paddingTop: 12 },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 8,
-    backgroundColor: '#F8FAF9',
-    borderWidth: 1,
-    borderColor: '#E5E2DE',
+  contentArea: {
+    gap: SPACING[6],
   },
-  profileRowActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#004D36',
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 14,
-    backgroundColor: 'rgba(0,77,54,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 14,
-  },
-  avatarActive: {
-    backgroundColor: '#004D36',
-  },
-  infoWrap: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
-  profileName: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#2D3A2F' },
-  badge: {
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
-    backgroundColor: '#F5F3F0',
-  },
-  badgeActive: { backgroundColor: '#004D36' },
-  badgeText: { fontFamily: 'Inter_700Bold', fontSize: 9, color: '#5C6E60', letterSpacing: 0.5 },
-  badgeTextActive: { color: '#FFFFFF' },
-  sanarchId: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#819685' },
-  checkWrap: { marginLeft: 8 },
-  emptyWrap: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 },
-  emptyText: { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#2D3A2F', marginTop: 12 },
-  emptySubtext: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#819685', textAlign: 'center', marginTop: 4 },
 });

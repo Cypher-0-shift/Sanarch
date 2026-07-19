@@ -249,6 +249,9 @@ def list_documents(
     documents = []
     for d in docs_stream:
         data = d.to_dict()
+        if data.get("hidden_from_list"):
+            continue
+            
         documents.append(DocumentListItem(
             document_id=d.id,
             document_title=data.get("document_title", ""),
@@ -438,7 +441,9 @@ async def summarize_document(
 
     system_prompt = (
         "You are a friendly health assistant explaining a medical document to a patient in plain English.\n"
-        "The patient is not a doctor. Be warm, clear, and concise.\n"
+        "The patient is not a doctor. Be warm, clear, and concise. "
+        "Explicitly state that you are an AI assistant and this is not a medical diagnosis.\n"
+        "If there are any flagged or abnormal lab values, explicitly mention their normal reference ranges and explain in plain, non-alarmist terms what an out-of-range value could mean if left unaddressed.\n"
         "Return ONLY a JSON object with these keys:\n"
         "{\n"
         '  "headline": "One sentence (max 15 words) describing what this document is about",\n'

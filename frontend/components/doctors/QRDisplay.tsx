@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
@@ -58,7 +58,7 @@ const QRDisplay: React.FC<QRDisplayProps> = ({
           <MaterialCommunityIcons
             name="refresh"
             size={48}
-            color={COLORS.slate400}
+            color={COLORS.ink400}
           />
           <Text style={styles.expiredText}>QR Expired</Text>
           <Text style={styles.expiredSubtext}>
@@ -68,7 +68,9 @@ const QRDisplay: React.FC<QRDisplayProps> = ({
       ) : (
         <>
           <View style={styles.qrPlaceholder}>
-            <QRCode value={value} size={220} color="#143832" backgroundColor="white" />
+            {useMemo(() => (
+              <QRCode value={value} size={220} color="#143832" backgroundColor="white" />
+            ), [value])}
           </View>
 
           {/* Countdown */}
@@ -85,16 +87,16 @@ const QRDisplay: React.FC<QRDisplayProps> = ({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING[6],
   },
   qrPlaceholder: {
     width: 240,
     height: 240,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING[6],
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -103,30 +105,30 @@ const styles = StyleSheet.create({
   },
   timer: {
     fontSize: 32,
-    fontFamily: 'Inter_700Bold',
-    color: COLORS.primary,
+    fontFamily: 'JetBrainsMono_700Bold',
+    color: COLORS.brandPrimary,
     marginBottom: 4,
   },
   timerLabel: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
-    color: COLORS.slate500,
+    color: COLORS.ink600,
   },
   expiredContainer: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING[8],
   },
   expiredText: {
     fontSize: 20,
     fontFamily: 'Inter_700Bold',
-    color: COLORS.slate900,
+    color: COLORS.ink900,
     marginTop: 12,
     marginBottom: 4,
   },
   expiredSubtext: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
-    color: COLORS.slate500,
+    color: COLORS.ink600,
   },
 });
 

@@ -1,61 +1,42 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, 
-  InteractionManager, ActivityIndicator
+  InteractionManager, StyleSheet 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAlertStore } from '../../store/alertStore';
-import QRDisplay from '../../components/doctors/QRDisplay';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+
+import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
+import { useDocumentsStore } from '../../store/documentsStore';
 import { EMPTY_USER } from '../../constants/placeholders';
-import { type MedicalEventLabel } from '../../constants/mock';
-import { getTimeline, TimelineEvent, generateShareToken } from '../../services/api';
-import apiClient from '../../services/api';
-import { ENDPOINTS } from '../../constants/api';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useQuery } from '@tanstack/react-query';
 
+import DocumentCard from '../../components/documents/DocumentCard';
+import PrimaryButton from '../../components/buttons/PrimaryButton';
+import EmptyStateCard from '../../components/empty-states/EmptyStateCard';
+import QRDisplay from '../../components/doctors/QRDisplay';
+
+// Simple payload encoding for the QR code
 const encodePayload = (payload: object): string => {
   const str = JSON.stringify(payload);
-  // Simple base64-like encoding for React Native
-  // TODO: Replace with signed token from backend when auth is ready
   return encodeURIComponent(str);
-};
-
-// Duration in seconds map
-const DURATION_SECONDS: Record<string, number> = {
-  '10m': 600,
-  '1h': 3600,
-  '24h': 86400,
-};
-
-// Label config for record type icons (same as MedicalEventCard)
-const LABEL_CONFIG: Record<MedicalEventLabel, { 
-  icon: string; color: string; bg: string; text: string 
-}> = {
-  lab_report: { icon: 'file-document-outline', color: '#004D36', bg: '#E8F5E9', text: 'REPORT' },
-  prescription: { icon: 'pill', color: '#E65100', bg: '#FFF3E0', text: 'MEDS' },
-  hospital_summary: { icon: 'hospital-building', color: '#0277BD', bg: '#E3F2FD', text: 'SUMMARY' },
-  scan: { icon: 'radiology-box', color: '#7B1FA2', bg: '#F3E5F5', text: 'IMAGING' },
 };
 
 export default function ShareRecordsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user) ?? EMPTY_USER;
   const activeProfile = useProfileStore((s) => s.activeProfile);
+  
+  const documents = useDocumentsStore((s) => s.documents);
+  const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
 
   const [isReady, setIsReady] = useState(false);
-  const [records, setRecords] = useState<TimelineEvent[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectAll, setSelectAll] = useState(false);
-  const [accessLevel, setAccessLevel] = useState<'read_only' | 'full'>('read_only');
-  const [accessDuration, setAccessDuration] = useState<'10m' | '1h' | '24h'>('10m');
   const [qrValue, setQrValue] = useState<string | null>(null);
-  const [qrSummary, setQrSummary] = useState<string>('');
-  const [generating, setGenerating] = useState(false);
+  const [qrExpired, setQrExpired] = useState(false);
   
   const { token } = useLocalSearchParams<{ token?: string }>();
   const [scanning, setScanning] = useState(false);
@@ -64,10 +45,46 @@ export default function ShareRecordsScreen() {
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       setIsReady(true);
+      fetchDocuments(); // Ensure we have the latest documents
     });
     return () => task.cancel();
   }, []);
 
+  // --- Handlers ---
+  const toggleRecord = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === documents.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(documents.map((d) => d.document_id)));
+    }
+  }, [documents, selectedIds]);
+
+  const handleGenerateQR = () => {
+    const payload = {
+      patientId: activeProfile?.id ?? user.id,
+      documentIds: Array.from(selectedIds),
+      access: 'read_only',
+      expires: Date.now() + 600 * 1000 // 10 minutes in ms
+    };
+    
+    setQrValue(encodePayload(payload));
+    setQrExpired(false);
+  };
+
+  const handleRegenerate = () => {
+    handleGenerateQR();
+  };
+
+  // --- Scanning Views ---
   if (token && !scanning) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -80,16 +97,16 @@ export default function ShareRecordsScreen() {
     if (!permission) return <View />;
     if (!permission.granted) {
       return (
-        <SafeAreaView className="flex-1 bg-[#F5F3F0] items-center justify-center p-6">
-          <Text className="text-center mb-4 text-[#2D3A2F] font-display-medium">We need your permission to show the camera</Text>
-          <TouchableOpacity onPress={requestPermission} className="bg-[#004D36] px-6 py-3 rounded-[20px]">
-             <Text className="text-white font-display-bold">Grant Permission</Text>
-          </TouchableOpacity>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.canvas, alignItems: 'center', justifyContent: 'center', padding: SPACING[6] }}>
+          <Text style={{ textAlign: 'center', marginBottom: SPACING[4], fontFamily: FONTS.jakartaMedium, color: COLORS.ink900 }}>
+            We need your permission to show the camera
+          </Text>
+          <PrimaryButton label="Grant Permission" onPress={requestPermission as any} />
         </SafeAreaView>
       );
     }
     return (
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'black' }}>
         <CameraView
           style={{ flex: 1 }}
           onBarcodeScanned={({ data }) => {
@@ -98,290 +115,310 @@ export default function ShareRecordsScreen() {
               const scannedToken = data.split('/').pop();
               router.push(`/(tabs)/doctors?token=${scannedToken}`);
             } else {
-              useAlertStore.getState().showAlert('Invalid QR', 'This is not a valid SANARCH share code.');
+              router.push(`/(tabs)/doctors?token=${data}`);
             }
           }}
         />
-        <View className="absolute bottom-10 left-0 right-0 items-center">
-          <TouchableOpacity onPress={() => setScanning(false)} className="bg-white/20 px-6 py-3 rounded-full">
-            <Text className="text-white font-display-bold">Cancel</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity 
+          onPress={() => setScanning(false)}
+          style={{ position: 'absolute', top: 60, right: 24, backgroundColor: 'rgba(0,0,0,0.5)', padding: 12, borderRadius: 24 }}
+        >
+          <MaterialCommunityIcons name="close" size={24} color="white" />
+        </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
-  useEffect(() => {
-    if (!isReady) return;
+  if (!isReady) return <View style={styles.container} />;
 
-    const load = async () => {
-      try {
-        const patientId = activeProfile?.id ?? user?.id;
-        if (!patientId) return;
-        const data = await getTimeline(patientId, 100, 0);
-        setRecords(data.events);
-      } catch (e) {
-        console.error('[DoctorShare] Records fetch failed:', e);
-        setRecords([]);
-      }
-    };
-    load();
-  }, [isReady, activeProfile?.id, user?.id]);
-
-  const toggleRecord = (id: string) => {
-    setQrValue(null); // Reset QR when selection changes
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleSelectAll = () => {
-    setQrValue(null);
-    if (selectAll) {
-      setSelectedIds(new Set());
-      setSelectAll(false);
-    } else {
-      setSelectedIds(new Set(records.map(r => r.id)));
-      setSelectAll(true);
-    }
-  };
-
-  // Keep selectAll in sync
-  useEffect(() => {
-    if (records.length > 0 && selectedIds.size === records.length) {
-      setSelectAll(true);
-    } else {
-      setSelectAll(false);
-    }
-  }, [selectedIds, records]);
-
-  const handleGenerateQR = async () => {
-    if (selectedIds.size === 0) {
-      useAlertStore.getState().showAlert('No records selected', 'Select at least one record to share.');
-      return;
-    }
-
-    setGenerating(true);
-    try {
-      const patientId = activeProfile?.id ?? user?.id;
-      if (!patientId) {
-        throw new Error('No patient ID available');
-      }
-
-      const hoursMap: Record<string, number> = { '10m': 0.17, '1h': 1, '24h': 24 };
-      const result = await generateShareToken({
-        patient_id: patientId,
-        expires_in_hours: hoursMap[accessDuration] ?? 1,
-      });
-
-      // Use the real token as QR value
-      setQrValue(`sanarch://share/${result.token}`);
-      setQrSummary(
-        `${selectedIds.size} record${selectedIds.size !== 1 ? 's' : ''} · ` +
-        `${accessLevel === 'read_only' ? 'Read Only' : 'Full Access'} · ` +
-        `Expires in ${accessDuration}`
-      );
-    } catch (error: any) {
-      useAlertStore.getState().showAlert(
-        'Failed',
-        error?.response?.data?.detail ?? 'Could not generate QR code.'
-      );
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleQRExpired = () => {
-    setQrValue(null);
-    setQrSummary('');
-  };
-
-  if (!isReady) return <View style={{ flex: 1, backgroundColor: '#F5F3F0' }} />;
+  const isAllSelected = documents.length > 0 && selectedIds.size === documents.length;
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-[#F5F3F0]">
-      {/* HEADER */}
-      <View className="bg-white px-6 pt-4 pb-4 border-b border-[#E5E2DE] flex-row items-center justify-between">
-        <Text className="text-xl font-display-bold text-[#2D3A2F]">Share with Doctor</Text>
-        <TouchableOpacity onPress={() => setScanning(true)} className="flex-row items-center gap-1 bg-[#E8F5E9] px-3 py-1.5 rounded-full">
-           <MaterialCommunityIcons name="qrcode-scan" size={16} color="#004D36" />
-           <Text className="text-[#004D36] font-display-bold text-xs uppercase">Scan</Text>
+    <SafeAreaView edges={['top']} style={styles.container}>
+      {/* ShareHeader */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Share Records</Text>
+        <TouchableOpacity 
+          onPress={() => setScanning(true)} 
+          style={styles.scanButton}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="qrcode-scan" size={16} color={COLORS.catLabPrimary} />
+          <Text style={styles.scanButtonText}>Scan</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView 
-        className="flex-1"
-        contentContainerStyle={{ padding: 24, paddingBottom: 120 }}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* SECTION 1: PATIENT IDENTITY STRIP */}
-        <View className="bg-white rounded-[20px] border border-[#E5E2DE] p-4 mb-6 flex-row items-center gap-3">
-          <View className="w-10 h-10 rounded-full bg-[#004D36] items-center justify-center">
-            <Text className="text-white font-bold text-base">
-              {(activeProfile?.name ?? user.full_name ?? 'U').charAt(0)}
+        {/* ActiveProfileStrip */}
+        <View style={styles.profileStrip}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {(activeProfile?.name ?? user.full_name ?? 'U').charAt(0).toUpperCase()}
             </Text>
           </View>
-          <View className="flex-1">
-            <Text className="text-sm font-display-bold text-[#2D3A2F]">
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>
               {activeProfile?.name ?? user.full_name ?? 'Your Profile'}
             </Text>
-            <Text className="text-[11px] font-display-medium text-[#819685] uppercase tracking-widest mt-0.5">
+            <Text style={styles.profileId}>
               {activeProfile?.sanarchId ?? user.sanarch_id ?? '—'}
             </Text>
           </View>
-          <View className="bg-[#E8F5E9] px-2 py-1 rounded-lg">
-            <Text className="text-[9px] font-display-bold text-[#004D36] uppercase tracking-wider">
-              ACTIVE PROFILE
-            </Text>
+          <View style={styles.activeBadge}>
+            <Text style={styles.activeBadgeText}>ACTIVE PROFILE</Text>
           </View>
         </View>
 
-        {/* SECTION 2: SELECT RECORDS */}
-        <View className="flex-row items-center justify-between mb-3">
-          <Text className="text-base font-display-bold text-[#2D3A2F]">Select Records</Text>
-          {records.length > 0 && (
-            <TouchableOpacity onPress={handleSelectAll} activeOpacity={0.7}>
-              <Text className="text-sm font-display-bold text-[#004D36]">
-                {selectAll ? "Deselect All" : "Select All"}
+        {/* QR Section or Document Selection */}
+        {qrValue && !qrExpired ? (
+          <View style={styles.qrSection}>
+            <QRDisplay 
+              value={qrValue} 
+              durationSeconds={600} 
+              onExpired={() => setQrExpired(true)} 
+            />
+            <View style={styles.qrSummaryPill}>
+              <Text style={styles.qrSummaryText}>
+                {selectedIds.size} record{selectedIds.size > 1 ? 's' : ''} · Read Only
               </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {records.length === 0 ? (
-          <View className="bg-white rounded-[24px] border border-[#E5E2DE] p-8 items-center mb-6">
-            <MaterialCommunityIcons name="file-upload-outline" size={48} color="#819685" />
-            <Text className="text-base font-display-bold text-[#2D3A2F] mt-4 text-center">No records yet</Text>
-            <Text className="text-sm text-[#5C6E60] text-center mt-2">
-              Upload medical documents first to share them with a doctor.
-            </Text>
-            <TouchableOpacity 
-              onPress={() => router.push('/(tabs)/upload')}
-              activeOpacity={0.75}
-              className="mt-6 bg-[#004D36] rounded-[20px] px-6 py-3 flex-row items-center gap-2"
-            >
-              <MaterialCommunityIcons name="cloud-upload" color="white" size={18} />
-              <Text className="text-white font-display-bold text-sm">Upload Records</Text>
+            </View>
+          </View>
+        ) : qrValue && qrExpired ? (
+          <View style={styles.qrSection}>
+            <MaterialCommunityIcons name="timer-off-outline" size={48} color={COLORS.ink400} />
+            <Text style={styles.expiredTitle}>QR Code Expired</Text>
+            <Text style={styles.expiredSubtitle}>For security, codes expire after 10 minutes.</Text>
+            
+            <View style={styles.regenerateContainer}>
+              <TouchableOpacity onPress={handleRegenerate} activeOpacity={0.7} style={styles.regenerateBtn}>
+                <MaterialCommunityIcons name="refresh" size={18} color={COLORS.brandPrimary} />
+                <Text style={styles.regenerateText}>Generate new code</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => { setQrValue(null); setQrExpired(false); }} activeOpacity={0.7}>
+              <Text style={styles.cancelText}>Change selection</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="mb-6">
-            {records.map(record => (
-              <TouchableOpacity 
-                key={record.id}
-                onPress={() => toggleRecord(record.id)}
-                activeOpacity={0.75} 
-                className="mb-3"
-              >
-                <View className={`flex-row items-center gap-3 rounded-[20px] border-2 p-4 ${selectedIds.has(record.id) ? 'bg-[#F0F7F4] border-[#004D36]' : 'bg-white border-[#E5E2DE]'}`}>
-                  <View className="w-10 h-10 rounded-xl items-center justify-center" style={{ backgroundColor: LABEL_CONFIG[record.label].bg }}>
-                    <MaterialCommunityIcons name={LABEL_CONFIG[record.label].icon as any} size={20} color={LABEL_CONFIG[record.label].color} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-sm font-display-bold text-[#2D3A2F]" numberOfLines={1}>{record.condition}</Text>
-                    <Text className="text-[11px] text-[#819685] mt-0.5" numberOfLines={1}>{record.hospital}</Text>
-                    <Text className="text-[11px] text-[#819685] mt-0.5">
-                      {new Date(record.date_start).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+          <View style={styles.selectionSection}>
+            {documents.length > 0 ? (
+              <>
+                <View style={styles.selectionHeader}>
+                  <Text style={styles.selectionTitle}>Select Records</Text>
+                  <TouchableOpacity onPress={handleSelectAll} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.selectAllText}>
+                      {isAllSelected ? "Deselect All" : "Select All"}
                     </Text>
-                  </View>
-                  <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedIds.has(record.id) ? 'bg-[#004D36] border-[#004D36]' : 'bg-white border-[#C8D5CA]'}`}>
-                    {selectedIds.has(record.id) && <MaterialCommunityIcons name="check" size={14} color="white" />}
-                  </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            ))}
+
+                {documents.map((doc) => (
+                  <DocumentCard 
+                    key={doc.document_id} 
+                    document={doc}
+                    variant="selectable"
+                    selected={selectedIds.has(doc.document_id)}
+                    onPress={() => toggleRecord(doc.document_id)}
+                    style={{ marginBottom: SPACING[3] }}
+                  />
+                ))}
+
+                <View style={styles.generateButtonWrapper}>
+                  <PrimaryButton 
+                    label="Generate QR" 
+                    onPress={handleGenerateQR}
+                    variant={selectedIds.size === 0 ? 'disabled' : 'default'}
+                  />
+                </View>
+              </>
+            ) : (
+              <EmptyStateCard
+                illustration={<MaterialCommunityIcons name="folder-open-outline" size={48} color={COLORS.ink400} />}
+                headline="No records yet"
+                subtext="Upload medical documents first to share them with a doctor."
+                cta={{ label: "Upload Records", onPress: () => router.push('/(tabs)/upload') }}
+              />
+            )}
           </View>
         )}
-
-
-
-            {/* SECTION 4: GENERATE QR */}
-            <Text className="text-base font-display-bold text-[#2D3A2F] mb-3">Generate QR</Text>
-            <View className="bg-white rounded-[24px] border border-[#E5E2DE] p-6 items-center mb-6">
-              
-              {qrValue === null ? (
-                <>
-                  <View className="w-20 h-20 bg-[#F8FAF9] rounded-[20px] border-2 border-[#E5E2DE] items-center justify-center mb-4">
-                    <MaterialCommunityIcons name="qrcode-scan" size={40} color="#004D36" />
-                  </View>
-                  <Text className="text-base font-display-bold text-[#2D3A2F] mb-2 text-center">Ready to share?</Text>
-                  <Text className={`text-sm text-center mb-6 font-display ${selectedIds.size === 0 ? 'text-[#819685]' : 'text-[#5C6E60]'}`}>
-                    {selectedIds.size === 0 
-                      ? "Select records above to continue" 
-                      : `${selectedIds.size} record${selectedIds.size !== 1 ? 's' : ''} selected · tap to generate`}
-                  </Text>
-
-                  {selectedIds.size > 0 && (
-                    <View className="bg-[#E8F5E9] rounded-xl p-3 flex-row items-start gap-3 mb-6 w-full">
-                      <MaterialCommunityIcons name="information-outline" size={18} color="#004D36" style={{ marginTop: 2 }} />
-                      <Text className="text-[12px] text-[#2D3A2F] font-display flex-1 leading-5">
-                        The QR code will expire automatically in {accessDuration}. The doctor only needs to scan it once.
-                      </Text>
-                    </View>
-                  )}
-
-                  <TouchableOpacity 
-                    onPress={handleGenerateQR}
-                    activeOpacity={0.8}
-                    disabled={selectedIds.size === 0 || generating}
-                    className={`w-full h-12 rounded-xl flex-row items-center justify-center gap-2 ${selectedIds.size > 0 && !generating ? 'bg-[#004D36]' : 'bg-[#E5E2DE]'}`}
-                  >
-                    {generating ? (
-                      <>
-                        <ActivityIndicator color="white" size="small" />
-                        <Text className="font-display-bold text-sm text-white">
-                          Generating...
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <MaterialCommunityIcons name="qrcode" size={20} color={selectedIds.size > 0 ? 'white' : '#819685'} />
-                        <Text className={`font-display-bold text-sm ${selectedIds.size > 0 ? 'text-white' : 'text-[#819685]'}`}>
-                          Generate QR Code
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <View className="bg-[#004D36] p-4 rounded-xl flex-row items-start gap-3 mb-6 w-full">
-                    <MaterialCommunityIcons name="information-outline" size={20} color="white" />
-                    <Text className="text-white text-xs font-display flex-1 leading-tight">
-                      This QR gives {accessLevel === 'read_only' ? 'read-only' : 'full'} access to {selectedIds.size} record{selectedIds.size !== 1 ? 's' : ''}. It expires automatically for your security.
-                    </Text>
-                  </View>
-
-                  <QRDisplay 
-                    value={qrValue}
-                    durationSeconds={DURATION_SECONDS[accessDuration]}
-                    onExpired={handleQRExpired}
-                  />
-
-                  <View className="bg-[#F5F3F0] rounded-full px-4 py-2 mt-2">
-                    <Text className="text-xs font-display-bold text-[#5C6E60] text-center">
-                      {qrSummary}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity 
-                    onPress={() => { setQrValue(null); setQrSummary(''); }}
-                    activeOpacity={0.7}
-                    className="mt-4 flex-row items-center gap-2"
-                  >
-                    <MaterialCommunityIcons name="refresh" size={16} color="#004D36" />
-                    <Text className="text-sm font-display-bold text-[#004D36]">Generate new code</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.canvas,
+  },
+  header: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING[6],
+    paddingTop: SPACING[4],
+    paddingBottom: SPACING[4],
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.ink200,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.jakartaBold,
+    color: COLORS.ink900,
+  },
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.catLabBg,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+  },
+  scanButtonText: {
+    color: COLORS.catLabPrimary,
+    fontFamily: FONTS.jakartaBold,
+    fontSize: 12,
+    textTransform: 'uppercase',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: SPACING[6],
+    paddingBottom: 120,
+  },
+  profileStrip: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.ink200,
+    padding: SPACING[4],
+    marginBottom: SPACING[6],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.brandPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: COLORS.surface,
+    fontFamily: FONTS.jakartaBold,
+    fontSize: 16,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 14,
+    fontFamily: FONTS.jakartaBold,
+    color: COLORS.ink900,
+  },
+  profileId: {
+    fontSize: 11,
+    fontFamily: FONTS.jakartaMedium,
+    color: COLORS.ink400,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  activeBadge: {
+    backgroundColor: COLORS.brandTint,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+  },
+  activeBadgeText: {
+    fontSize: 9,
+    fontFamily: FONTS.jakartaBold,
+    color: COLORS.brandPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  selectionSection: {
+    flex: 1,
+  },
+  selectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING[3],
+  },
+  selectionTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.jakartaBold,
+    color: COLORS.ink900,
+  },
+  selectAllText: {
+    fontSize: 14,
+    fontFamily: FONTS.jakartaBold,
+    color: COLORS.brandPrimary,
+  },
+  generateButtonWrapper: {
+    marginTop: SPACING[6],
+  },
+  qrSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING[6],
+  },
+  qrSummaryPill: {
+    marginTop: SPACING[6],
+    backgroundColor: COLORS.ink100,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: RADIUS.full,
+  },
+  qrSummaryText: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize: 13,
+    color: COLORS.ink600,
+  },
+  expiredTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.jakartaBold,
+    color: COLORS.ink900,
+    marginTop: SPACING[4],
+    marginBottom: 4,
+  },
+  expiredSubtitle: {
+    fontSize: 14,
+    fontFamily: FONTS.jakartaRegular,
+    color: COLORS.ink600,
+    textAlign: 'center',
+    marginBottom: SPACING[6],
+  },
+  regenerateContainer: {
+    marginBottom: SPACING[4],
+  },
+  regenerateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.brandTint,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: RADIUS.full,
+  },
+  regenerateText: {
+    fontFamily: FONTS.jakartaBold,
+    fontSize: 14,
+    color: COLORS.brandPrimary,
+  },
+  cancelText: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize: 14,
+    color: COLORS.ink600,
+  }
+});

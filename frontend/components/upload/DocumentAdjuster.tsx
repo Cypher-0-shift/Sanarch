@@ -22,6 +22,7 @@ import Animated, {
   useAnimatedStyle,
   runOnJS,
 } from 'react-native-reanimated';
+import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 
 interface DocumentAdjusterProps {
   pageUri: string;
@@ -130,9 +131,9 @@ function CropCorner({
           width: 28,
           height: 28,
           borderRadius: 14,
-          backgroundColor: '#004D36',
+          backgroundColor: COLORS.brandPrimary,
           borderWidth: 4,
-          borderColor: 'white',
+          borderColor: COLORS.surface,
           shadowColor: '#000',
           shadowOpacity: 0.5,
           shadowRadius: 8,
@@ -307,7 +308,7 @@ export default function DocumentAdjuster({
       {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => setShowDiscardAlert(true)} activeOpacity={0.7} style={styles.closeBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
-          <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
+          <MaterialCommunityIcons name="close" size={20} color={COLORS.ink600} />
         </TouchableOpacity>
         
         <Text style={styles.topBarPage}>Page {pageNumber} of {totalPages}</Text>
@@ -465,7 +466,7 @@ export default function DocumentAdjuster({
         {pageNumber > 1 && (
           <TouchableOpacity onPress={onPrev} activeOpacity={0.7} style={styles.toolItem}>
             <View style={styles.toolIcon}>
-              <MaterialCommunityIcons name="chevron-left" size={24} color="#5C6E60" />
+              <MaterialCommunityIcons name="chevron-left" size={24} color={COLORS.ink600} />
             </View>
             <Text style={styles.toolLabel}>Previous</Text>
           </TouchableOpacity>
@@ -474,7 +475,7 @@ export default function DocumentAdjuster({
         {/* Rotate */}
         <TouchableOpacity onPress={handleRotate} activeOpacity={0.7} style={styles.toolItem}>
           <View style={styles.toolIcon}>
-            <MaterialCommunityIcons name="rotate-right" size={22} color="#5C6E60" />
+            <MaterialCommunityIcons name="rotate-right" size={22} color={COLORS.ink600} />
           </View>
           <Text style={styles.toolLabel}>Rotate</Text>
         </TouchableOpacity>
@@ -499,7 +500,7 @@ export default function DocumentAdjuster({
         >
           <View style={[styles.toolIcon, mode === 'crop' && styles.toolIconActive]}>
             <MaterialCommunityIcons name="crop-free" size={22}
-              color={mode === 'crop' ? 'white' : '#5C6E60'} />
+              color={mode === 'crop' ? 'white' : COLORS.ink600} />
           </View>
           <Text style={[styles.toolLabel, mode === 'crop' && styles.toolLabelActive]}>Crop</Text>
         </TouchableOpacity>
@@ -604,8 +605,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  topBarPage: { color: '#2D3A2F', fontSize: 14, fontFamily: 'Inter_700Bold' },
-  resetBtn: { color: '#819685', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  topBarPage: { color: COLORS.ink900, fontSize: 14, fontFamily: 'Inter_700Bold' },
+  resetBtn: { color: COLORS.ink600, fontSize: 14, fontFamily: 'Inter_700Bold' },
   applyBtn: {
     backgroundColor: '#004D36',
     borderRadius: 8,
@@ -634,7 +635,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  processingText: { color: '#2D3A2F', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  processingText: { color: COLORS.ink900, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   toolbar: {
     backgroundColor: 'white',
     paddingHorizontal: 24,
@@ -654,10 +655,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolIconActive: { backgroundColor: '#004D36' },
-  toolIconHighlight: { backgroundColor: '#004D36' },
-  toolLabel: { fontSize: 10, color: '#819685', fontFamily: 'Inter_600SemiBold' },
-  toolLabelActive: { fontSize: 10, color: '#004D36', fontFamily: 'Inter_600SemiBold' },
+  toolIconActive: { backgroundColor: COLORS.brandPrimary },
+  toolIconHighlight: { backgroundColor: COLORS.brandPrimary },
+  toolLabel: { fontSize: 10, color: COLORS.ink600, fontFamily: FONTS.jakartaSemiBold },
+  toolLabelActive: { fontSize: 10, color: COLORS.brandPrimary, fontFamily: FONTS.jakartaSemiBold },
   // Modal styles
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -688,13 +689,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
+    color: COLORS.ink900,
     marginBottom: 8,
   },
   modalBody: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
-    color: '#5C6E60',
+    color: COLORS.ink600,
     lineHeight: 20,
     marginBottom: 24,
   },
@@ -712,7 +713,7 @@ const styles = StyleSheet.create({
   },
   modalBtnSecondaryText: {
     fontFamily: 'Inter_700Bold',
-    color: '#2D3A2F',
+    color: COLORS.ink900,
     fontSize: 15,
   },
   modalBtnDestructive: {

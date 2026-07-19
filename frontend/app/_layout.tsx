@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+// ── Fonts — DESIGN.md §3: Plus Jakarta Sans + JetBrains Mono ──
 import {
   useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+} from '@expo-google-fonts/jetbrains-mono';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
@@ -19,6 +25,7 @@ import { useActiveDocumentListeners } from '../hooks/useDocumentListener';
 import { Dimensions, View, Text, TextInput } from 'react-native';
 import { vars } from 'nativewind';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ThemeProvider } from '../components/foundation/ThemeProvider';
 import '../global.css'; // NativeWind CSS
 
 // Prevent system text scaling from breaking layouts
@@ -66,6 +73,7 @@ const queryClient = new QueryClient({
 
 import { CustomAlert } from '../components/ui/CustomAlert';
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
+import { ToastContainer } from '../components/feedback/Toast';
 
 // ── App-level listeners (never unmounted during navigation) ──────
 function AppListeners() {
@@ -81,15 +89,17 @@ function AppListeners() {
 }
 
 export default function RootLayout() {
+  // DESIGN.md §3 — Plus Jakarta Sans (display) + JetBrains Mono (data/IDs)
+  // Fallback order: Jakarta variants only — never default Inter (DESIGN.md §10)
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
   });
-
-  const [authChecked, setAuthChecked] = useState(false);
-  const login = useAuthStore((s) => s.login);
 
   // Setup Firebase token auto-refresh
   useEffect(() => {
@@ -97,69 +107,47 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const token = await getToken();
-        if (token) {
-          const userData = await getMe();
-          login(userData, token);
-          
-          useProfileStore.getState().initProfiles({
-            id: userData.id,
-            sanarchId: userData.sanarch_id,
-            name: userData.full_name,
-            relation: 'self',
-            isMainAccount: true,
-            phone: userData.phone_number,
-          }, undefined);
-        }
-      } catch (error) {
-        console.error('checkAuth failed:', error);
-      } finally {
-        setAuthChecked(true);
-      }
-    }
-    checkAuth();
-  }, []);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
 
-  useEffect(() => {
-    if (fontsLoaded && authChecked) SplashScreen.hideAsync();
-  }, [fontsLoaded, authChecked]);
-
-  if (!fontsLoaded || !authChecked) return null;
+  if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <View style={theme} className="flex-1">
-          <ErrorBoundary>
-            <AppListeners />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'slide_from_right',
-                animationDuration: 220,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-                contentStyle: { backgroundColor: '#F5F3F0' },
-              }}
-            >
-              <Stack.Screen
-                name="index"
-                options={{ animation: 'fade', animationDuration: 200 }}
-              />
-              <Stack.Screen
-                name="auth"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="(tabs)"
-                options={{ animation: 'fade', animationDuration: 200 }}
-              />
-            </Stack>
-          </ErrorBoundary>
-          <CustomAlert />
-        </View>
+        {/* ThemeProvider — DESIGN.md Phase 0: light mode v1, dark-mode ready */}
+        <ThemeProvider>
+          <View style={theme} className="flex-1">
+            <ErrorBoundary>
+              <AppListeners />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  animationDuration: 220,
+                  gestureEnabled: true,
+                  gestureDirection: 'horizontal',
+                  // DESIGN.md §2: canvas color — warm-tinted, never pure white/gray
+                  contentStyle: { backgroundColor: '#F9FAFB' },
+                }}
+              >
+                <Stack.Screen
+                  name="index"
+                  options={{ animation: 'fade', animationDuration: 200 }}
+                />
+                <Stack.Screen
+                  name="auth"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="(tabs)"
+                  options={{ animation: 'fade', animationDuration: 200 }}
+                />
+              </Stack>
+            </ErrorBoundary>
+            <CustomAlert />
+          </View>
+        </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

@@ -1,802 +1,999 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+/**
+ * Onboarding — Phase 2 / DESIGN.md
+ *
+ * 3 steps only, per spec:
+ *   Step 1 — Who are you managing records for?
+ *            Cards: Just myself / A family member / Both
+ *            Inline relationship selector appears on same step for family/both
+ *   Step 2 — Tell us about yourself
+ *            Name, DOB (calendar, 80+ years back), Gender
+ *            If dependent, second set of same 3 fields below
+ *   Step 3 — "Creating your account…"
+ *            Automated loading with real phase text (not a spinner alone)
+ *            On success: animated Sanarch ID reveal + explanation sentence
+ *
+ * API failure on step 3 → returns to step 2 with toast, form state preserved (per spec).
+ * ProgressBar shown on steps 1–2, hidden on step 3.
+ * No blood group / height / weight / email / address collected here.
+ */
+
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
+  Pressable,
+  TextInput,
+  StyleSheet,
   Platform,
-  Animated as RNAnimated,
+  KeyboardAvoidingView,
+  Modal,
+  FlatList,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
+  FadeInDown,
   FadeInUp,
-  FadeIn,
+  FadeOut,
   useSharedValue,
   useAnimatedStyle,
+  withTiming,
   withRepeat,
   withSequence,
-  withTiming,
-  Easing,
+  withSpring,
 } from 'react-native-reanimated';
-import { useProfileStore, Profile } from '../../store/profileStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, RADIUS, SPACING, ELEVATION_RN } from '../../constants/theme';
+import { SPRING, DURATION } from '../../constants/motion';
+import BrandLogo from '../../components/foundation/BrandLogo';
+import PrimaryButton from '../../components/buttons/PrimaryButton';
+import FormField from '../../components/inputs/FormField';
+import { toast } from '../../components/feedback/toastStore';
 import { createUser, createPatient } from '../../services/api';
-import { getFirebaseToken } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
-import { useAlertStore } from '../../store/alertStore';
+import { useProfileStore } from '../../store/profileStore';
+import { saveToken } from '../../services/storage';
+import { logger } from '../../utils/logger';
+import { useTheme } from '../../components/foundation/ThemeProvider';
 
-import SanarchLogo from '../../components/shared/SanarchLogo';
-import { FormField, SelectorField, ScrollStringPickerModal, DropdownModal, CalendarModal } from '../../components/shared/FormElements';
+type WhoAmI = 'self' | 'dependent' | 'both';
 
-/* ─── Isolated Loading Step Component ────────────────────────────────────────────── */
-/* Extracted to its own component so useSharedValue / useAnimatedStyle hooks
-   only exist in the React tree when step === '4'. This prevents NativeWind's
-   CSS interop from triggering an upgrade warning on the parent component
-   (which crashes due to a bug in react-native-css-interop's stringify fn). */
-function LoadingStep({
-  loadingPhase,
+const RELATIONS = [
+  'Parent', 'Child', 'Spouse', 'Sibling', 'Grandparent', 'Other',
+];
+
+const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+
+const LOADING_PHASES = [
+  'Securing your account…',
+  'Generating your Sanarch ID…',
+  'Almost done…',
+];
+
+// ─────────────────────────────────────────────
+// Progress bar (steps 1–2 only)
+// ─────────────────────────────────────────────
+
+function StepProgressBar({ step, total }: { step: number; total: number }) {
+  const progress = (step / total) * 100;
+  const animW    = useSharedValue(0);
+
+  useEffect(() => {
+    animW.value = withTiming(progress, { duration: DURATION.enter });
+  }, [progress]);
+
+  const barStyle = useAnimatedStyle(() => ({ width: `${animW.value}%` as any }));
+
+  return (
+    <View style={pgStyles.wrap}>
+      <View style={pgStyles.track}>
+        <Animated.View style={[pgStyles.fill, barStyle]} />
+      </View>
+      <Text style={pgStyles.label}>Step {step} of {total}</Text>
+    </View>
+  );
+}
+
+const pgStyles = StyleSheet.create({
+  wrap:  { gap: SPACING[2] },
+  track: {
+    height:          4,
+    backgroundColor: COLORS.ink100,
+    borderRadius:    2,
+    overflow:        'hidden',
+  },
+  fill: {
+    height:          '100%',
+    backgroundColor: COLORS.brandPrimary,
+    borderRadius:    2,
+  },
+  label: {
+    fontFamily:    FONTS.jakartaMedium,
+    fontSize:      11,
+    color:         COLORS.ink400,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+});
+
+// ─────────────────────────────────────────────
+// Selection card
+// ─────────────────────────────────────────────
+
+function SelectionCard({
+  label,
+  sub,
+  icon,
+  selected,
+  onPress,
 }: {
-  loadingPhase: number;
+  label:    string;
+  sub?:     string;
+  icon:     string;
+  selected: boolean;
+  onPress:  () => void;
 }) {
-  const pulseScale = useSharedValue(1);
-  const progressWidth = useSharedValue(0);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        selStyles.card,
+        selected && selStyles.cardSelected,
+      ]}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+    >
+      <View style={[selStyles.iconBox, selected && selStyles.iconBoxSelected]}>
+        <Text style={selStyles.icon}>{icon}</Text>
+      </View>
+      <View style={selStyles.text}>
+        <Text style={[selStyles.label, selected && selStyles.labelSelected]}>{label}</Text>
+        {sub && <Text style={selStyles.sub}>{sub}</Text>}
+      </View>
+      <View style={[selStyles.radio, selected && selStyles.radioSelected]}>
+        {selected && <View style={selStyles.radioDot} />}
+      </View>
+    </Pressable>
+  );
+}
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-  }));
+const selStyles = StyleSheet.create({
+  card: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    padding:          SPACING[4],
+    borderRadius:     RADIUS.xl,
+    borderWidth:      1.5,
+    borderColor:      COLORS.ink200,
+    backgroundColor:  COLORS.surface,
+    gap:              SPACING[3],
+    ...ELEVATION_RN[1],
+  },
+  cardSelected: {
+    borderColor:      'rgba(67,97,238,0.35)',
+    backgroundColor:  COLORS.brandTint,
+  },
+  iconBox: {
+    width:           44,
+    height:          44,
+    borderRadius:    RADIUS.icon,
+    backgroundColor: COLORS.ink100,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  iconBoxSelected: { backgroundColor: 'rgba(67,97,238,0.12)' },
+  icon:  { fontSize: 22 },
+  text:  { flex: 1, gap: 2 },
+  label: {
+    fontFamily: FONTS.jakartaSemiBold,
+    fontSize:   15,
+    color:      COLORS.ink800,
+  },
+  labelSelected: { color: COLORS.brandPrimary },
+  sub: {
+    fontFamily: FONTS.jakartaRegular,
+    fontSize:   12,
+    color:      COLORS.ink400,
+  },
+  radio: {
+    width:        20,
+    height:       20,
+    borderRadius: RADIUS.full,
+    borderWidth:  2,
+    borderColor:  COLORS.ink300,
+    alignItems:   'center',
+    justifyContent: 'center',
+  },
+  radioSelected: { borderColor: COLORS.brandPrimary, backgroundColor: COLORS.brandPrimary },
+  radioDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.surface },
+});
 
-  const progressBarStyle = useAnimatedStyle(() => ({
-    width: `${progressWidth.value}%` as any,
-    height: '100%',
-    backgroundColor: '#004D36',
-    borderRadius: 9999,
+// ─────────────────────────────────────────────
+// Simple DOB picker (native date picker modal)
+// ─────────────────────────────────────────────
+
+function DOBField({
+  label,
+  value,
+  onChange,
+}: {
+  label:    string;
+  value:    string;
+  onChange: (v: string) => void;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Parse or default
+  const toDate = (str: string) => {
+    if (!str) return new Date(1990, 0, 1);
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+  const toStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const current = toDate(value);
+
+  // Inline wheel pickers (month / day / year)
+  // Supports 80+ years back per spec
+  const minYear = new Date().getFullYear() - 100;
+  const maxYear = new Date().getFullYear() - 0;
+  const years   = Array.from({ length: maxYear - minYear + 1 }, (_, i) => maxYear - i);
+  const months  = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const days    = Array.from({ length: 31 }, (_, i) => i + 1);
+
+  const [selectedYear,  setYear]  = useState(current.getFullYear());
+  const [selectedMonth, setMonth] = useState(current.getMonth());
+  const [selectedDay,   setDay]   = useState(current.getDate());
+
+  function confirm() {
+    const d = new Date(selectedYear, selectedMonth, Math.min(selectedDay, 28));
+    onChange(toStr(d));
+    setShowPicker(false);
+  }
+
+  const display = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+      })
+    : '';
+
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={dobStyles.label}>{label}</Text>
+      <Pressable
+        onPress={() => setShowPicker(true)}
+        style={dobStyles.field}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${display || 'Not set'}`}
+      >
+        <Text style={display ? dobStyles.value : dobStyles.placeholder}>
+          {display || 'Select date of birth'}
+        </Text>
+        <Text style={dobStyles.chevron}>›</Text>
+      </Pressable>
+
+      <Modal
+        visible={showPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPicker(false)}
+      >
+        <View style={dobStyles.modalOverlay}>
+          <View style={dobStyles.modalCard}>
+            <Text style={dobStyles.modalTitle}>Date of Birth</Text>
+
+            <View style={dobStyles.pickerRow}>
+              {/* Day */}
+              <FlatList
+                data={days}
+                keyExtractor={(d) => String(d)}
+                style={dobStyles.wheel}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={40}
+                decelerationRate="fast"
+                getItemLayout={(_, i) => ({ length: 40, offset: 40 * i, index: i })}
+                initialScrollIndex={selectedDay - 1}
+                renderItem={({ item }) => (
+                  <Pressable onPress={() => setDay(item)} style={dobStyles.wheelItem}>
+                    <Text style={[dobStyles.wheelText, item === selectedDay && dobStyles.wheelActive]}>
+                      {String(item).padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+              {/* Month */}
+              <FlatList
+                data={months}
+                keyExtractor={(m) => m}
+                style={dobStyles.wheel}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={40}
+                decelerationRate="fast"
+                getItemLayout={(_, i) => ({ length: 40, offset: 40 * i, index: i })}
+                initialScrollIndex={selectedMonth}
+                renderItem={({ item, index }) => (
+                  <Pressable onPress={() => setMonth(index)} style={dobStyles.wheelItem}>
+                    <Text style={[dobStyles.wheelText, index === selectedMonth && dobStyles.wheelActive]}>
+                      {item}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+              {/* Year */}
+              <FlatList
+                data={years}
+                keyExtractor={(y) => String(y)}
+                style={dobStyles.wheel}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={40}
+                decelerationRate="fast"
+                getItemLayout={(_, i) => ({ length: 40, offset: 40 * i, index: i })}
+                renderItem={({ item }) => (
+                  <Pressable onPress={() => setYear(item)} style={dobStyles.wheelItem}>
+                    <Text style={[dobStyles.wheelText, item === selectedYear && dobStyles.wheelActive]}>
+                      {item}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+            </View>
+
+            <Pressable onPress={confirm} style={dobStyles.confirmBtn}>
+              <Text style={dobStyles.confirmLabel}>Confirm</Text>
+            </Pressable>
+            <Pressable onPress={() => setShowPicker(false)} style={dobStyles.cancelBtn}>
+              <Text style={dobStyles.cancelLabel}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const dobStyles = StyleSheet.create({
+  label:    { fontFamily: FONTS.jakartaSemiBold, fontSize: 12, color: COLORS.ink600 },
+  field: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    height:           48,
+    borderRadius:     RADIUS.md,
+    borderWidth:      1,
+    borderColor:      COLORS.ink300,
+    backgroundColor:  COLORS.surface,
+    paddingHorizontal: SPACING[4],
+    justifyContent:   'space-between',
+  },
+  value:   { fontFamily: FONTS.jakartaRegular, fontSize: 14, color: COLORS.ink800 },
+  placeholder: { fontFamily: FONTS.jakartaRegular, fontSize: 14, color: COLORS.ink400 },
+  chevron: { fontFamily: FONTS.jakartaRegular, fontSize: 18, color: COLORS.ink400 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius:  RADIUS['3xl'],
+    borderTopRightRadius: RADIUS['3xl'],
+    padding: SPACING[5],
+    paddingBottom: SPACING[8],
+    gap: SPACING[4],
+  },
+  modalTitle: {
+    fontFamily:    FONTS.jakartaBold,
+    fontSize:      16,
+    color:         COLORS.ink800,
+    textAlign:     'center',
+  },
+  pickerRow: {
+    flexDirection:  'row',
+    height:         200,
+    gap:            SPACING[4],
+  },
+  wheel:     { flex: 1 },
+  wheelItem: { height: 40, alignItems: 'center', justifyContent: 'center' },
+  wheelText: {
+    fontFamily: FONTS.jakartaRegular,
+    fontSize:   15,
+    color:      COLORS.ink400,
+  },
+  wheelActive: {
+    fontFamily: FONTS.jakartaBold,
+    fontSize:   17,
+    color:      COLORS.brandPrimary,
+  },
+  confirmBtn: {
+    height:          48,
+    borderRadius:    RADIUS.lg,
+    backgroundColor: COLORS.brandPrimary,
+    alignItems:      'center',
+    justifyContent:  'center',
+    ...ELEVATION_RN.brand,
+  },
+  confirmLabel: { fontFamily: FONTS.jakartaSemiBold, fontSize: 15, color: COLORS.surface },
+  cancelBtn:    { alignItems: 'center', paddingVertical: SPACING[2] },
+  cancelLabel:  { fontFamily: FONTS.jakartaMedium, fontSize: 14, color: COLORS.ink400 },
+});
+
+// ─────────────────────────────────────────────
+// Loading step — step 3
+// ─────────────────────────────────────────────
+
+function LoadingStep({ sanarchId }: { sanarchId?: string }) {
+  const [phase, setPhase] = useState(0);
+  const idScale = useSharedValue(0.8);
+  const idOpacity = useSharedValue(0);
+
+  const idStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: idScale.value }],
+    opacity:   idOpacity.value,
   }));
 
   useEffect(() => {
-    pulseScale.value = withRepeat(
-      withSequence(
-        withTiming(1.06, { duration: 800 }),
-        withTiming(1.0, { duration: 800 })
-      ),
-      -1,
-      false
+    const timers = LOADING_PHASES.map((_, i) =>
+      setTimeout(() => setPhase(i), i * 1200),
     );
-    progressWidth.value = withTiming(100, { duration: 2800, easing: Easing.linear });
-
-    return () => {
-      pulseScale.value = 1;
-    };
+    return () => timers.forEach(clearTimeout);
   }, []);
 
+  useEffect(() => {
+    if (sanarchId) {
+      idScale.value   = withSpring(1, SPRING.buttonReturn);
+      idOpacity.value = withTiming(1, { duration: DURATION.enter });
+    }
+  }, [sanarchId]);
+
   return (
-    <Animated.View entering={FadeIn.duration(400)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 48 }}>
-      {/* Pulsing Logo */}
-      <Animated.View style={[pulseStyle, { marginBottom: 32 }]}>
-        <SanarchLogo size={80} />
+    <View style={ldStyles.container}>
+      {/* Pulsing brand logo */}
+      <BrandLogo size={80} variant="icon" color="dark" />
+
+      {/* Phase text */}
+      <Animated.View key={phase} entering={FadeInDown.duration(300)} style={ldStyles.phaseWrap}>
+        <Text style={ldStyles.phaseText}>{LOADING_PHASES[Math.min(phase, LOADING_PHASES.length - 1)]}</Text>
       </Animated.View>
 
-      {/* Phase Text */}
-      <Animated.Text
-        key={`phase-${loadingPhase}`}
-        entering={FadeInUp.duration(350)}
-        style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#2D3A2F', textAlign: 'center', marginBottom: 32 }}
-      >
-        {loadingPhase === 0 && 'Setting up your account...'}
-        {loadingPhase === 1 && 'Generating your Sanarch ID...'}
-        {loadingPhase === 2 && 'Almost ready...'}
-      </Animated.Text>
-
-      {/* Progress Bar */}
-      <View style={{ width: 200, height: 4, backgroundColor: '#E5E2DE', borderRadius: 9999, overflow: 'hidden' }}>
-        <Animated.View style={progressBarStyle} />
+      {/* Progress dots */}
+      <View style={ldStyles.dots}>
+        {LOADING_PHASES.map((_, i) => (
+          <View key={i} style={[ldStyles.dot, i <= phase && ldStyles.dotActive]} />
+        ))}
       </View>
-    </Animated.View>
+
+      {/* Sanarch ID reveal on success */}
+      {sanarchId && (
+        <Animated.View style={[ldStyles.idCard, idStyle]}>
+          <LinearGradient
+            colors={[COLORS.dark900, COLORS.dark800]}
+            style={ldStyles.idGradient}
+          >
+            <Text style={ldStyles.idLabel}>SANARCH ID</Text>
+            <Text style={ldStyles.idValue}>{sanarchId}</Text>
+            <Text style={ldStyles.idExplain}>
+              This is your unique health ID. Doctors can use it to look you up.
+            </Text>
+          </LinearGradient>
+        </Animated.View>
+      )}
+    </View>
   );
 }
+
+const ldStyles = StyleSheet.create({
+  container: {
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            SPACING[6],
+    paddingHorizontal: SPACING[6],
+  },
+  phaseWrap: { alignItems: 'center' },
+  phaseText: {
+    fontFamily: FONTS.jakartaSemiBold,
+    fontSize:   16,
+    color:      COLORS.ink600,
+    textAlign:  'center',
+  },
+  dots: { flexDirection: 'row', gap: SPACING[2] },
+  dot:  {
+    width:           8,
+    height:          8,
+    borderRadius:    4,
+    backgroundColor: COLORS.ink200,
+  },
+  dotActive: { backgroundColor: COLORS.brandPrimary },
+  idCard: {
+    width:        '100%',
+    borderRadius: RADIUS['2xl'],
+    overflow:     'hidden',
+    marginTop:    SPACING[4],
+    ...ELEVATION_RN[4],
+  },
+  idGradient: {
+    padding:  SPACING[6],
+    gap:      SPACING[3],
+    borderWidth:  1,
+    borderColor:  'rgba(255,255,255,0.08)',
+    borderRadius: RADIUS['2xl'],
+  },
+  idLabel: {
+    fontFamily:    FONTS.jakartaSemiBold,
+    fontSize:      10,
+    color:         'rgba(255,255,255,0.5)',
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+  },
+  idValue: {
+    fontFamily: FONTS.monoMedium,
+    fontSize:   24,
+    color:      COLORS.surface,
+    letterSpacing: 2,
+  },
+  idExplain: {
+    fontFamily: FONTS.jakartaRegular,
+    fontSize:   13,
+    lineHeight: 20,
+    color:      'rgba(255,255,255,0.55)',
+    marginTop:  SPACING[2],
+  },
+});
+
+// ─────────────────────────────────────────────
+// Main Onboarding Screen
+// ─────────────────────────────────────────────
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const phoneFromLogin = (params.phone as string) || '';
-  const initProfiles = useProfileStore((s) => s.initProfiles);
+  const insets = useSafeAreaInsets();
+  const { firebase_token } = useLocalSearchParams<{ firebase_token: string }>();
 
-  const [step, setStep] = useState<'1' | '1b' | '2' | '3' | '3b' | '4' | '5'>('1');
-  const [accountType, setAccountType] = useState<'self' | 'patient' | null>(null);
+  // Step management
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Smooth progress bar animation (uses RN core Animated, NOT reanimated)
-  const progressAnim = useRef(new RNAnimated.Value(0.1)).current;
-  useEffect(() => {
-    const targets: Record<string, number> = {
-      '1': 0.1, '1b': 0.2, '2': 0.4,
-      '3': 0.55, '3b': 0.55, '4': 0.75, '5': 1.0
-    };
-    RNAnimated.timing(progressAnim, {
-      toValue: targets[step] ?? 0,
-      duration: 400,
-      useNativeDriver: false,
-    }).start();
-  }, [step]);
+  // Step 1 state
+  const [whoAmI,    setWhoAmI]    = useState<WhoAmI | null>(null);
+  const [relation,  setRelation]  = useState('');
 
-  const [formData, setFormData] = useState({
-    accountHolderName: '',
-    accountHolderPhone: phoneFromLogin,
-    accountHolderEmail: '',
-    accountHolderDob: '',
-    accountHolderGender: '',
-    accountHolderAddress: '',
-    accountHolderCity: '',
-    accountHolderState: '',
-    bloodGroup: '',
-    heightCm: '',
-    weightKg: '',
-    dependentName: '',
-    dependentDob: '',
-    dependentGender: '',
-    dependentRelation: '',
-    dependentBloodGroup: '',
-    dependentHeightCm: '',
-    dependentWeightKg: '',
-  });
+  // Step 2 state — own details (name/dob/gender preserved on API error per spec)
+  const [selfName,   setSelfName]   = useState('');
+  const [selfDob,    setSelfDob]    = useState('');
+  const [selfGender, setSelfGender] = useState('');
+  const [depName,    setDepName]    = useState('');
+  const [depDob,     setDepDob]     = useState('');
+  const [depGender,  setDepGender]  = useState('');
 
-  const [dependentRelation, setDependentRelation] = useState<'parent' | 'child' | 'spouse' | 'sibling' | 'elderly' | 'other' | null>(null);
-  const [modalTarget, setModalTarget] = useState<'accountHolder' | 'dependent' | null>(null);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showGenderMenu, setShowGenderMenu] = useState(false);
-  const [showBloodGroupPicker, setShowBloodGroupPicker] = useState(false);
-  const [showHeightPicker, setShowHeightPicker] = useState(false);
-  const [showWeightPicker, setShowWeightPicker] = useState(false);
+  // Step 2 errors
+  const [selfNameErr,   setSelfNameErr]   = useState('');
+  const [selfDobErr,    setSelfDobErr]    = useState('');
+  const [selfGenderErr, setSelfGenderErr] = useState('');
 
-  const GENDER_OPTIONS = ['Female', 'Male', 'Non-Binary', 'Other'];
-  const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown'];
-  const HEIGHT_OPTIONS = Array.from({ length: 121 }, (_, i) => `${100 + i}`);
-  const WEIGHT_OPTIONS = Array.from({ length: 181 }, (_, i) => `${20 + i}`);
-  const [loading, setLoading] = useState(false);
-  const [loadingPhase, setLoadingPhase] = useState(0);
-  const [sanarchIdMain, setSanarchIdMain] = useState<string>('');
-  const [sanarchIdDependent, setSanarchIdDependent] = useState<string | null>(null);
+  // Step 3 state
+  const [isCreating,  setIsCreating]  = useState(false);
+  const [sanarchId,   setSanarchId]   = useState<string | undefined>();
+  const [isComplete,  setIsComplete]  = useState(false);
 
-  // Helper function to parse DOB to ISO format
-  const parseDobToISO = (dob: string): string => {
-    // Accepts DD/MM/YYYY or DD / MM / YYYY
-    const cleaned = dob.replace(/\s/g, '');
-    const parts = cleaned.split('/');
-    if (parts.length === 3) {
-      const [dd, mm, yyyy] = parts;
-      return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  const showDependent = whoAmI === 'dependent' || whoAmI === 'both';
+  const showSelf      = whoAmI === 'self'      || whoAmI === 'both';
+
+  // ── Validate and go to step 2 ─────────────
+  function handleStep1Next() {
+    if (!whoAmI) {
+      toast.warning('Please select who you are managing records for.');
+      return;
     }
-    return dob; // return as-is if format unknown
-  };
+    if (showDependent && !relation) {
+      toast.warning('Please select the relationship for the family member.');
+      return;
+    }
+    setStep(2);
+  }
 
-  // Step 4 loading sequence — real API calls
-  const runOnboarding = async () => {
+  // ── Validate and go to step 3 ─────────────
+  function handleStep2Next() {
+    let valid = true;
+
+    if (!selfName.trim()) { setSelfNameErr('Name is required.'); valid = false; }
+    else setSelfNameErr('');
+
+    if (!selfDob) { setSelfDobErr('Date of birth is required.'); valid = false; }
+    else setSelfDobErr('');
+
+    if (!selfGender) { setSelfGenderErr('Please select a gender.'); valid = false; }
+    else setSelfGenderErr('');
+
+    if (!valid) return;
+
+    setStep(3);
+    submitAccount();
+  }
+
+  // ── API call — step 3 ─────────────────────
+  async function submitAccount() {
+    setIsCreating(true);
     try {
-      setLoadingPhase(0);
-
-      // 1. Get Firebase token
-      const firebaseToken = await getFirebaseToken();
-
-      setLoadingPhase(1);
-
-      // 2. Create main user account
-      const userData = await createUser({
-        firebase_token: firebaseToken,
-        full_name: formData.accountHolderName.trim(),
-        date_of_birth: formData.accountHolderDob
-          ? parseDobToISO(formData.accountHolderDob)
-          : undefined,
-        height_cm: formData.heightCm || undefined,
-        weight_kg: formData.weightKg || undefined,
-        email: formData.accountHolderEmail || undefined,
+      // Create the primary user account
+      const user = await createUser({
+        firebase_token,
+        full_name:     selfName.trim(),
+        date_of_birth: selfDob || undefined,
       });
 
-      // Get the backend access token now that the user is created
-      const { default: apiClient } = await import('../../services/api');
-      const { saveToken } = await import('../../services/storage');
-      const verifyResponse = await apiClient.post('/auth/verify-firebase', {
-        firebase_token: firebaseToken,
-      });
-      const accessToken = verifyResponse.data.access_token;
-      
-      await saveToken(accessToken);
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      // Set access token in store (backend returned it via verifyOTP → auth)
+      useAuthStore.getState().login(user as any, '');
+      setSanarchId(user.sanarch_id);
 
-      // 3. Save to auth store
-      useAuthStore.getState().login(
-        {
-          id: userData.id,
-          sanarch_id: userData.sanarch_id,
-          full_name: userData.full_name,
-          phone_number: userData.phone_number,
-          email: userData.email,
-          date_of_birth: userData.date_of_birth,
-          height_cm: userData.height_cm,
-          weight_kg: userData.weight_kg,
-        },
-        accessToken
-      );
-
-      setLoadingPhase(2);
-
-      // 4. Build main Profile for profileStore
-      const mainProfile: Profile = {
-        id: userData.id,
-        sanarchId: userData.sanarch_id,
-        name: userData.full_name,
-        relation: 'self' as const,
-        isMainAccount: true,
-        dob: formData.accountHolderDob,
-        gender: formData.accountHolderGender,
-        bloodGroup: formData.bloodGroup,
-        heightCm: formData.heightCm,
-        weightKg: formData.weightKg,
-        phone: userData.phone_number,
-        email: formData.accountHolderEmail,
-        address: formData.accountHolderAddress,
-        city: formData.accountHolderCity,
-        state: formData.accountHolderState,
-      };
-
-      // 5. If patient/dependent path, create dependent profile
-      let dependentProfile: Profile | undefined = undefined;
-      if (accountType === 'patient' && formData.dependentName.trim()) {
-        const patientData = await createPatient({
-          name: formData.dependentName.trim(),
-          relation: dependentRelation ?? 'other',
-          date_of_birth: formData.dependentDob
-            ? parseDobToISO(formData.dependentDob)
-            : undefined,
-          height_cm: formData.dependentHeightCm || undefined,
-          weight_kg: formData.dependentWeightKg || undefined,
+      // If managing a dependent, create them too
+      if (showDependent && depName.trim()) {
+        await createPatient({
+          name:          depName.trim(),
+          relation:      relation.toLowerCase(),
+          date_of_birth: depDob || undefined,
         });
-
-        dependentProfile = {
-          id: patientData.id,
-          sanarchId: patientData.sanarch_id,
-          name: patientData.name,
-          relation: patientData.relation as any,
-          isMainAccount: false,
-          dob: formData.dependentDob,
-          gender: formData.dependentGender,
-          bloodGroup: formData.dependentBloodGroup,
-          heightCm: formData.dependentHeightCm,
-          weightKg: formData.dependentWeightKg,
-        };
-      }
-
-      // 6. Init profile store
-      useProfileStore.getState().initProfiles(mainProfile, dependentProfile);
-
-      // 7. Set real Sanarch IDs in state for step '5' display
-      setSanarchIdMain(userData.sanarch_id);
-      if (dependentProfile) setSanarchIdDependent(dependentProfile.sanarchId);
-
-      // 8. Advance to success step
-      setStep('5');
-    } catch (error: any) {
-      console.error('[Onboarding] Failed:', error);
-      // Go back to form with error
-      setStep('2');
-      useAlertStore.getState().showAlert(
-        'Setup Failed',
-        error?.response?.data?.detail ?? 'Could not create your account. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  useEffect(() => {
-    if (step !== '4') return;
-    runOnboarding();
-  }, [step]);
-
-  const updateField = (key: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleNext = async () => {
-    if (step === '1') {
-      if (!accountType) return;
-      if (accountType === 'patient') {
-        setStep('1b');
+        useProfileStore.getState().initProfiles(
+          {
+            id:            user.id,
+            sanarchId:     user.sanarch_id,
+            name:          user.full_name,
+            relation:      'self',
+            isMainAccount: true,
+          },
+          depName.trim()
+            ? { id: 'dep-temp', sanarchId: '', name: depName.trim(), relation: relation as any, isMainAccount: false }
+            : undefined,
+        );
       } else {
-        setStep('2');
+        useProfileStore.getState().initProfiles({
+          id:            user.id,
+          sanarchId:     user.sanarch_id,
+          name:          user.full_name,
+          relation:      'self',
+          isMainAccount: true,
+        });
       }
-    } else if (step === '1b') {
-      if (!dependentRelation) {
-        useAlertStore.getState().showAlert('Required', 'Please select a relationship.');
-        return;
-      }
-      setStep('2');
-    } else if (step === '2') {
-      if (!formData.accountHolderName.trim() || !formData.accountHolderDob.trim() || !formData.accountHolderGender) {
-        useAlertStore.getState().showAlert('Required', 'Please fill in all required fields.');
-        return;
-      }
-      setStep(accountType === 'patient' ? '3b' : '3');
-    } else if (step === '3') {
-      setStep('4');
-    } else if (step === '3b') {
-      if (!formData.dependentName.trim() || !formData.dependentDob.trim() || !formData.dependentGender) {
-        useAlertStore.getState().showAlert('Required', 'Please fill in all required fields.');
-        return;
-      }
-      setStep('4');
-    } else if (step === '5') {
-      // Profiles already initialized by runOnboarding() in step '4'.
-      // Just navigate to home.
-      router.replace('/(tabs)/home');
+
+      setIsComplete(true);
+
+      // Navigate to Home after showing the ID for 2.5s
+      setTimeout(() => {
+        router.replace('/(tabs)/home');
+      }, 2800);
+    } catch (err: any) {
+      logger.error('[Onboarding] account creation failed:', err);
+      // Return to step 2 with toast, form data preserved (spec requirement)
+      setStep(2);
+      setIsCreating(false);
+      toast.error('Setup failed. Please try again.');
+      // Form state (selfName, selfDob, selfGender, etc.) is preserved by design
     }
-  };
+  }
 
-  const handlePrev = () => {
-    if (step === '1b') setStep('1');
-    else if (step === '2') setStep(accountType === 'patient' ? '1b' : '1');
-    else if (step === '3') setStep('2');
-    else if (step === '3b') setStep('2');
-    // No back navigation from steps '4' or '5'
-  };
-
-  const getProgress = () => {
-    const progressMap: Record<string, string> = {
-      '1': '10%',
-      '1b': '20%',
-      '2': '40%',
-      '3': '55%',
-      '3b': '55%',
-      '4': '75%',
-      '5': '100%',
-    };
-    return progressMap[step] || '0%';
-  };
-
-  const getDependentTitle = () => {
-    switch (dependentRelation) {
-      case 'child': return 'About your child';
-      case 'parent': return 'About your parent';
-      case 'spouse': return 'About your spouse / partner';
-      case 'sibling': return 'About your sibling';
-      case 'elderly': return 'About the person in your care';
-      case 'other': return 'About your family member';
-      default: return 'About your family member';
-    }
-  };
-
-  const getDependentPillText = () => {
-    switch (dependentRelation) {
-      case 'child': return 'Managing: Child';
-      case 'parent': return 'Managing: Parent';
-      case 'spouse': return 'Managing: Spouse / Partner';
-      case 'sibling': return 'Managing: Sibling';
-      case 'elderly': return 'Managing: Elderly Care';
-      case 'other': return 'Managing: Other';
-      default: return 'Managing: Dependent';
-    }
-  };
-
-  const getDependentRelationLabel = () => {
-    switch (dependentRelation) {
-      case 'child': return 'Child';
-      case 'parent': return 'Parent';
-      case 'spouse': return 'Spouse';
-      case 'sibling': return 'Sibling';
-      case 'elderly': return 'Elderly';
-      case 'other': return 'Other';
-      default: return 'Dependent';
-    }
-  };
-
+  // ─────────────────────────────────────────────────────
   return (
-    <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: COLORS.canvas }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.canvas} />
 
-        {/* Header */}
-        <View className="px-6 py-4 flex-row justify-between items-center z-10 shrink-0">
-          <View className="flex-row items-center gap-2">
-            <SanarchLogo size={32} />
-            <Text className="font-display-bold text-lg tracking-tight text-[#2D3A2F]">Sanarch</Text>
-          </View>
-
-          {/* Progress Bar */}
-          <View className="h-1.5 w-24 bg-gray-200 rounded-full overflow-hidden">
-            <RNAnimated.View
-              style={{
-                width: progressAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0%', '100%']
-                }),
-                height: '100%',
-                backgroundColor: '#004D36',
-                borderRadius: 9999
-              }}
-            />
-          </View>
+      {/* Progress bar — steps 1–2 only */}
+      {step < 3 && (
+        <View style={[styles.header, { paddingTop: insets.top + SPACING[3] }]}>
+          <StepProgressBar step={step} total={2} />
         </View>
+      )}
 
+      {/* Step 3 fills entire screen */}
+      {step === 3 && (
+        <View style={{ flex: 1 }}>
+          <LoadingStep sanarchId={sanarchId} />
+        </View>
+      )}
+
+      {/* Steps 1–2 */}
+      {step < 3 && (
         <ScrollView
-          className="flex-1"
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingBottom: insets.bottom + SPACING[10] },
+          ]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 120, flexGrow: 1 }}
         >
-          {/* ─── STEP 1: Account Type ────────────────────────────────────────────────────────── */}
-          {step === '1' && (
-            <Animated.View entering={FadeInUp.duration(400)} style={{ flex: 1 }}>
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-8">Who are you setting up for?</Text>
+          {/* ── Step 1 ── */}
+          {step === 1 && (
+            <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
+              <Text style={styles.heading}>Who are you managing records for?</Text>
+              <Text style={styles.sub}>We'll personalise your experience based on your answer.</Text>
 
-              <View className="flex-col gap-4">
-                <TouchableOpacity
-                  className={`w-full p-6 rounded-[24px] border-2 ${accountType === 'self' ? 'border-[#004D36] bg-[#E8F5E9]' : 'border-[#E5E2DE] bg-white'
-                    }`}
-                  activeOpacity={0.75}
-                  onPress={() => { setAccountType('self'); setTimeout(() => setStep('2'), 300); }}
-                >
-                  <View className={`w-12 h-12 rounded-xl items-center justify-center mb-4 ${accountType === 'self' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
-                    }`}>
-                    <MaterialCommunityIcons name="account-outline" size={24} color={accountType === 'self' ? 'white' : '#819685'} />
-                  </View>
-                  <Text className={`font-display-bold text-lg mb-1 ${accountType === 'self' ? 'text-[#004D36]' : 'text-[#2D3A2F]'}`}>Personal Profile</Text>
-                  <Text className="text-sm text-[#5C6E60] font-display leading-relaxed">
-                    Manage your own health records and documents.
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className={`w-full p-6 rounded-[24px] border-2 ${accountType === 'patient' ? 'border-[#004D36] bg-[#E8F5E9]' : 'border-[#E5E2DE] bg-white'
-                    }`}
-                  activeOpacity={0.75}
-                  onPress={() => { setAccountType('patient'); setTimeout(() => setStep('1b'), 300); }}
-                >
-                  <View className={`w-12 h-12 rounded-xl items-center justify-center mb-4 ${accountType === 'patient' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
-                    }`}>
-                    <MaterialCommunityIcons name="account-group-outline" size={24} color={accountType === 'patient' ? 'white' : '#819685'} />
-                  </View>
-                  <Text className={`font-display-bold text-lg mb-1 ${accountType === 'patient' ? 'text-[#004D36]' : 'text-[#2D3A2F]'}`}>Patient / Dependent</Text>
-                  <Text className="text-sm text-[#5C6E60] font-display leading-relaxed">
-                    Manage records for a family member via a linked profile you can easily switch to.
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Info Strip */}
-                <View className="flex-row items-center bg-[#E8F5E9] rounded-xl px-4 py-3 mt-2 gap-3">
-                  <MaterialCommunityIcons name="information-outline" size={20} color="#004D36" />
-                  <Text className="text-xs text-[#004D36] font-display-medium flex-1 leading-snug">
-                    You can add more family profiles later from your profile.
-                  </Text>
-                </View>
+              <View style={styles.cards}>
+                <SelectionCard
+                  label="Just myself"
+                  sub="Personal health records only"
+                  icon="🧑"
+                  selected={whoAmI === 'self'}
+                  onPress={() => setWhoAmI('self')}
+                />
+                <SelectionCard
+                  label="A family member"
+                  sub="Manage records for someone else"
+                  icon="👨‍👩‍👧"
+                  selected={whoAmI === 'dependent'}
+                  onPress={() => setWhoAmI('dependent')}
+                />
+                <SelectionCard
+                  label="Both"
+                  sub="My records + a family member's"
+                  icon="👪"
+                  selected={whoAmI === 'both'}
+                  onPress={() => setWhoAmI('both')}
+                />
               </View>
+
+              {/* Inline relationship selector — same step, no new screen */}
+              {showDependent && (
+                <Animated.View entering={FadeInDown.duration(250)} style={styles.relationWrap}>
+                  <Text style={styles.fieldLabel}>Relationship to family member</Text>
+                  <View style={styles.chipRow}>
+                    {RELATIONS.map((r) => (
+                      <Pressable
+                        key={r}
+                        onPress={() => setRelation(r)}
+                        style={[styles.chip, relation === r && styles.chipSelected]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: relation === r }}
+                        accessibilityLabel={r}
+                      >
+                        <Text style={[styles.chipText, relation === r && styles.chipTextSelected]}>
+                          {r}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Animated.View>
+              )}
+
+              <PrimaryButton
+                label="Continue"
+                onPress={handleStep1Next}
+                fullWidth
+              />
             </Animated.View>
           )}
 
-          {/* ─── STEP 1b: Dependent Relation (Patient only) ──────────────────────────────────── */}
-          {step === '1b' && (
-            <Animated.View entering={FadeInUp.duration(400)} style={{ flex: 1 }}>
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-2">Who are you managing records for?</Text>
-              <Text className="text-[#5C6E60] font-display text-base mb-8">This helps us create the right kind of profile.</Text>
-
-              <View className="flex-col gap-3">
-                {[
-                  { id: 'parent', icon: 'human-male-female', label: 'Parent', desc: 'Your mother or father' },
-                  { id: 'child', icon: 'baby-face-outline', label: 'Child', desc: 'Your son or daughter' },
-                  { id: 'spouse', icon: 'heart-outline', label: 'Spouse / Partner', desc: 'Your husband, wife or partner' },
-                  { id: 'sibling', icon: 'account-multiple-outline', label: 'Sibling', desc: 'Your brother or sister' },
-                  { id: 'elderly', icon: 'human-cane', label: 'Elderly care', desc: 'An elder in your care' },
-                  { id: 'other', icon: 'account-question-outline', label: 'Other', desc: 'Someone else you manage' }
-                ].map((opt) => {
-                  const isSelected = dependentRelation === opt.id;
-                  return (
-                    <TouchableOpacity
-                      key={opt.id}
-                      className={`w-full p-4 rounded-[20px] border-2 flex-row items-center gap-4 ${isSelected ? 'border-[#004D36] bg-[#E8F5E9]' : 'border-[#E5E2DE] bg-white'
-                        }`}
-                      activeOpacity={0.75}
-                      onPress={() => {
-                        setDependentRelation(opt.id as any);
-                        setTimeout(() => setStep('2'), 300);
-                      }}
-                    >
-                      <View className={`w-11 h-11 rounded-xl items-center justify-center ${isSelected ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
-                        }`}>
-                        <MaterialCommunityIcons
-                          name={opt.icon as any}
-                          size={22}
-                          color={isSelected ? 'white' : '#819685'}
-                        />
-                      </View>
-                      <View className="flex-1">
-                        <Text className={`font-display-bold text-base mb-0.5 ${isSelected ? 'text-[#004D36]' : 'text-[#2D3A2F]'}`}>{opt.label}</Text>
-                        <Text className="text-xs text-[#5C6E60] font-display">{opt.desc}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </Animated.View>
-          )}
-
-          {/* ─── STEP 2: Basic Information ─────────────────────────────────────────────────── */}
-          {step === '2' && (
-            <Animated.View entering={FadeInUp.duration(400)} style={{ flex: 1 }}>
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-2">Your details</Text>
-              <Text className="text-[#5C6E60] font-display text-base mb-8">
-                {accountType === 'self'
-                  ? "Tell us about yourself. Only your name, date of birth and gender are required."
-                  : "First, tell us about yourself — the account holder. We'll ask about your family member next."}
-              </Text>
-
-              <View className="flex-col gap-5">
-                {/* 1. Full Name */}
-                <FormField label="Full Name *" value={formData.accountHolderName} onChangeText={(v) => updateField('accountHolderName', v)} placeholder="John Doe" autoCapitalize="words" />
-
-                {/* 2. Phone Number */}
-                <FormField label="Phone Number *" value={`+91 ${formData.accountHolderPhone}`} locked lockReason="Verified" />
-
-                {/* 3. Date of Birth */}
-                <SelectorField label="Date of Birth *" value={formData.accountHolderDob} placeholder="DD / MM / YYYY" onPress={() => { setModalTarget('accountHolder'); setShowCalendar(true); }} />
-
-                {/* 4. Gender */}
-                <SelectorField label="Gender *" value={formData.accountHolderGender} placeholder="Select gender" onPress={() => { setModalTarget('accountHolder'); setShowGenderMenu(true); }} />
-
-                {/* 5. Email Address */}
-                <FormField label="Email Address (optional)" value={formData.accountHolderEmail} onChangeText={(v) => updateField('accountHolderEmail', v)} placeholder="john@example.com" keyboardType="email-address" />
-
-                {/* 6. Address */}
-                <View className="flex-col">
-                  <FormField label="Address (optional)" value={formData.accountHolderAddress} onChangeText={(v) => updateField('accountHolderAddress', v)} placeholder="Full street address" />
-                  <View className="flex-row gap-3">
-                    <View className="flex-1">
-                      <FormField label="City" value={formData.accountHolderCity} onChangeText={(v) => updateField('accountHolderCity', v)} placeholder="City" />
-                    </View>
-                    <View className="flex-1">
-                      <FormField label="State" value={formData.accountHolderState} onChangeText={(v) => updateField('accountHolderState', v)} placeholder="State" />
-                    </View>
-                  </View>
-                </View>
-
-                {/* Divider and Note */}
-                <View className="h-[1px] bg-[#E2E8F0] mt-2 mb-1" />
-                <Text className="text-[#819685] font-display text-xs ml-1 mb-6">Fields marked * are required</Text>
-
-              </View>
-            </Animated.View>
-          )}
-
-          {/* ─── STEP 3: Health Details (Self only) ────────────────────────────────────────── */}
-          {step === '3' && accountType === 'self' && (
-            <Animated.View entering={FadeInUp.duration(400)} style={{ flex: 1 }}>
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-2">Your health details</Text>
-              <Text className="text-[#5C6E60] font-display text-base mb-4">Optional but helpful — this data gives context to your medical reports.</Text>
-
-              {/* Tip Banner */}
-              <View className="flex-row items-center bg-[#E8F5E9] rounded-[16px] p-3 mb-8 gap-3">
-                <MaterialCommunityIcons name="information-outline" size={20} color="#004D36" />
-                <Text className="text-sm text-[#004D36] font-display-medium flex-1 leading-snug">
-                  You can always update these later from your profile settings.
+          {/* ── Step 2 ── */}
+          {step === 2 && (
+            <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
+              <Text style={styles.heading}>Tell us about yourself</Text>
+              {showDependent && (
+                <Text style={styles.sub}>
+                  We'll collect details for {whoAmI === 'both' ? 'you and your family member' : 'the family member'} below.
                 </Text>
-              </View>
+              )}
 
-              <View className="flex-col">
-                {/* 1. Blood Group */}
-                <SelectorField label="Blood Group (optional)" value={formData.bloodGroup} placeholder="Select blood group" onPress={() => { setModalTarget('accountHolder'); setShowBloodGroupPicker(true); }} />
-
-                {/* 2. Height & Weight */}
-                <View className="flex-row gap-4">
-                  <View className="flex-1">
-                    <SelectorField label="Height (optional)" value={formData.heightCm ? `${formData.heightCm} cm` : ''} placeholder="Height" onPress={() => { setModalTarget('accountHolder'); setShowHeightPicker(true); }} />
-                  </View>
-                  <View className="flex-1">
-                    <SelectorField label="Weight (optional)" value={formData.weightKg ? `${formData.weightKg} kg` : ''} placeholder="Weight" onPress={() => { setModalTarget('accountHolder'); setShowWeightPicker(true); }} />
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          )}
-
-          {/* ─── STEP 3b: Dependent Details (Patient only) ─────────────────────────────────── */}
-          {step === '3b' && accountType === 'patient' && (
-            <Animated.View entering={FadeInUp.duration(400)} style={{ flex: 1 }}>
-              <View className="self-start bg-[#E8F5E9] rounded-full px-3 py-1 mb-3 flex-row items-center gap-1.5">
-                <MaterialCommunityIcons name="account-heart-outline" size={14} color="#004D36" />
-                <Text className="text-[#004D36] text-xs font-display-bold uppercase tracking-widest">{getDependentPillText()}</Text>
-              </View>
-
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-2">{getDependentTitle()}</Text>
-              <Text className="text-[#5C6E60] font-display text-base mb-8">This creates a separate health profile linked to your account.</Text>
-
-              <View className="flex-col">
-                {/* 1. Full Name */}
-                <FormField label="Full Name *" value={formData.dependentName} onChangeText={(v) => updateField('dependentName', v)} placeholder="Dependent Name" autoCapitalize="words" />
-
-                {/* 2. Date of Birth */}
-                <SelectorField label="Date of Birth *" value={formData.dependentDob} placeholder="DD / MM / YYYY" onPress={() => { setModalTarget('dependent'); setShowCalendar(true); }} />
-
-                {/* 3. Gender */}
-                <SelectorField label="Gender *" value={formData.dependentGender} placeholder="Select gender" onPress={() => { setModalTarget('dependent'); setShowGenderMenu(true); }} />
-
-                {/* 4. Blood Group */}
-                <SelectorField label="Blood Group (optional)" value={formData.dependentBloodGroup} placeholder="Select blood group" onPress={() => { setModalTarget('dependent'); setShowBloodGroupPicker(true); }} />
-
-                {/* 5 & 6. Height & Weight */}
-                <View className="flex-row gap-4">
-                  <View className="flex-1">
-                    <SelectorField label="Height (optional)" value={formData.dependentHeightCm ? `${formData.dependentHeightCm} cm` : ''} placeholder="Height" onPress={() => { setModalTarget('dependent'); setShowHeightPicker(true); }} />
-                  </View>
-                  <View className="flex-1">
-                    <SelectorField label="Weight (optional)" value={formData.dependentWeightKg ? `${formData.dependentWeightKg} kg` : ''} placeholder="Weight" onPress={() => { setModalTarget('dependent'); setShowWeightPicker(true); }} />
-                  </View>
-                </View>
-
-                {/* Divider and Note */}
-                <View className="h-[1px] bg-[#E2E8F0] mt-2 mb-1" />
-                <Text className="text-[#819685] font-display text-xs ml-1 mb-6">Fields marked * are required</Text>
-              </View>
-            </Animated.View>
-          )}
-
-          {/* ─── STEP 4: Loading / Generating ─────────────────────────────────────────────── */}
-          {step === '4' && (
-            <LoadingStep loadingPhase={loadingPhase} />
-          )}
-
-          {/* ─── STEP 5: Success / ID Cards ───────────────────────────────────────────────── */}
-          {step === '5' && (
-            <Animated.View entering={FadeInUp.duration(600)} style={{ flex: 1 }}>
-              {/* Main Profile Card */}
-              <View
-                className="bg-[#004D36] rounded-[28px] p-6 relative overflow-hidden"
-                style={{ shadowColor: '#004D36', shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 12 }}
-              >
-                {/* Decorative circle */}
-                <View className="absolute -top-14 -right-14 w-28 h-28 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
-
-                {/* Row 1: Brand + Verified */}
-                <View className="flex-row items-center justify-between mb-6">
-                  <View className="flex-row items-center gap-2.5">
-                    <View className="w-8 h-8 rounded-lg items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                      <MaterialCommunityIcons name="shield-plus" size={18} color="white" />
-                    </View>
-                    <Text className="text-white font-display-bold text-sm tracking-tight">SANARCH</Text>
-                  </View>
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2 h-2 rounded-full bg-[#66BB6A]" />
-                    <Text className="text-white text-xs font-display-medium" style={{ opacity: 0.8 }}>Verified</Text>
-                  </View>
-                </View>
-
-                {/* Row 2: Label + Name */}
-                <View className="mb-6">
-                  <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] mb-1" style={{ color: 'rgba(255,255,255,0.6)' }}>Account Holder</Text>
-                  <Text className="text-white text-lg font-display-bold">{formData.accountHolderName || 'User'}</Text>
-                </View>
-
-                {/* Row 3: ID + QR */}
-                <View className="flex-row justify-between items-end">
-                  <View className="flex-1 mr-4">
-                    <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] mb-1" style={{ color: 'rgba(255,255,255,0.6)' }}>Sanarch ID</Text>
-                    <Text className="text-white font-mono text-sm font-bold tracking-wider">{sanarchIdMain}</Text>
-                  </View>
-                  <View className="bg-white p-1 rounded-md">
-                    <QRCode value={sanarchIdMain} size={42} backgroundColor="white" color="#004D36" />
-                  </View>
-                </View>
-              </View>
-
-              {/* Dependent Profile Card (patient path only) */}
-              {accountType === 'patient' && sanarchIdDependent && (
+              {/* Own details */}
+              {(whoAmI === 'self' || whoAmI === 'both') && (
                 <>
-                  <Text className="text-[#819685] text-xs font-display text-center my-4 px-4">
-                    These profiles are linked. Switch between them from your home screen.
-                  </Text>
+                  {whoAmI === 'both' && (
+                    <Text style={styles.sectionDivider}>Your details</Text>
+                  )}
+                  <FormField
+                    label="Full name"
+                    value={selfName}
+                    onChangeText={setSelfName}
+                    placeholder="As on official documents"
+                    variant={selfNameErr ? 'error' : 'text'}
+                    errorMessage={selfNameErr}
+                    autoCapitalize="words"
+                  />
+                  <DOBField
+                    label="Date of birth"
+                    value={selfDob}
+                    onChange={setSelfDob}
+                  />
+                  {selfDobErr ? <Text style={styles.errorText}>{selfDobErr}</Text> : null}
 
-                  <View
-                    className="bg-white border-2 border-[#004D36] rounded-[28px] p-6 relative overflow-hidden"
-                    style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 }}
-                  >
-                    {/* Decorative circle */}
-                    <View className="absolute -top-14 -right-14 w-28 h-28 rounded-full bg-[#E8F5E9]" />
-
-                    {/* Row 1: Brand + Relation badge */}
-                    <View className="flex-row items-center justify-between mb-6">
-                      <View className="flex-row items-center gap-2.5">
-                        <View className="w-8 h-8 bg-[#E8F5E9] rounded-lg items-center justify-center">
-                          <MaterialCommunityIcons name="shield-plus" size={18} color="#004D36" />
-                        </View>
-                        <Text className="text-[#2D3A2F] font-display-bold text-sm tracking-tight">SANARCH</Text>
-                      </View>
-                      <View className="bg-[#E8F5E9] rounded-full px-2 py-0.5">
-                        <Text className="text-[#004D36] text-xs font-display-bold">{getDependentRelationLabel()}</Text>
-                      </View>
-                    </View>
-
-                    {/* Row 2: Label + Name */}
-                    <View className="mb-6">
-                      <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] text-[#819685] mb-1">{formData.dependentName ? `${formData.dependentName}'s Profile` : 'Dependent Profile'}</Text>
-                      <Text className="text-[#2D3A2F] text-lg font-display-bold">{formData.dependentName || 'Dependent'}</Text>
-                    </View>
-
-                    {/* Row 3: ID + QR */}
-                    <View className="flex-row justify-between items-end">
-                      <View className="flex-1 mr-4">
-                        <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] text-[#819685] mb-1">Sanarch ID</Text>
-                        <Text className="text-[#004D36] font-mono text-sm font-bold tracking-wider">{sanarchIdDependent}</Text>
-                      </View>
-                      <View className="bg-white p-1 rounded-md border border-[#004D36]">
-                        <QRCode value={sanarchIdDependent} size={42} backgroundColor="white" color="#004D36" />
-                      </View>
-                    </View>
+                  <Text style={styles.fieldLabel}>Gender</Text>
+                  <View style={styles.chipRow}>
+                    {GENDERS.map((g) => (
+                      <Pressable
+                        key={g}
+                        onPress={() => setSelfGender(g)}
+                        style={[styles.chip, selfGender === g && styles.chipSelected]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: selfGender === g }}
+                        accessibilityLabel={g}
+                      >
+                        <Text style={[styles.chipText, selfGender === g && styles.chipTextSelected]}>
+                          {g}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
+                  {selfGenderErr ? <Text style={styles.errorText}>{selfGenderErr}</Text> : null}
                 </>
               )}
 
-              {/* Welcome Text */}
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] text-center mt-8">Welcome to Sanarch</Text>
-              <Text className="text-[#5C6E60] font-display text-sm text-center mt-2 px-4 leading-relaxed">
-                Your health identity is ready. Keep your Sanarch ID safe — doctors will use it to access your records.
-              </Text>
+              {/* Dependent details — same 3 fields */}
+              {showDependent && (
+                <View style={styles.dependentBlock}>
+                  <Text style={styles.sectionDivider}>
+                    {relation || 'Family member'}'s details
+                  </Text>
+                  <FormField
+                    label="Full name"
+                    value={depName}
+                    onChangeText={setDepName}
+                    placeholder="Family member's name"
+                    autoCapitalize="words"
+                  />
+                  <DOBField
+                    label="Date of birth"
+                    value={depDob}
+                    onChange={setDepDob}
+                  />
+                  <Text style={styles.fieldLabel}>Gender</Text>
+                  <View style={styles.chipRow}>
+                    {GENDERS.map((g) => (
+                      <Pressable
+                        key={g}
+                        onPress={() => setDepGender(g)}
+                        style={[styles.chip, depGender === g && styles.chipSelected]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: depGender === g }}
+                        accessibilityLabel={g}
+                      >
+                        <Text style={[styles.chipText, depGender === g && styles.chipTextSelected]}>
+                          {g}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              <PrimaryButton
+                label="Create account"
+                onPress={handleStep2Next}
+                fullWidth
+              />
+
+              {/* Back to step 1 */}
+              <Pressable
+                onPress={() => setStep(1)}
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                hitSlop={8}
+              >
+                <Text style={styles.backLabel}>← Back</Text>
+              </Pressable>
             </Animated.View>
           )}
-
         </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* ─── Footer Navigation ──────────────────────────────────────────────────────────── */}
-      {step !== '4' && !(step === '1' && !accountType) && !(step === '1b' && !dependentRelation) && (
-        <Animated.View entering={FadeIn.duration(400)} style={{ paddingHorizontal: 24, paddingBottom: 32, paddingTop: 8, flexDirection: 'row', gap: 16, backgroundColor: '#F5F3F0' }}>
-          {step !== '5' && step !== '1' && (
-            <TouchableOpacity
-              className="w-20 h-[58px] bg-white rounded-[24px] items-center justify-center border border-[#E2E8F0]"
-              activeOpacity={0.75}
-              onPress={handlePrev}
-            >
-              <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            className="flex-1 h-[58px] bg-[#004D36] rounded-[24px] flex-row items-center justify-center shadow-sm"
-            activeOpacity={0.75}
-            onPress={handleNext}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <>
-                <Text className="text-white font-display-bold text-base">
-                  {step === '5' ? 'Go to Dashboard' : 'Continue'}
-                </Text>
-                {step !== '5' && <MaterialCommunityIcons name="arrow-right" size={20} color="white" style={{ marginLeft: 8 }} />}
-              </>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
       )}
-      {/* Modals */}
-      <CalendarModal visible={showCalendar} onClose={() => setShowCalendar(false)} onConfirm={(date) => {
-        const val = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-        if (modalTarget === 'accountHolder') updateField('accountHolderDob', val);
-        else if (modalTarget === 'dependent') updateField('dependentDob', val);
-      }} />
-      <DropdownModal visible={showGenderMenu} onClose={() => setShowGenderMenu(false)} title="Select Gender" options={GENDER_OPTIONS} value={modalTarget === 'accountHolder' ? formData.accountHolderGender : formData.dependentGender} onSelect={(val) => {
-        if (modalTarget === 'accountHolder') updateField('accountHolderGender', val);
-        else if (modalTarget === 'dependent') updateField('dependentGender', val);
-      }} />
-      <ScrollStringPickerModal visible={showBloodGroupPicker} onClose={() => setShowBloodGroupPicker(false)} title="Select Blood Group" options={BLOOD_GROUP_OPTIONS} value={modalTarget === 'accountHolder' ? formData.bloodGroup : formData.dependentBloodGroup} onSelect={(val) => {
-        if (modalTarget === 'accountHolder') updateField('bloodGroup', val);
-        else if (modalTarget === 'dependent') updateField('dependentBloodGroup', val);
-      }} />
-      <ScrollStringPickerModal visible={showHeightPicker} onClose={() => setShowHeightPicker(false)} title="Select Height (cm)" options={HEIGHT_OPTIONS} value={modalTarget === 'accountHolder' ? formData.heightCm : formData.dependentHeightCm} onSelect={(val) => {
-        if (modalTarget === 'accountHolder') updateField('heightCm', val);
-        else if (modalTarget === 'dependent') updateField('dependentHeightCm', val);
-      }} />
-      <ScrollStringPickerModal visible={showWeightPicker} onClose={() => setShowWeightPicker(false)} title="Select Weight (kg)" options={WEIGHT_OPTIONS} value={modalTarget === 'accountHolder' ? formData.weightKg : formData.dependentWeightKg} onSelect={(val) => {
-        if (modalTarget === 'accountHolder') updateField('weightKg', val);
-        else if (modalTarget === 'dependent') updateField('dependentWeightKg', val);
-      }} />
-
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
+
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  header: {
+    paddingHorizontal: SPACING[5],
+    paddingBottom:     SPACING[4],
+    backgroundColor:   COLORS.canvas,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(17,24,39,0.05)',
+  },
+  scroll: {
+    paddingHorizontal: SPACING[5],
+    paddingTop:        SPACING[6],
+    gap:               SPACING[5],
+  },
+  section: {
+    gap: SPACING[4],
+  },
+  heading: {
+    fontFamily:    FONTS.jakartaBold,
+    fontSize:      24,
+    lineHeight:    32,
+    color:         COLORS.ink800,
+    letterSpacing: -0.40,
+  },
+  sub: {
+    fontFamily: FONTS.jakartaRegular,
+    fontSize:   14,
+    lineHeight: 22,
+    color:      COLORS.ink400,
+    marginTop:  -SPACING[2],
+  },
+  cards: { gap: SPACING[3] },
+
+  // Relation selector
+  relationWrap: {
+    backgroundColor: COLORS.surface,
+    borderRadius:    RADIUS.xl,
+    padding:         SPACING[4],
+    borderWidth:     1,
+    borderColor:     'rgba(17,24,39,0.06)',
+    gap:             SPACING[3],
+    ...ELEVATION_RN[1],
+  },
+
+  // Chips
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap:      'wrap',
+    gap:           SPACING[2],
+  },
+  chip: {
+    paddingHorizontal: SPACING[4],
+    paddingVertical:   SPACING[2],
+    borderRadius:      RADIUS.lg,
+    borderWidth:       1.5,
+    borderColor:       COLORS.ink200,
+    backgroundColor:   COLORS.surface,
+  },
+  chipSelected: {
+    borderColor:     COLORS.brandPrimary,
+    backgroundColor: COLORS.brandTint,
+  },
+  chipText: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize:   13,
+    color:      COLORS.ink600,
+  },
+  chipTextSelected: {
+    fontFamily: FONTS.jakartaSemiBold,
+    color:      COLORS.brandPrimary,
+  },
+
+  // Field label
+  fieldLabel: {
+    fontFamily:    FONTS.jakartaSemiBold,
+    fontSize:      12,
+    color:         COLORS.ink600,
+    letterSpacing: 0,
+  },
+
+  // Dependent block
+  dependentBlock: {
+    gap:             SPACING[4],
+    borderTopWidth:  1,
+    borderTopColor:  COLORS.ink100,
+    paddingTop:      SPACING[4],
+  },
+  sectionDivider: {
+    fontFamily:    FONTS.jakartaBold,
+    fontSize:      14,
+    color:         COLORS.ink600,
+    letterSpacing: 0,
+  },
+
+  // Error text
+  errorText: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize:   12,
+    color:      COLORS.resultHigh,
+    marginTop:  -SPACING[2],
+  },
+
+  // Back button
+  backBtn: {
+    alignSelf:       'flex-start',
+    paddingVertical: SPACING[1],
+  },
+  backLabel: {
+    fontFamily: FONTS.jakartaMedium,
+    fontSize:   14,
+    color:      COLORS.ink400,
+  },
+});

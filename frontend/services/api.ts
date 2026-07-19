@@ -263,6 +263,8 @@ export async function getDocument(documentId: string): Promise<{
   return response.data;
 }
 
+
+
 // ---------------------------------------------------------------------------
 // Document Upload APIs
 // ---------------------------------------------------------------------------

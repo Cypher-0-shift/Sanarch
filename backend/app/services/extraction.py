@@ -25,10 +25,15 @@ Return ONLY valid JSON matching this exact schema. No markdown, no explanation.
   "patient_name": "string or null",
   "diagnosis": ["list of strings"],
   "medications": [{"name": "", "dose": "", "frequency": "", "duration": ""}],
-  "lab_values": [{"test_name": "", "value": "", "unit": "", "flag": "normal|high|low|null"}],
+  "lab_values": [{"test_name": "", "value": "", "unit": "", "reference_range": "string or null", "flag": "normal|high|low|null"}],
   "follow_up_date": "YYYY-MM-DD or null",
   "follow_up_instructions": "string or null",
-  "summary": "2 sentence plain English summary"
+  "summary": "Detailed plain English summary",
+  "overview": {
+    "what_is_this": "Plain English explanation of what this document is",
+    "what_it_tells": "Plain English explanation of the main findings or results",
+    "what_to_do": "Plain English actionable advice or next steps based on the document"
+  }
 }"""
 
 # ---------------------------------------------------------------------------
@@ -46,6 +51,11 @@ _FALLBACK_STRUCTURE = {
     "follow_up_date": None,
     "follow_up_instructions": None,
     "summary": "Extraction failed — please review document manually.",
+    "overview": {
+        "what_is_this": "Unknown document",
+        "what_it_tells": "We could not extract the contents of this document.",
+        "what_to_do": "Please review the original document manually."
+    }
 }
 
 
@@ -58,7 +68,7 @@ def _get_med7_model():
     import spacy
     try:
         logger.info("Loading Med7 NER model...")
-        nlp = spacy.load("en_core_web_sm")
+        nlp = spacy.load("en_core_med7_lg")
         logger.info("Med7 loaded.")
         return nlp
     except OSError:
