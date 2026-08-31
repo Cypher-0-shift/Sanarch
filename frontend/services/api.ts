@@ -72,8 +72,16 @@ apiClient.interceptors.response.use(
       503: 'Service temporarily unavailable. Please try again.',
     };
     
-    const userMessage = USER_FACING_ERRORS[error.response?.status] 
-      ?? 'An unexpected error occurred.';
+    let userMessage: string;
+    if (!error.response) {
+      userMessage = 'Unable to connect to server. Please check your network connection or API URL.';
+      if (__DEV__) {
+        logger.error('Network/Connection error. Is the backend accessible at:', BASE_URL);
+      }
+    } else {
+      userMessage = USER_FACING_ERRORS[error.response.status] 
+        ?? 'An unexpected error occurred.';
+    }
     
     if (__DEV__ && error.response?.data?.detail) {
       logger.error('Server error:', error.response.data.detail);
@@ -165,16 +173,43 @@ export async function createPatient(data: {
   name: string;
   relation: string;
   date_of_birth?: string;
+  gender?: string;
+  blood_group?: string;
   height_cm?: string;
   weight_kg?: string;
 }): Promise<{
   id: string;
   sanarch_id: string;
   name: string;
+  full_name: string;
   relation: string;
+  relationship_to_owner: string;
+  date_of_birth?: string;
+  gender?: string;
+  blood_group?: string;
+  height_cm?: string;
+  weight_kg?: string;
 }> {
-  const response = await apiClient.post(ENDPOINTS.CREATE_PATIENT, data);
-  return response.data;
+  const payload = {
+    full_name: data.name,
+    name: data.name,
+    relationship_to_owner: data.relation,
+    relation: data.relation,
+    date_of_birth: data.date_of_birth,
+    gender: data.gender,
+    blood_group: data.blood_group,
+    height_cm: data.height_cm,
+    weight_kg: data.weight_kg,
+  };
+  const response = await apiClient.post(ENDPOINTS.CREATE_PATIENT, payload);
+  const res = response.data;
+  return {
+    ...res,
+    name: res.full_name || res.name || data.name,
+    full_name: res.full_name || res.name || data.name,
+    relation: res.relationship_to_owner || res.relation || data.relation,
+    relationship_to_owner: res.relationship_to_owner || res.relation || data.relation,
+  };
 }
 
 let cachedUser: any = null;
@@ -212,14 +247,22 @@ export function clearUserCache() {
 
 export interface TimelineEvent {
   id: string;
-  condition: string;
-  date_start: string;
-  date_end: string | null;
-  hospital: string | null;
-  doctor: string | null;
-  document_count: number;
-  label: 'lab_report' | 'prescription' | 'hospital_summary' | 'scan';
-  documents: Array<{ id: string; type: string; label: string }>;
+  patient_id?: string;
+  document_id?: string;
+  condition?: string;
+  diagnosis?: string[];
+  summary?: string;
+  event_date?: string;
+  date_start?: string;
+  date_end?: string | null;
+  hospital?: string | null;
+  hospital_name?: string | null;
+  doctor?: string | null;
+  doctor_name?: string | null;
+  document_count?: number;
+  label?: 'lab_report' | 'prescription' | 'hospital_summary' | 'scan' | string;
+  documents?: Array<{ id: string; type: string; label: string }>;
+  created_at?: string;
 }
 
 export async function getTimeline(
@@ -263,6 +306,8 @@ export async function getDocument(documentId: string): Promise<{
   return response.data;
 }
 
+
+
 // ---------------------------------------------------------------------------
 // Document Upload APIs
 // ---------------------------------------------------------------------------
@@ -272,6 +317,8 @@ export async function uploadDocument(
   fileName: string,
   mimeType: string,
   documentLabel: string = 'Other',
+  documentTitle: string = '',
+  notes: string = '',
   pagesCount: number = 1,
 ): Promise<{ document_id: string; status: string; message: string }> {
   const formData = new FormData();
@@ -281,6 +328,8 @@ export async function uploadDocument(
     type: mimeType,
   } as any);
   formData.append('document_label', documentLabel);
+  formData.append('document_title', documentTitle);
+  formData.append('notes', notes);
   formData.append('pages_count', String(pagesCount));
 
   const response = await apiClient.post(ENDPOINTS.UPLOAD_DOCUMENT, formData, {
@@ -388,15 +437,43 @@ export async function deleteMe(): Promise<void> {
 export async function getPatients(): Promise<Array<{
   id: string;
   sanarch_id: string;
-  name: string;
-  relation: string;
+  full_name?: string;
+  name?: string;
+  relationship_to_owner?: string;
+  relation?: string;
   date_of_birth: string | null;
-  height_cm: string | null;
-  weight_kg: string | null;
+  height_cm?: string | null;
+  weight_kg?: string | null;
   is_active: boolean;
 }>> {
   const response = await apiClient.get(ENDPOINTS.GET_PATIENTS);
-  return response.data;
+  if (Array.isArray(response.data)) return response.data;
+  if (response.data && Array.isArray(response.data.patients)) return response.data.patients;
+  if (response.data && Array.isArray(response.data.items)) return response.data.items;
+  return [];
+}
+
+export async function getPatient(patientId: string): Promise<{
+  id: string;
+  sanarch_id: string;
+  full_name?: string;
+  name?: string;
+  relationship_to_owner?: string;
+  relation?: string;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  blood_group?: string | null;
+  height_cm?: string | null;
+  weight_kg?: string | null;
+  is_active?: boolean;
+}> {
+  const response = await apiClient.get(`${ENDPOINTS.CREATE_PATIENT}/${patientId}`);
+  const data = response.data;
+  return {
+    ...data,
+    name: data.full_name || data.name,
+    relation: data.relationship_to_owner || data.relation,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ import { useAlertStore } from '../../store/alertStore';
 
 import SanarchLogo from '../../components/shared/SanarchLogo';
 import { FormField, SelectorField, ScrollStringPickerModal, DropdownModal, CalendarModal } from '../../components/shared/FormElements';
+import { formatSanarchId } from '../../utils/sanarchId';
 
 /* ─── Isolated Loading Step Component ────────────────────────────────────────────── */
 /* Extracted to its own component so useSharedValue / useAnimatedStyle hooks
@@ -101,12 +102,12 @@ function LoadingStep({
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const phoneFromLogin = (params.phone as string) || '';
+  const params = useLocalSearchParams<{ phone?: string; skipToStep2?: string; accountType?: string; dependentRelation?: string }>();
+  const phoneFromLogin = params.phone || '';
   const initProfiles = useProfileStore((s) => s.initProfiles);
 
-  const [step, setStep] = useState<'1' | '1b' | '2' | '3' | '3b' | '4' | '5'>('1');
-  const [accountType, setAccountType] = useState<'self' | 'patient' | null>(null);
+  const [step, setStep] = useState<'1' | '1b' | '2' | '3' | '3b' | '4' | '5'>(params.skipToStep2 === 'true' ? '2' : '1');
+  const [accountType, setAccountType] = useState<'self' | 'patient' | null>((params.accountType as any) || null);
 
   // Smooth progress bar animation (uses RN core Animated, NOT reanimated)
   const progressAnim = useRef(new RNAnimated.Value(0.1)).current;
@@ -143,7 +144,7 @@ export default function OnboardingScreen() {
     dependentWeightKg: '',
   });
 
-  const [dependentRelation, setDependentRelation] = useState<'parent' | 'child' | 'spouse' | 'sibling' | 'elderly' | 'other' | null>(null);
+  const [dependentRelation, setDependentRelation] = useState<'parent' | 'child' | 'spouse' | 'sibling' | 'elderly' | 'other' | null>((params.dependentRelation as any) || null);
   const [modalTarget, setModalTarget] = useState<'accountHolder' | 'dependent' | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showGenderMenu, setShowGenderMenu] = useState(false);
@@ -304,14 +305,22 @@ export default function OnboardingScreen() {
       if (accountType === 'patient') {
         setStep('1b');
       } else {
-        setStep('2');
+        if (!phoneFromLogin) {
+          router.push({ pathname: '/auth/login', params: { mode: 'signup', accountType } });
+        } else {
+          setStep('2');
+        }
       }
     } else if (step === '1b') {
       if (!dependentRelation) {
         useAlertStore.getState().showAlert('Required', 'Please select a relationship.');
         return;
       }
-      setStep('2');
+      if (!phoneFromLogin) {
+        router.push({ pathname: '/auth/login', params: { mode: 'signup', accountType, dependentRelation } });
+      } else {
+        setStep('2');
+      }
     } else if (step === '2') {
       if (!formData.accountHolderName.trim() || !formData.accountHolderDob.trim() || !formData.accountHolderGender) {
         useAlertStore.getState().showAlert('Required', 'Please fill in all required fields.');
@@ -374,7 +383,7 @@ export default function OnboardingScreen() {
       case 'sibling': return 'Managing: Sibling';
       case 'elderly': return 'Managing: Elderly Care';
       case 'other': return 'Managing: Other';
-      default: return 'Managing: Dependent';
+      default: return 'Managing: Family Member';
     }
   };
 
@@ -386,7 +395,7 @@ export default function OnboardingScreen() {
       case 'sibling': return 'Sibling';
       case 'elderly': return 'Elderly';
       case 'other': return 'Other';
-      default: return 'Dependent';
+      default: return 'Family Member';
     }
   };
 
@@ -425,14 +434,16 @@ export default function OnboardingScreen() {
           {/* ─── STEP 1: Account Type ────────────────────────────────────────────────────────── */}
           {step === '1' && (
             <Animated.View entering={FadeInUp.duration(400)} style={{ flex: 1 }}>
-              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-8">Who are you setting up for?</Text>
+              <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-8" style={{ maxWidth: 320 }}>
+                Who are you setting up{'\u00A0'}for?
+              </Text>
 
               <View className="flex-col gap-4">
                 <TouchableOpacity
                   className={`w-full p-6 rounded-[24px] border-2 ${accountType === 'self' ? 'border-[#004D36] bg-[#E8F5E9]' : 'border-[#E5E2DE] bg-white'
                     }`}
                   activeOpacity={0.75}
-                  onPress={() => { setAccountType('self'); setTimeout(() => setStep('2'), 300); }}
+                  onPress={() => setAccountType('self')}
                 >
                   <View className={`w-12 h-12 rounded-xl items-center justify-center mb-4 ${accountType === 'self' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
                     }`}>
@@ -448,15 +459,15 @@ export default function OnboardingScreen() {
                   className={`w-full p-6 rounded-[24px] border-2 ${accountType === 'patient' ? 'border-[#004D36] bg-[#E8F5E9]' : 'border-[#E5E2DE] bg-white'
                     }`}
                   activeOpacity={0.75}
-                  onPress={() => { setAccountType('patient'); setTimeout(() => setStep('1b'), 300); }}
+                  onPress={() => setAccountType('patient')}
                 >
                   <View className={`w-12 h-12 rounded-xl items-center justify-center mb-4 ${accountType === 'patient' ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
                     }`}>
                     <MaterialCommunityIcons name="account-group-outline" size={24} color={accountType === 'patient' ? 'white' : '#819685'} />
                   </View>
-                  <Text className={`font-display-bold text-lg mb-1 ${accountType === 'patient' ? 'text-[#004D36]' : 'text-[#2D3A2F]'}`}>Patient / Dependent</Text>
+                  <Text className={`font-display-bold text-lg mb-1 ${accountType === 'patient' ? 'text-[#004D36]' : 'text-[#2D3A2F]'}`}>Family Member</Text>
                   <Text className="text-sm text-[#5C6E60] font-display leading-relaxed">
-                    Manage records for a family member via a linked profile you can easily switch to.
+                    Manage records for a family member via a linked profile you can easily switch{'\u00A0'}to.
                   </Text>
                 </TouchableOpacity>
 
@@ -493,10 +504,7 @@ export default function OnboardingScreen() {
                       className={`w-full p-4 rounded-[20px] border-2 flex-row items-center gap-4 ${isSelected ? 'border-[#004D36] bg-[#E8F5E9]' : 'border-[#E5E2DE] bg-white'
                         }`}
                       activeOpacity={0.75}
-                      onPress={() => {
-                        setDependentRelation(opt.id as any);
-                        setTimeout(() => setStep('2'), 300);
-                      }}
+                      onPress={() => setDependentRelation(opt.id as any)}
                     >
                       <View className={`w-11 h-11 rounded-xl items-center justify-center ${isSelected ? 'bg-[#004D36]' : 'bg-[#F5F3F0]'
                         }`}>
@@ -608,7 +616,7 @@ export default function OnboardingScreen() {
 
               <View className="flex-col">
                 {/* 1. Full Name */}
-                <FormField label="Full Name *" value={formData.dependentName} onChangeText={(v) => updateField('dependentName', v)} placeholder="Dependent Name" autoCapitalize="words" />
+                <FormField label="Full Name *" value={formData.dependentName} onChangeText={(v) => updateField('dependentName', v)} placeholder="Full Name" autoCapitalize="words" />
 
                 {/* 2. Date of Birth */}
                 <SelectorField label="Date of Birth *" value={formData.dependentDob} placeholder="DD / MM / YYYY" onPress={() => { setModalTarget('dependent'); setShowCalendar(true); }} />
@@ -676,7 +684,7 @@ export default function OnboardingScreen() {
                 <View className="flex-row justify-between items-end">
                   <View className="flex-1 mr-4">
                     <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] mb-1" style={{ color: 'rgba(255,255,255,0.6)' }}>Sanarch ID</Text>
-                    <Text className="text-white font-mono text-sm font-bold tracking-wider">{sanarchIdMain}</Text>
+                    <Text className="text-white font-mono text-sm font-bold tracking-wider">{formatSanarchId(sanarchIdMain)}</Text>
                   </View>
                   <View className="bg-white p-1 rounded-md">
                     <QRCode value={sanarchIdMain} size={42} backgroundColor="white" color="#004D36" />
@@ -713,15 +721,15 @@ export default function OnboardingScreen() {
 
                     {/* Row 2: Label + Name */}
                     <View className="mb-6">
-                      <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] text-[#819685] mb-1">{formData.dependentName ? `${formData.dependentName}'s Profile` : 'Dependent Profile'}</Text>
-                      <Text className="text-[#2D3A2F] text-lg font-display-bold">{formData.dependentName || 'Dependent'}</Text>
+                      <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] text-[#819685] mb-1">{formData.dependentName ? `${formData.dependentName}'s Profile` : 'Family Member Profile'}</Text>
+                      <Text className="text-[#2D3A2F] text-lg font-display-bold">{formData.dependentName || 'Family Member'}</Text>
                     </View>
 
                     {/* Row 3: ID + QR */}
                     <View className="flex-row justify-between items-end">
                       <View className="flex-1 mr-4">
                         <Text className="text-[10px] font-display-bold uppercase tracking-[0.15em] text-[#819685] mb-1">Sanarch ID</Text>
-                        <Text className="text-[#004D36] font-mono text-sm font-bold tracking-wider">{sanarchIdDependent}</Text>
+                        <Text className="text-[#004D36] font-mono text-sm font-bold tracking-wider">{formatSanarchId(sanarchIdDependent)}</Text>
                       </View>
                       <View className="bg-white p-1 rounded-md border border-[#004D36]">
                         <QRCode value={sanarchIdDependent} size={42} backgroundColor="white" color="#004D36" />

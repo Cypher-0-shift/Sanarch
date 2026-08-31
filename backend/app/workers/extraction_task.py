@@ -146,6 +146,20 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
             file_bytes = _merge_images_to_pdf(page_bytes_list)
             mime_type = "application/pdf"  # Override: merged PDF
 
+            # Upload merged PDF to B2 so it can be previewed
+            merged_pdf_key = f"docs/{owner_id}/{document_id}/merged.pdf"
+            try:
+                client.put_object(
+                    Bucket=settings.b2_bucket_name,
+                    Key=merged_pdf_key,
+                    Body=file_bytes,
+                    ContentType="application/pdf"
+                )
+                logger.info(f"Uploaded merged PDF to {merged_pdf_key}")
+            except Exception as upload_err:
+                logger.warning(f"Failed to upload merged PDF (non-fatal): {upload_err}")
+                merged_pdf_key = None
+
             # Move each page to final location
             final_page_keys = []
             for i, page_key in enumerate(b2_page_keys):
@@ -158,10 +172,14 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
                     logger.warning(f"Move page {i+1} to final failed (non-fatal): {move_err}")
                     final_page_keys.append(page_key)  # Keep original key
 
-            doc_ref.update({
+            update_data = {
                 "b2_page_keys": final_page_keys,
                 "updated_at": SERVER_TIMESTAMP,
-            })
+            }
+            if merged_pdf_key:
+                update_data["b2_file_id"] = merged_pdf_key
+                
+            doc_ref.update(update_data)
         else:
             # ── Single-file path: unchanged ──
             logger.info(f"Downloading {b2_key} from B2")
@@ -223,36 +241,142 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
             extracted = {}
 
         # ── STAGE 6: READY (100%) ─────────────────────────────────────────
+        condition_terms_raw = extracted.get("condition_terms_raw", [])
+        condition_groups = extracted.get("condition_groups", [])
+        
         doc_ref.update({
             "status": "ready",
             "processing_progress": 100,
             "processing_stage": "ready",
             "document_title": document_title,
             "extracted_data": extracted,
+            "condition_terms_raw": condition_terms_raw,
+            "condition_groups": condition_groups,
             "summary": summary,
             "updated_at": SERVER_TIMESTAMP,
         })
+
+        # Create corresponding entry in medical_events collection
+        try:
+            from datetime import datetime, timezone
+            event_date_str = extracted.get("document_date")
+            if not event_date_str or len(str(event_date_str)) < 10:
+                event_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            else:
+                event_date_str = str(event_date_str)[:10]
+
+            patient_id = doc.get("patient_id") or owner_id
+            event_data = {
+                "patient_id": str(patient_id),
+                "document_id": document_id,
+                "event_date": event_date_str,
+                "hospital_name": extracted.get("hospital_name"),
+                "doctor_name": extracted.get("doctor_name"),
+                "diagnosis": extracted.get("diagnosis", []),
+                "medications": extracted.get("medications", []),
+                "lab_values": extracted.get("lab_values", []),
+                "condition_terms_raw": condition_terms_raw,
+                "condition_groups": condition_groups,
+                "summary": summary,
+                "created_at": SERVER_TIMESTAMP,
+            }
+            db.collection("medical_events").document(document_id).set(event_data)
+            logger.info(f"Created medical_event for document {document_id}")
+        except Exception as event_err:
+            logger.error(f"Failed to create medical_event for {document_id}: {event_err}", exc_info=True)
+
+        # Invalidate the timeline cache so the frontend can sync immediately
+        from app.routers.timeline import invalidate_timeline_cache
+        try:
+            invalidate_timeline_cache(str(doc.get("patient_id") or owner_id))
+        except Exception as e:
+            logger.warning(f"Failed to invalidate timeline cache for {owner_id}: {e}")
 
         elapsed = time.time() - start_time
         logger.info(f"Document {document_id} ready in {elapsed:.1f}s")
 
         return {"status": "ready", "document_id": document_id}
 
-    except SoftTimeLimitExceeded:
-        logger.error(f"Document {document_id} exceeded time limit")
+    except SoftTimeLimitExceeded as exc:
+        logger.error(f"Document {document_id} exceeded soft time limit "
+                     f"(attempt {self.request.retries + 1}/{self.max_retries + 1})")
+        is_final_attempt = self.request.retries >= self.max_retries
+        if is_final_attempt:
+            try:
+                _update_progress(
+                    doc_ref, "failed", 0,
+                    status="failed",
+                    failure_reason="processing_timeout",
+                    hidden_from_list=True,
+                )
+                db.collection("users").document(owner_id).collection("notifications").document().set({
+                    "type": "processing_failed",
+                    "document_id": document_id,
+                    "title": "One of your documents is taking longer than expected — we're still trying.",
+                    "created_at": SERVER_TIMESTAMP,
+                    "read": False
+                })
+            except Exception:
+                pass
+            return {"status": "timeout"}
+        # Not final — allow one retry for legitimately slow documents
         try:
-            _update_progress(doc_ref, "failed", 0, status="failed")
+            _update_progress(doc_ref, "retrying", 0)
         except Exception:
             pass
-        return {"status": "timeout"}
+        raise self.retry(exc=exc, countdown=30)
 
     except Exception as exc:
-        logger.error(f"Document {document_id} failed: {exc}", exc_info=True)
+        logger.error(f"Document {document_id} failed: {exc} "
+                     f"(attempt {self.request.retries + 1}/{self.max_retries + 1})",
+                     exc_info=True)
+
+        # Classify the failure for downstream use (notifications, UI)
+        failure_reason = "unknown_error"
+        exc_str = str(exc).lower()
+        if isinstance(exc, (RuntimeError,)) and ("azure" in exc_str or "ocr" in exc_str or "document intelligence" in exc_str):
+            failure_reason = "ocr_failed"
+        elif isinstance(exc, (httpx.HTTPError, httpx.TimeoutException)):
+            failure_reason = "extraction_failed"
+        elif "groq" in exc_str or "structur" in exc_str:
+            failure_reason = "extraction_failed"
+
+        is_final_attempt = self.request.retries >= self.max_retries
+        if is_final_attempt:
+            # Final attempt exhausted — NOW mark as failed
+            try:
+                _update_progress(
+                    doc_ref, "failed", 0,
+                    status="failed",
+                    failure_reason=failure_reason,
+                    hidden_from_list=True,
+                )
+                
+                msg_map = {
+                    "ocr_failed": "We couldn't read one of your documents. Please try re-uploading it.",
+                    "extraction_failed": "One of your uploads couldn't be processed. Please try again.",
+                    "processing_timeout": "One of your documents is taking longer than expected — we're still trying.",
+                    "unknown_error": "Something went wrong with one of your uploads."
+                }
+                
+                db.collection("users").document(owner_id).collection("notifications").document().set({
+                    "type": "processing_failed",
+                    "document_id": document_id,
+                    "title": msg_map.get(failure_reason, msg_map["unknown_error"]),
+                    "created_at": SERVER_TIMESTAMP,
+                    "read": False
+                })
+            except Exception:
+                pass
+            # Don't call self.retry() — retries are exhausted, let Celery
+            # handle MaxRetriesExceededError naturally by not re-raising
+            return {"status": "failed", "failure_reason": failure_reason}
+
+        # Non-final attempt — mark as retrying, keep status as "processing"
         try:
-            _update_progress(doc_ref, "failed", 0, status="failed")
+            _update_progress(doc_ref, "retrying", 0)
         except Exception:
             pass
-        # Retry on transient failures
         raise self.retry(exc=exc, countdown=30)
 
 

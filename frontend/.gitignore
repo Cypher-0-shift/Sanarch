@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Diagnostic outputs
+touchables*.txt
+find_small_touchables.js
+
+# Repomix
+repomix-output.xml

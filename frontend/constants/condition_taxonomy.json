@@ -1,0 +1,1022 @@
+{
+  "version": "1.0",
+  "description": "Canonical condition/disease taxonomy for Sanarch grouping. Each document's extraction step should output condition_terms_raw (verbatim phrase(s) as found in the document) and condition_groups (best-matching id(s) from this list). Use 'uncategorized' when no confident match exists rather than forcing a poor fit.",
+  "fallback_id": "uncategorized",
+  "conditions": [
+    {
+      "id": "viral_fever",
+      "label": "Viral fever",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "dengue",
+      "label": "Dengue",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "malaria",
+      "label": "Malaria",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "typhoid",
+      "label": "Typhoid",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "chikungunya",
+      "label": "Chikungunya",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "covid19",
+      "label": "COVID-19",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "covid_long",
+      "label": "Post-COVID / long COVID",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "influenza",
+      "label": "Influenza / flu",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "common_cold",
+      "label": "Common cold",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "h1n1",
+      "label": "H1N1 (swine flu)",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "leptospirosis",
+      "label": "Leptospirosis",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "scrub_typhus",
+      "label": "Scrub typhus",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "sepsis",
+      "label": "Sepsis",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "tuberculosis",
+      "label": "Tuberculosis (TB)",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "hepatitis_a",
+      "label": "Hepatitis A",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "hepatitis_b",
+      "label": "Hepatitis B",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "hepatitis_c",
+      "label": "Hepatitis C",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "chickenpox",
+      "label": "Chickenpox",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "measles",
+      "label": "Measles",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "mumps",
+      "label": "Mumps",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "rubella",
+      "label": "Rubella",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "herpes",
+      "label": "Herpes (HSV)",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "hiv_aids",
+      "label": "HIV / AIDS",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "meningitis",
+      "label": "Meningitis",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "cellulitis",
+      "label": "Cellulitis",
+      "category": "Infectious & fever"
+    },
+    {
+      "id": "pneumonia",
+      "label": "Pneumonia",
+      "category": "Respiratory"
+    },
+    {
+      "id": "bronchitis",
+      "label": "Bronchitis",
+      "category": "Respiratory"
+    },
+    {
+      "id": "sinusitis",
+      "label": "Sinusitis",
+      "category": "Respiratory"
+    },
+    {
+      "id": "tonsillitis",
+      "label": "Tonsillitis",
+      "category": "Respiratory"
+    },
+    {
+      "id": "pharyngitis",
+      "label": "Pharyngitis / sore throat",
+      "category": "Respiratory"
+    },
+    {
+      "id": "asthma",
+      "label": "Asthma",
+      "category": "Respiratory"
+    },
+    {
+      "id": "copd",
+      "label": "COPD",
+      "category": "Respiratory"
+    },
+    {
+      "id": "allergic_rhinitis",
+      "label": "Allergic rhinitis",
+      "category": "Respiratory"
+    },
+    {
+      "id": "sleep_apnea",
+      "label": "Sleep apnea",
+      "category": "Respiratory"
+    },
+    {
+      "id": "ild",
+      "label": "Interstitial lung disease",
+      "category": "Respiratory"
+    },
+    {
+      "id": "pulmonary_fibrosis",
+      "label": "Pulmonary fibrosis",
+      "category": "Respiratory"
+    },
+    {
+      "id": "pleural_effusion",
+      "label": "Pleural effusion",
+      "category": "Respiratory"
+    },
+    {
+      "id": "pulmonary_embolism",
+      "label": "Pulmonary embolism",
+      "category": "Respiratory"
+    },
+    {
+      "id": "hypertension",
+      "label": "Hypertension (high BP)",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "hypotension",
+      "label": "Hypotension (low BP)",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "coronary_artery_disease",
+      "label": "Coronary artery disease",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "angina",
+      "label": "Angina",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "myocardial_infarction",
+      "label": "Heart attack (MI)",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "arrhythmia",
+      "label": "Arrhythmia",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "atrial_fibrillation",
+      "label": "Atrial fibrillation",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "heart_failure",
+      "label": "Heart failure",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "valvular_heart_disease",
+      "label": "Valvular heart disease",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "cardiomyopathy",
+      "label": "Cardiomyopathy",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "deep_vein_thrombosis",
+      "label": "Deep vein thrombosis (DVT)",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "varicose_veins",
+      "label": "Varicose veins",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "peripheral_artery_disease",
+      "label": "Peripheral artery disease",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "rheumatic_heart_disease",
+      "label": "Rheumatic heart disease",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "congenital_heart_disease",
+      "label": "Congenital heart disease",
+      "category": "Cardiovascular"
+    },
+    {
+      "id": "type1_diabetes",
+      "label": "Type 1 diabetes",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "type2_diabetes",
+      "label": "Type 2 diabetes",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "prediabetes",
+      "label": "Prediabetes",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "hypothyroidism",
+      "label": "Hypothyroidism",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "hyperthyroidism",
+      "label": "Hyperthyroidism",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "thyroid_nodule",
+      "label": "Thyroid nodule / goitre",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "pcod_pcos",
+      "label": "PCOD / PCOS",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "obesity",
+      "label": "Obesity",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "dyslipidemia",
+      "label": "High cholesterol (dyslipidemia)",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "gout",
+      "label": "Gout",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "vitamin_d_deficiency",
+      "label": "Vitamin D deficiency",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "vitamin_b12_deficiency",
+      "label": "Vitamin B12 deficiency",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "iron_deficiency_anemia",
+      "label": "Iron deficiency anemia",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "osteoporosis",
+      "label": "Osteoporosis",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "metabolic_syndrome",
+      "label": "Metabolic syndrome",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "adrenal_disorder",
+      "label": "Adrenal disorder",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "electrolyte_imbalance",
+      "label": "Electrolyte imbalance",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "hypoglycemia",
+      "label": "Hypoglycemia",
+      "category": "Endocrine & metabolic"
+    },
+    {
+      "id": "gerd",
+      "label": "Acid reflux / GERD",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "peptic_ulcer",
+      "label": "Peptic ulcer",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "gastritis",
+      "label": "Gastritis",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "ibs",
+      "label": "Irritable bowel syndrome",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "ibd",
+      "label": "Inflammatory bowel disease",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "constipation",
+      "label": "Constipation",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "hemorrhoids",
+      "label": "Piles (hemorrhoids)",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "fatty_liver",
+      "label": "Fatty liver",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "cirrhosis",
+      "label": "Cirrhosis",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "gallstones",
+      "label": "Gallstones",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "pancreatitis",
+      "label": "Pancreatitis",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "appendicitis",
+      "label": "Appendicitis",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "hernia",
+      "label": "Hernia",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "celiac_disease",
+      "label": "Celiac disease",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "lactose_intolerance",
+      "label": "Lactose intolerance",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "food_poisoning",
+      "label": "Food poisoning",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "gastroenteritis",
+      "label": "Gastroenteritis",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "jaundice",
+      "label": "Jaundice",
+      "category": "Gastrointestinal"
+    },
+    {
+      "id": "chronic_kidney_disease",
+      "label": "Chronic kidney disease",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "acute_kidney_injury",
+      "label": "Acute kidney injury",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "kidney_stones",
+      "label": "Kidney stones",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "uti",
+      "label": "Urinary tract infection",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "urinary_incontinence",
+      "label": "Urinary incontinence",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "bph",
+      "label": "Enlarged prostate (BPH)",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "prostatitis",
+      "label": "Prostatitis",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "hydrocele",
+      "label": "Hydrocele",
+      "category": "Renal & urology"
+    },
+    {
+      "id": "osteoarthritis",
+      "label": "Osteoarthritis",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "rheumatoid_arthritis",
+      "label": "Rheumatoid arthritis",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "back_pain",
+      "label": "Back pain / lumbar spondylosis",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "cervical_spondylosis",
+      "label": "Cervical spondylosis",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "frozen_shoulder",
+      "label": "Frozen shoulder",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "sciatica",
+      "label": "Sciatica",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "fibromyalgia",
+      "label": "Fibromyalgia",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "tendinitis",
+      "label": "Tendinitis",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "carpal_tunnel_syndrome",
+      "label": "Carpal tunnel syndrome",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "fracture",
+      "label": "Fracture",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "sprain_strain",
+      "label": "Sprain / strain",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "slipped_disc",
+      "label": "Slipped disc (disc prolapse)",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "muscular_dystrophy",
+      "label": "Muscular dystrophy",
+      "category": "Musculoskeletal"
+    },
+    {
+      "id": "migraine",
+      "label": "Migraine",
+      "category": "Neurological"
+    },
+    {
+      "id": "tension_headache",
+      "label": "Tension headache",
+      "category": "Neurological"
+    },
+    {
+      "id": "epilepsy",
+      "label": "Epilepsy / seizure disorder",
+      "category": "Neurological"
+    },
+    {
+      "id": "stroke",
+      "label": "Stroke",
+      "category": "Neurological"
+    },
+    {
+      "id": "parkinsons_disease",
+      "label": "Parkinson's disease",
+      "category": "Neurological"
+    },
+    {
+      "id": "dementia_alzheimers",
+      "label": "Dementia / Alzheimer's",
+      "category": "Neurological"
+    },
+    {
+      "id": "peripheral_neuropathy",
+      "label": "Peripheral neuropathy",
+      "category": "Neurological"
+    },
+    {
+      "id": "bells_palsy",
+      "label": "Bell's palsy",
+      "category": "Neurological"
+    },
+    {
+      "id": "vertigo",
+      "label": "Vertigo",
+      "category": "Neurological"
+    },
+    {
+      "id": "multiple_sclerosis",
+      "label": "Multiple sclerosis",
+      "category": "Neurological"
+    },
+    {
+      "id": "trigeminal_neuralgia",
+      "label": "Trigeminal neuralgia",
+      "category": "Neurological"
+    },
+    {
+      "id": "head_injury",
+      "label": "Head injury / concussion",
+      "category": "Neurological"
+    },
+    {
+      "id": "anxiety_disorder",
+      "label": "Anxiety disorder",
+      "category": "Mental health"
+    },
+    {
+      "id": "depression",
+      "label": "Depression",
+      "category": "Mental health"
+    },
+    {
+      "id": "insomnia",
+      "label": "Insomnia",
+      "category": "Mental health"
+    },
+    {
+      "id": "bipolar_disorder",
+      "label": "Bipolar disorder",
+      "category": "Mental health"
+    },
+    {
+      "id": "adhd",
+      "label": "ADHD",
+      "category": "Mental health"
+    },
+    {
+      "id": "stress_disorder",
+      "label": "Stress-related disorder",
+      "category": "Mental health"
+    },
+    {
+      "id": "panic_disorder",
+      "label": "Panic disorder",
+      "category": "Mental health"
+    },
+    {
+      "id": "ocd",
+      "label": "OCD",
+      "category": "Mental health"
+    },
+    {
+      "id": "substance_use_disorder",
+      "label": "Substance use disorder",
+      "category": "Mental health"
+    },
+    {
+      "id": "pregnancy_antenatal",
+      "label": "Pregnancy / antenatal care",
+      "category": "Women's health"
+    },
+    {
+      "id": "postnatal_care",
+      "label": "Postnatal care",
+      "category": "Women's health"
+    },
+    {
+      "id": "menstrual_disorder",
+      "label": "Menstrual disorder",
+      "category": "Women's health"
+    },
+    {
+      "id": "menopause",
+      "label": "Menopause",
+      "category": "Women's health"
+    },
+    {
+      "id": "uterine_fibroids",
+      "label": "Uterine fibroids",
+      "category": "Women's health"
+    },
+    {
+      "id": "ovarian_cyst",
+      "label": "Ovarian cyst",
+      "category": "Women's health"
+    },
+    {
+      "id": "endometriosis",
+      "label": "Endometriosis",
+      "category": "Women's health"
+    },
+    {
+      "id": "infertility",
+      "label": "Infertility",
+      "category": "Women's health"
+    },
+    {
+      "id": "gestational_diabetes",
+      "label": "Gestational diabetes",
+      "category": "Women's health"
+    },
+    {
+      "id": "miscarriage",
+      "label": "Miscarriage",
+      "category": "Women's health"
+    },
+    {
+      "id": "breast_lump",
+      "label": "Breast lump / mastalgia",
+      "category": "Women's health"
+    },
+    {
+      "id": "growth_development_checkup",
+      "label": "Growth / development checkup",
+      "category": "Pediatric"
+    },
+    {
+      "id": "vaccination",
+      "label": "Vaccination / immunization",
+      "category": "Pediatric"
+    },
+    {
+      "id": "febrile_seizure",
+      "label": "Febrile seizure",
+      "category": "Pediatric"
+    },
+    {
+      "id": "teething",
+      "label": "Teething",
+      "category": "Pediatric"
+    },
+    {
+      "id": "neonatal_jaundice",
+      "label": "Neonatal jaundice",
+      "category": "Pediatric"
+    },
+    {
+      "id": "failure_to_thrive",
+      "label": "Failure to thrive",
+      "category": "Pediatric"
+    },
+    {
+      "id": "acne",
+      "label": "Acne",
+      "category": "Dermatology"
+    },
+    {
+      "id": "eczema_dermatitis",
+      "label": "Eczema / dermatitis",
+      "category": "Dermatology"
+    },
+    {
+      "id": "psoriasis",
+      "label": "Psoriasis",
+      "category": "Dermatology"
+    },
+    {
+      "id": "urticaria",
+      "label": "Urticaria / allergic skin reaction",
+      "category": "Dermatology"
+    },
+    {
+      "id": "fungal_skin_infection",
+      "label": "Fungal skin infection (ringworm)",
+      "category": "Dermatology"
+    },
+    {
+      "id": "alopecia",
+      "label": "Hair loss (alopecia)",
+      "category": "Dermatology"
+    },
+    {
+      "id": "vitiligo",
+      "label": "Vitiligo",
+      "category": "Dermatology"
+    },
+    {
+      "id": "scabies",
+      "label": "Scabies",
+      "category": "Dermatology"
+    },
+    {
+      "id": "skin_abscess_boil",
+      "label": "Skin abscess / boil",
+      "category": "Dermatology"
+    },
+    {
+      "id": "ear_infection",
+      "label": "Ear infection",
+      "category": "ENT"
+    },
+    {
+      "id": "hearing_loss",
+      "label": "Hearing loss",
+      "category": "ENT"
+    },
+    {
+      "id": "wax_impaction",
+      "label": "Ear wax impaction",
+      "category": "ENT"
+    },
+    {
+      "id": "nasal_polyp",
+      "label": "Nasal polyp",
+      "category": "ENT"
+    },
+    {
+      "id": "cataract",
+      "label": "Cataract",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "glaucoma",
+      "label": "Glaucoma",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "refractive_error",
+      "label": "Refractive error (myopia/hyperopia)",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "dry_eye",
+      "label": "Dry eye",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "conjunctivitis",
+      "label": "Conjunctivitis",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "diabetic_retinopathy",
+      "label": "Diabetic retinopathy",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "retinal_detachment",
+      "label": "Retinal detachment",
+      "category": "Ophthalmology"
+    },
+    {
+      "id": "cancer_screening",
+      "label": "Cancer screening",
+      "category": "Oncology"
+    },
+    {
+      "id": "breast_cancer",
+      "label": "Breast cancer",
+      "category": "Oncology"
+    },
+    {
+      "id": "cervical_cancer",
+      "label": "Cervical cancer",
+      "category": "Oncology"
+    },
+    {
+      "id": "oral_cancer",
+      "label": "Oral cancer",
+      "category": "Oncology"
+    },
+    {
+      "id": "lung_cancer",
+      "label": "Lung cancer",
+      "category": "Oncology"
+    },
+    {
+      "id": "colorectal_cancer",
+      "label": "Colorectal cancer",
+      "category": "Oncology"
+    },
+    {
+      "id": "prostate_cancer",
+      "label": "Prostate cancer",
+      "category": "Oncology"
+    },
+    {
+      "id": "leukemia",
+      "label": "Leukemia",
+      "category": "Oncology"
+    },
+    {
+      "id": "lymphoma",
+      "label": "Lymphoma",
+      "category": "Oncology"
+    },
+    {
+      "id": "chemotherapy_followup",
+      "label": "Chemotherapy follow-up",
+      "category": "Oncology"
+    },
+    {
+      "id": "dental_caries",
+      "label": "Dental caries (cavity)",
+      "category": "Dental"
+    },
+    {
+      "id": "gum_disease",
+      "label": "Gum disease / periodontitis",
+      "category": "Dental"
+    },
+    {
+      "id": "root_canal",
+      "label": "Root canal treatment",
+      "category": "Dental"
+    },
+    {
+      "id": "wisdom_tooth",
+      "label": "Wisdom tooth issue",
+      "category": "Dental"
+    },
+    {
+      "id": "food_allergy",
+      "label": "Food allergy",
+      "category": "Allergy & immunology"
+    },
+    {
+      "id": "drug_allergy",
+      "label": "Drug allergy",
+      "category": "Allergy & immunology"
+    },
+    {
+      "id": "autoimmune_disorder",
+      "label": "Autoimmune disorder",
+      "category": "Allergy & immunology"
+    },
+    {
+      "id": "lupus",
+      "label": "Lupus (SLE)",
+      "category": "Allergy & immunology"
+    },
+    {
+      "id": "general_health_checkup",
+      "label": "General health checkup",
+      "category": "General & preventive"
+    },
+    {
+      "id": "routine_screening",
+      "label": "Routine screening / annual check",
+      "category": "General & preventive"
+    },
+    {
+      "id": "post_operative_followup",
+      "label": "Post-operative follow-up",
+      "category": "General & preventive"
+    },
+    {
+      "id": "injury_trauma",
+      "label": "Injury / trauma",
+      "category": "General & preventive"
+    },
+    {
+      "id": "road_traffic_accident",
+      "label": "Road traffic accident",
+      "category": "General & preventive"
+    },
+    {
+      "id": "burn",
+      "label": "Burn injury",
+      "category": "General & preventive"
+    },
+    {
+      "id": "poisoning",
+      "label": "Poisoning",
+      "category": "General & preventive"
+    },
+    {
+      "id": "dehydration",
+      "label": "Dehydration",
+      "category": "General & preventive"
+    },
+    {
+      "id": "malnutrition",
+      "label": "Malnutrition",
+      "category": "General & preventive"
+    },
+    {
+      "id": "weight_management",
+      "label": "Weight management",
+      "category": "General & preventive"
+    },
+    {
+      "id": "organ_transplant_followup",
+      "label": "Organ transplant follow-up",
+      "category": "Advanced & specialty"
+    },
+    {
+      "id": "dialysis",
+      "label": "Dialysis",
+      "category": "Advanced & specialty"
+    },
+    {
+      "id": "bariatric_surgery_followup",
+      "label": "Bariatric surgery follow-up",
+      "category": "Advanced & specialty"
+    },
+    {
+      "id": "ivf_fertility_treatment",
+      "label": "IVF / fertility treatment",
+      "category": "Advanced & specialty"
+    },
+    {
+      "id": "cardiac_surgery_followup",
+      "label": "Cardiac surgery follow-up",
+      "category": "Advanced & specialty"
+    },
+    {
+      "id": "physiotherapy_rehab",
+      "label": "Physiotherapy / rehabilitation",
+      "category": "Advanced & specialty"
+    },
+    {
+      "id": "uncategorized",
+      "label": "Uncategorized",
+      "category": "Fallback"
+    }
+  ]
+}

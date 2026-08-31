@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   Dimensions, StyleSheet, Animated, ViewToken,
@@ -24,10 +24,38 @@ const BOTTOM_CIRCLE_SIZE = Math.max(Math.min(SCREEN_WIDTH * (200 / REF_WIDTH), 2
 // Page data configuration
 const PAGES = [
   { id: '0', type: 'brand', bgColor: '#004D36' },
-  { id: '1', type: 'feature', title: 'Upload anything.\nWe organize it.', subtitle: 'Snap photos or upload PDFs. Your records are instantly categorized.', mockup: 'upload', bgColor: '#004D36' },
-  { id: '2', type: 'feature', title: 'AI reads your documents.', subtitle: 'Extracts diagnosis, medications, and lab values automatically.', mockup: 'ai', bgColor: '#F5F3F0' },
-  { id: '3', type: 'feature', title: 'Your health timeline.', subtitle: 'All medical events in chronological order. Filter and search easily.', mockup: 'timeline', bgColor: '#2D3A2F' },
-  { id: '4', type: 'feature', title: 'Share with a QR code.', subtitle: 'Generate a secure code your doctor scans. Expires in 10 minutes.', mockup: 'qr', bgColor: '#F5F3F0' },
+  {
+    id: '1',
+    type: 'feature',
+    title: 'Drop the paperwork.',
+    subtitle: 'Snap it. Upload it. Sanarch organizes it.',
+    mockup: 'upload',
+    bgColor: '#004D36'
+  },
+  {
+    id: '2',
+    type: 'feature',
+    title: 'Let AI do the sorting.',
+    subtitle: 'Important medical information is extracted automatically.',
+    mockup: 'ai',
+    bgColor: '#F5F3F0'
+  },
+  {
+    id: '3',
+    type: 'feature',
+    title: 'See the bigger picture.',
+    subtitle: 'Your medical history, connected over time.',
+    mockup: 'timeline',
+    bgColor: '#2D3A2F'
+  },
+  {
+    id: '4',
+    type: 'feature',
+    title: 'Share only what you need.',
+    subtitle: 'Secure, view-only access that expires automatically.',
+    mockup: 'qr',
+    bgColor: '#F5F3F0'
+  },
   { id: '5', type: 'cta', bgColor: '#004D36' },
 ];
 
@@ -35,12 +63,12 @@ export default function HeroScreen() {
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollX = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
   // Background color interpolation
-  const backgroundColor = scrollY.interpolate({
-    inputRange: PAGES.map((_, i) => i * SCREEN_HEIGHT),
+  const backgroundColor = scrollX.interpolate({
+    inputRange: PAGES.map((_, i) => i * SCREEN_WIDTH),
     outputRange: PAGES.map(p => p.bgColor),
     extrapolate: 'clamp',
   });
@@ -55,26 +83,47 @@ export default function HeroScreen() {
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  const handleGetStarted = () => {
+    router.push('/auth/onboarding');
+  };
+
+  const handleSignIn = () => {
+    router.push({ pathname: '/auth/login', params: { mode: 'login' } });
+  };
+
   const handleSkip = () => {
-    router.push('/auth/login');
+    flatListRef.current?.scrollToOffset({
+      offset: (PAGES.length - 1) * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
+  const handleScrollTo = (index: number) => {
+    flatListRef.current?.scrollToOffset({
+      offset: index * SCREEN_WIDTH,
+      animated: true,
+    });
   };
 
   const isLightPage = [2, 4].includes(activeIndex);
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#004D36' }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <StatusBar barStyle={isLightPage ? 'dark-content' : 'light-content'} />
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor }]} />
 
-      {/* Main vertical swiper */}
+      {/* Main horizontal swiper */}
       <FlatList
         ref={flatListRef}
-        style={{ flex: 1, backgroundColor: '#004D36' }}
-        contentContainerStyle={{ backgroundColor: '#004D36' }}
+        horizontal
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        contentContainerStyle={{ backgroundColor: 'transparent' }}
         ListHeaderComponent={null}
         data={PAGES}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => {
+        initialNumToRender={PAGES.length}
+        windowSize={11}
+        renderItem={({ item, index }) => {
           if (item.type === 'brand') {
             return <BrandPage topInset={insets.top} bottomInset={insets.bottom} bgColor={item.bgColor} />;
           } else if (item.type === 'feature') {
@@ -86,81 +135,103 @@ export default function HeroScreen() {
                 topInset={insets.top}
                 bottomInset={insets.bottom}
                 bgColor={item.bgColor}
+                isActive={activeIndex === index}
               />
             );
           } else {
-            return <CTAPage onGetStarted={handleSkip} topInset={insets.top} bottomInset={insets.bottom} bgColor={item.bgColor} />;
+            return (
+              <CTAPage
+                onGetStarted={handleGetStarted}
+                onSignIn={handleSignIn}
+                topInset={insets.top}
+                bottomInset={insets.bottom}
+                bgColor={item.bgColor}
+              />
+            );
           }
         }}
         pagingEnabled
-        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
         bounces={false}
         scrollEventThrottle={16}
         onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false }
         )}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        onScrollToIndexFailed={(info) => {
+          flatListRef.current?.scrollToOffset({
+            offset: info.index * SCREEN_WIDTH,
+            animated: true,
+          });
+        }}
         decelerationRate="fast"
-        snapToInterval={SCREEN_HEIGHT}
+        snapToInterval={SCREEN_WIDTH}
         snapToAlignment="start"
         getItemLayout={(data, index) => ({
-          length: SCREEN_HEIGHT,
-          offset: SCREEN_HEIGHT * index,
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
           index,
         })}
       />
 
-      {/* Fixed overlay with skip and dots */}
-      <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
-        {activeIndex < PAGES.length - 1 && (
-          <>
-            {/* Page dots - left center */}
-            <View style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 24,
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 6
-            }} pointerEvents="none">
-              {PAGES.map((_, index) => (
-                <View
-                  key={index}
-                  style={
-                    activeIndex === index
-                      ? { width: 6, height: 22, borderRadius: 3, backgroundColor: 'white' }
-                      : { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' }
-                  }
-                />
-              ))}
-            </View>
+      {/* Top Right Skip Button */}
+      {activeIndex < PAGES.length - 1 && (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={[
+            styles.skipButton,
+            {
+              top: Math.max(insets.top + 8, 16),
+            },
+            isLightPage ? styles.skipButtonLight : styles.skipButtonDark,
+          ]}
+          onPress={handleSkip}
+        >
+          <Text
+            style={[
+              styles.skipText,
+              isLightPage ? styles.skipTextLight : styles.skipTextDark,
+            ]}
+          >
+            Skip
+          </Text>
+        </TouchableOpacity>
+      )}
 
-            {/* Chevron down button */}
+      {/* Horizontal Progress Dots */}
+      {activeIndex < PAGES.length - 1 && (
+        <View
+          style={[
+            styles.dotsContainer,
+            { bottom: Math.max(insets.bottom + 24, 36) },
+          ]}
+        >
+          {PAGES.map((_, index) => (
             <TouchableOpacity
-              style={{
-                position: 'absolute',
-                bottom: 44,
-                right: 28,
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onPress={() => {
-                flatListRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
-              }}
+              key={index}
+              hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+              onPress={() => handleScrollTo(index)}
+              activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name="chevron-down" size={24} color="white" />
+              <View
+                style={[
+                  activeIndex === index
+                    ? styles.dotActiveHorizontal
+                    : styles.dotInactiveHorizontal,
+                  {
+                    backgroundColor: isLightPage
+                      ? (activeIndex === index ? '#004D36' : 'rgba(0, 77, 54, 0.45)')
+                      : (activeIndex === index ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'),
+                  },
+                ]}
+              />
             </TouchableOpacity>
-          </>
-        )}
-      </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -198,15 +269,15 @@ function BrandPage({ topInset, bottomInset, bgColor }: { topInset: number; botto
           textAlign: 'center',
         }}>SANARCH</Text>
 
-        {/* Hero headline — large, confident, centered */}
+        {/* Hero headline — natural wrap without hardcoded breaks or fixed lineHeight collisions */}
         <Text style={{
           fontFamily: 'Inter_700Bold',
-          fontSize: 34,
+          fontSize: 32,
           color: 'white',
           textAlign: 'center',
-          lineHeight: 42,
           marginBottom: 20,
-        }}>Your health,{'\n'}your records.</Text>
+          maxWidth: 320,
+        }}>Your health story. Finally in one place.</Text>
 
         {/* Divider */}
         <View style={{
@@ -216,10 +287,9 @@ function BrandPage({ topInset, bottomInset, bgColor }: { topInset: number; botto
           marginBottom: 20,
         }} />
 
-        {/* Sub description — smaller, lighter weight, proper line breaks */}
+        {/* Sub description — natural wrapping without shrink-to-fit */}
         <Text
-          adjustsFontSizeToFit
-          numberOfLines={2}
+          numberOfLines={3}
           style={{
             fontFamily: 'Inter_400Regular',
             fontSize: 15,
@@ -228,14 +298,31 @@ function BrandPage({ topInset, bottomInset, bgColor }: { topInset: number; botto
             lineHeight: 24,
             paddingHorizontal: 16,
             marginBottom: 40,
-          }}>All your medical documents in one place.{'\n'}Organized, searchable, shareable.</Text>
+            maxWidth: 340,
+          }}>Reports, prescriptions, scans and consultations — organized automatically.</Text>
       </View>
     </View>
   );
 }
 
 // Feature page with mockup
-function FeaturePage({ title, subtitle, mockup, topInset, bottomInset, bgColor }: { title: string; subtitle: string; mockup: string; topInset: number; bottomInset: number; bgColor: string }) {
+function FeaturePage({
+  title,
+  subtitle,
+  mockup,
+  topInset,
+  bottomInset,
+  bgColor,
+  isActive,
+}: {
+  title: string;
+  subtitle: string;
+  mockup: string;
+  topInset: number;
+  bottomInset: number;
+  bgColor: string;
+  isActive: boolean;
+}) {
   const isDark = bgColor === '#004D36' || bgColor === '#2D3A2F';
 
   return (
@@ -243,16 +330,16 @@ function FeaturePage({ title, subtitle, mockup, topInset, bottomInset, bgColor }
       <View style={styles.featureContainer}>
         {/* Mockup component */}
         <View style={styles.mockupContainer}>
-          {mockup === 'upload' && <UploadMockup />}
-          {mockup === 'ai' && <AIMockup />}
-          {mockup === 'timeline' && <TimelineMockup />}
+          {mockup === 'upload' && <UploadMockup isActive={isActive} />}
+          {mockup === 'ai' && <AIMockup isActive={isActive} />}
+          {mockup === 'timeline' && <TimelineMockup isActive={isActive} />}
           {mockup === 'qr' && <QRMockup />}
         </View>
 
-        {/* Text content */}
+        {/* Text content — natural wrapping without adjustsFontSizeToFit shrinking */}
         <View style={styles.featureTextContainer}>
-          <Text adjustsFontSizeToFit numberOfLines={2} style={[styles.featureTitle, isDark && { color: 'white' }]}>{title}</Text>
-          <Text style={[styles.featureSubtitle, isDark && { color: 'rgba(255,255,255,0.7)' }]}>{subtitle}</Text>
+          <Text numberOfLines={2} style={[styles.featureTitle, isDark && { color: 'white' }]}>{title}</Text>
+          <Text numberOfLines={3} style={[styles.featureSubtitle, isDark && { color: 'rgba(255,255,255,0.7)' }]}>{subtitle}</Text>
         </View>
       </View>
     </View>
@@ -260,7 +347,7 @@ function FeaturePage({ title, subtitle, mockup, topInset, bottomInset, bgColor }
 }
 
 // CTA page
-function CTAPage({ onGetStarted, topInset, bottomInset, bgColor }: { onGetStarted: () => void; topInset: number; bottomInset: number; bgColor: string }) {
+function CTAPage({ onGetStarted, onSignIn, topInset, bottomInset, bgColor }: { onGetStarted: () => void; onSignIn: () => void; topInset: number; bottomInset: number; bgColor: string }) {
   return (
     <View style={{
       backgroundColor: bgColor,
@@ -288,34 +375,37 @@ function CTAPage({ onGetStarted, topInset, bottomInset, bgColor }: { onGetStarte
       }} pointerEvents="none" />
 
       <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, width: '100%' }}>
-        {/* Heading */}
+        {/* Heading — natural wrap without forced line break or fixed line height collision */}
         <Text style={{
-          fontSize: 34,
+          fontSize: 32,
           fontFamily: 'Inter_700Bold',
           color: 'white',
           textAlign: 'center',
-          lineHeight: 42,
-          marginBottom: 16
-        }}>Take control of{'\n'}your health records</Text>
+          marginBottom: 16,
+          maxWidth: 320,
+        }}>Take control of your health records.</Text>
 
         {/* Subheading */}
         <Text style={{
           fontSize: 15,
-          color: 'rgba(255,255,255,0.6)',
+          color: 'rgba(255,255,255,0.65)',
           textAlign: 'center',
           lineHeight: 24,
-          marginBottom: 48,
-          paddingHorizontal: 16
-        }}>Join thousands managing their health story with Sanarch.</Text>
+          marginBottom: 44,
+          paddingHorizontal: 16,
+          maxWidth: 320,
+        }}>Your health records. Your control.</Text>
 
-        {/* Get Started button */}
+        {/* Get Started button with minHeight for elastic accessibility scaling */}
         <TouchableOpacity
           onPress={onGetStarted}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
           style={{
             backgroundColor: 'white',
             width: '100%',
-            height: 62,
+            minHeight: 60,
+            paddingVertical: 14,
+            paddingHorizontal: 24,
             borderRadius: 24,
             flexDirection: 'row',
             alignItems: 'center',
@@ -326,13 +416,23 @@ function CTAPage({ onGetStarted, topInset, bottomInset, bgColor }: { onGetStarte
             shadowRadius: 24,
             shadowOffset: { width: 0, height: 8 },
             elevation: 12,
-            marginBottom: 20
+            marginBottom: 16
           }}
         >
-          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: '#004D36' }}>Get Started</Text>
-          <MaterialCommunityIcons name="arrow-right" size={22} color="#004D36" />
+          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 17, color: '#004D36' }}>Get Started</Text>
+          <MaterialCommunityIcons name="arrow-right" size={20} color="#004D36" />
         </TouchableOpacity>
 
+        {/* Secondary Sign In Link */}
+        <TouchableOpacity
+          onPress={onSignIn}
+          activeOpacity={0.75}
+          style={{ paddingVertical: 8 }}
+        >
+          <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>
+            Already have an account? <Text style={{ fontFamily: 'Inter_700Bold', color: 'white' }}>Sign In</Text>
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -342,139 +442,391 @@ function CTAPage({ onGetStarted, topInset, bottomInset, bgColor }: { onGetStarte
 // MOCKUP COMPONENTS
 // ============================================
 
-function UploadMockup() {
+function UploadMockup({ isActive }: { isActive: boolean }) {
+  const [phase, setPhase] = useState<'selected' | 'organizing' | 'complete'>('selected');
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isActive) {
+      setPhase('selected');
+      fadeAnim.setValue(1);
+      progressAnim.setValue(0);
+      return;
+    }
+
+    setPhase('selected');
+    fadeAnim.setValue(1);
+    progressAnim.setValue(0);
+
+    const t1 = setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.3, duration: 150, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+      setPhase('organizing');
+
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: 1700,
+        useNativeDriver: false,
+      }).start();
+    }, 600);
+
+    const t2 = setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.3, duration: 150, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+      setPhase('complete');
+    }, 2400);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isActive]);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['15%', '100%'],
+  });
+
   return (
     <View style={styles.mockup}>
-      {/* Phone frame */}
       <View style={styles.phoneFrame}>
         {/* Header */}
         <View style={styles.mockupHeader}>
           <MaterialCommunityIcons name="arrow-left" size={18} color="#2D3A2F" />
-          <Text style={styles.mockupHeaderTitle}>Upload Document</Text>
-          <View style={{ width: 18 }} />
+          <Text style={styles.mockupHeaderTitle}>
+            {phase === 'complete' ? 'Document Added' : 'Upload Document'}
+          </Text>
+          {phase === 'complete' ? (
+            <MaterialCommunityIcons name="check" size={18} color="#004D36" />
+          ) : (
+            <View style={{ width: 18 }} />
+          )}
         </View>
 
-        {/* Content - Upload options */}
-        <View style={styles.mockupContent}>
-          {/* Title */}
-          <Text style={styles.uploadTitle}>Choose upload method</Text>
-          <Text style={styles.uploadSubtitle}>Select how you'd like to add your document</Text>
+        {/* Content */}
+        <Animated.View style={[styles.mockupContent, { opacity: fadeAnim }]}>
+          {phase === 'selected' && (
+            <View style={styles.simContainer}>
+              <View style={styles.simFileIconBox}>
+                <MaterialCommunityIcons name="file-pdf-box" size={38} color="#C62828" />
+              </View>
+              <Text style={styles.simFileTitle} numberOfLines={1}>Blood_Report.pdf</Text>
+              <Text style={styles.simFileSub}>2.4 MB • Ready to process</Text>
 
-          {/* Upload buttons */}
-          <View style={styles.uploadCard}>
-            <View style={styles.uploadIconContainer}>
-              <MaterialCommunityIcons name="camera" size={28} color="#004D36" />
+              <View style={styles.simSelectedBadge}>
+                <MaterialCommunityIcons name="check" size={12} color="#004D36" />
+                <Text style={styles.simSelectedBadgeText}>File Selected</Text>
+              </View>
             </View>
-            <View style={styles.uploadCardContent}>
-              <Text style={styles.uploadCardTitle}>Take Photo</Text>
-              <Text style={styles.uploadCardSubtitle}>Capture with camera</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
-          </View>
+          )}
 
-          <View style={styles.uploadCard}>
-            <View style={styles.uploadIconContainer}>
-              <MaterialCommunityIcons name="file-pdf-box" size={28} color="#004D36" />
-            </View>
-            <View style={styles.uploadCardContent}>
-              <Text style={styles.uploadCardTitle}>Upload PDF</Text>
-              <Text style={styles.uploadCardSubtitle}>From your files</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
-          </View>
+          {phase === 'organizing' && (
+            <View style={styles.simContainer}>
+              <View style={styles.simAiIconBox}>
+                <MaterialCommunityIcons name="brain" size={36} color="#004D36" />
+              </View>
+              <Text style={styles.simOrganizingTitle}>AI organizing...</Text>
+              <Text style={styles.simOrganizingSub}>Extracting diagnosis & metrics</Text>
 
-          <View style={styles.uploadCard}>
-            <View style={styles.uploadIconContainer}>
-              <MaterialCommunityIcons name="image" size={28} color="#004D36" />
+              <View style={styles.simProgressBarTrack}>
+                <Animated.View style={[styles.simProgressBarFill, { width: progressWidth }]} />
+              </View>
             </View>
-            <View style={styles.uploadCardContent}>
-              <Text style={styles.uploadCardTitle}>Choose Image</Text>
-              <Text style={styles.uploadCardSubtitle}>From gallery</Text>
+          )}
+
+          {phase === 'complete' && (
+            <View style={styles.simContainer}>
+              <View style={styles.simSuccessIconBox}>
+                <MaterialCommunityIcons name="check-circle" size={40} color="#004D36" />
+              </View>
+              <Text style={styles.simCompleteTitle}>Lab Report • May 12</Text>
+              <Text style={styles.simCompleteSub}>Organized & categorized automatically</Text>
+
+              <View style={styles.simResultCard}>
+                <View style={styles.simResultRow}>
+                  <Text style={styles.simResultLabel}>Type:</Text>
+                  <Text style={styles.simResultVal} numberOfLines={1} ellipsizeMode="tail">Blood Test Report</Text>
+                </View>
+                <View style={styles.simResultRow}>
+                  <Text style={styles.simResultLabel}>Extracted:</Text>
+                  <Text style={styles.simResultVal} numberOfLines={1} ellipsizeMode="tail">3 Lab Values, Diagnosis</Text>
+                </View>
+                <View style={styles.simResultRow}>
+                  <Text style={styles.simResultLabel}>Status:</Text>
+                  <Text style={[styles.simResultVal, { color: '#004D36', fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>Ready</Text>
+                </View>
+              </View>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
-          </View>
-        </View>
+          )}
+        </Animated.View>
       </View>
     </View>
   );
 }
 
-function AIMockup() {
+function AIMockup({ isActive }: { isActive: boolean }) {
+  const [phase, setPhase] = useState<'scanning' | 'checklist' | 'details'>('scanning');
+  const [checkedItems, setCheckedItems] = useState<number>(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scanProgress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isActive) {
+      setPhase('scanning');
+      setCheckedItems(0);
+      scanProgress.setValue(0);
+      fadeAnim.setValue(1);
+      return;
+    }
+
+    setPhase('scanning');
+    setCheckedItems(0);
+    scanProgress.setValue(0);
+    fadeAnim.setValue(1);
+
+    // State A: Scanning progress bar filling 0 -> 80% over 1.1s
+    Animated.timing(scanProgress, {
+      toValue: 0.8,
+      duration: 1100,
+      useNativeDriver: false,
+    }).start();
+
+    // State B: Checklist sequence starts at ~1.2s
+    const t1 = setTimeout(() => {
+      setPhase('checklist');
+      setCheckedItems(1); // Document type
+    }, 1200);
+
+    const t2 = setTimeout(() => {
+      setCheckedItems(2); // Date
+    }, 1500);
+
+    const t3 = setTimeout(() => {
+      setCheckedItems(3); // Diagnosis
+    }, 1800);
+
+    const t4 = setTimeout(() => {
+      setCheckedItems(3.5); // Lab values appears unchecked
+    }, 2050);
+
+    const t5 = setTimeout(() => {
+      setCheckedItems(4); // Lab values checked
+    }, 2350);
+
+    // State C: At ~2.7s transition to full Document Details
+    const t6 = setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.2, duration: 150, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+      setPhase('details');
+    }, 2700);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      clearTimeout(t5);
+      clearTimeout(t6);
+    };
+  }, [isActive]);
+
+  const scanWidth = scanProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <View style={styles.mockup}>
-      {/* Phone frame */}
       <View style={styles.phoneFrame}>
         {/* Header */}
         <View style={styles.mockupHeader}>
           <MaterialCommunityIcons name="arrow-left" size={18} color="#2D3A2F" />
           <Text style={styles.mockupHeaderTitle}>Document Details</Text>
-          <MaterialCommunityIcons name="check" size={18} color="#004D36" />
+          <MaterialCommunityIcons
+            name="check"
+            size={18}
+            color={phase === 'details' ? '#004D36' : 'transparent'}
+          />
         </View>
 
-        {/* Content - AI extraction */}
-        <View style={styles.mockupContent}>
-          {/* AI badge */}
-          <View style={styles.aiBadge}>
-            <MaterialCommunityIcons name="brain" size={14} color="#004D36" />
-            <Text style={styles.aiBadgeText}>AI Extracted</Text>
-          </View>
+        {/* Content */}
+        <Animated.View style={[styles.mockupContent, { opacity: fadeAnim }]}>
+          {phase === 'scanning' && (
+            <View style={styles.simContainer}>
+              <View style={styles.simAiIconBox}>
+                <MaterialCommunityIcons name="file-search-outline" size={38} color="#004D36" />
+              </View>
+              <Text style={styles.simOrganizingTitle}>Scanning document...</Text>
+              <Text style={styles.simOrganizingSub}>Reading clinical markers</Text>
 
-          {/* Extracted fields with real data */}
-          <View style={styles.aiFieldsContainer}>
-            <View style={styles.aiFieldGroup}>
-              <Text style={styles.aiFieldLabel}>Document Type</Text>
-              <View style={styles.aiFieldValueContainer}>
-                <MaterialCommunityIcons name="file-document" size={16} color="#004D36" />
-                <Text style={styles.aiFieldValueText}>Lab Report</Text>
+              <View style={styles.simProgressBarTrack}>
+                <Animated.View style={[styles.simProgressBarFill, { width: scanWidth }]} />
               </View>
             </View>
+          )}
 
-            <View style={styles.aiFieldGroup}>
-              <Text style={styles.aiFieldLabel}>Date</Text>
-              <View style={styles.aiFieldValueContainer}>
-                <MaterialCommunityIcons name="calendar" size={16} color="#004D36" />
-                <Text style={styles.aiFieldValueText}>May 12, 2026</Text>
+          {phase === 'checklist' && (
+            <View style={styles.simChecklistContainer}>
+              <Text style={styles.simChecklistHeader}>Extracting Information</Text>
+
+              <View style={styles.simChecklistItems}>
+                {/* Item 1: Document type */}
+                <View style={styles.simChecklistItem}>
+                  {checkedItems >= 1 ? (
+                    <MaterialCommunityIcons name="check-circle" size={18} color="#004D36" />
+                  ) : (
+                    <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={18} color="#C8D5CA" />
+                  )}
+                  <Text style={[styles.simChecklistText, checkedItems >= 1 && styles.simChecklistTextChecked]}>
+                    Document type
+                  </Text>
+                </View>
+
+                {/* Item 2: Date */}
+                <View style={styles.simChecklistItem}>
+                  {checkedItems >= 2 ? (
+                    <MaterialCommunityIcons name="check-circle" size={18} color="#004D36" />
+                  ) : (
+                    <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={18} color="#C8D5CA" />
+                  )}
+                  <Text style={[styles.simChecklistText, checkedItems >= 2 && styles.simChecklistTextChecked]}>
+                    Date
+                  </Text>
+                </View>
+
+                {/* Item 3: Diagnosis */}
+                <View style={styles.simChecklistItem}>
+                  {checkedItems >= 3 ? (
+                    <MaterialCommunityIcons name="check-circle" size={18} color="#004D36" />
+                  ) : (
+                    <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={18} color="#C8D5CA" />
+                  )}
+                  <Text style={[styles.simChecklistText, checkedItems >= 3 && styles.simChecklistTextChecked]}>
+                    Diagnosis
+                  </Text>
+                </View>
+
+                {/* Item 4: Lab values */}
+                {checkedItems >= 3.5 && (
+                  <View style={styles.simChecklistItem}>
+                    {checkedItems >= 4 ? (
+                      <MaterialCommunityIcons name="check-circle" size={18} color="#004D36" />
+                    ) : (
+                      <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={18} color="#C8D5CA" />
+                    )}
+                    <Text style={[styles.simChecklistText, checkedItems >= 4 && styles.simChecklistTextChecked]}>
+                      Lab values
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
+          )}
 
-            <View style={styles.aiFieldGroup}>
-              <Text style={styles.aiFieldLabel}>Diagnosis</Text>
-              <View style={styles.aiFieldValueContainer}>
-                <MaterialCommunityIcons name="stethoscope" size={16} color="#004D36" />
-                <Text style={styles.aiFieldValueText}>Vitamin D Deficiency</Text>
+          {phase === 'details' && (
+            <>
+              {/* AI badge */}
+              <View style={styles.aiBadge}>
+                <MaterialCommunityIcons name="brain" size={14} color="#004D36" />
+                <Text style={styles.aiBadgeText}>AI Extracted</Text>
               </View>
-            </View>
 
-            <View style={styles.aiFieldGroup}>
-              <Text style={styles.aiFieldLabel}>Lab Values</Text>
-              <View style={styles.aiLabValuesContainer}>
-                <View style={styles.aiLabValue}>
-                  <Text style={styles.aiLabValueName}>Vit D</Text>
-                  <Text style={styles.aiLabValueResult}>18 ng/mL</Text>
-                  <View style={styles.aiLabValueBadge}>
-                    <Text style={styles.aiLabValueBadgeText}>Low</Text>
+              {/* Extracted fields with real data */}
+              <View style={styles.aiFieldsContainer}>
+                <View style={styles.aiFieldGroup}>
+                  <Text style={styles.aiFieldLabel}>Document Type</Text>
+                  <View style={styles.aiFieldValueContainer}>
+                    <MaterialCommunityIcons name="file-document" size={16} color="#004D36" />
+                    <Text style={styles.aiFieldValueText} numberOfLines={1} ellipsizeMode="tail">Lab Report</Text>
                   </View>
                 </View>
-                <View style={styles.aiLabValue}>
-                  <Text style={styles.aiLabValueName}>HGB</Text>
-                  <Text style={styles.aiLabValueResult}>14.2 g/dL</Text>
-                  <View style={[styles.aiLabValueBadge, styles.aiLabValueBadgeNormal]}>
-                    <Text style={[styles.aiLabValueBadgeText, styles.aiLabValueBadgeTextNormal]}>Normal</Text>
+
+                <View style={styles.aiFieldGroup}>
+                  <Text style={styles.aiFieldLabel}>Date</Text>
+                  <View style={styles.aiFieldValueContainer}>
+                    <MaterialCommunityIcons name="calendar" size={16} color="#004D36" />
+                    <Text style={styles.aiFieldValueText} numberOfLines={1} ellipsizeMode="tail">May 12, 2026</Text>
+                  </View>
+                </View>
+
+                <View style={styles.aiFieldGroup}>
+                  <Text style={styles.aiFieldLabel}>Diagnosis</Text>
+                  <View style={styles.aiFieldValueContainer}>
+                    <MaterialCommunityIcons name="stethoscope" size={16} color="#004D36" />
+                    <Text style={styles.aiFieldValueText} numberOfLines={1} ellipsizeMode="tail">Vitamin D Deficiency</Text>
+                  </View>
+                </View>
+
+                <View style={styles.aiFieldGroup}>
+                  <Text style={styles.aiFieldLabel}>Lab Values</Text>
+                  <View style={styles.aiLabValuesContainer}>
+                    <View style={styles.aiLabValue}>
+                      <Text style={styles.aiLabValueName} numberOfLines={1} ellipsizeMode="tail">Vit D</Text>
+                      <Text style={styles.aiLabValueResult} numberOfLines={1}>18 ng/mL</Text>
+                      <View style={styles.aiLabValueBadge}>
+                        <Text style={styles.aiLabValueBadgeText} numberOfLines={1}>Low</Text>
+                      </View>
+                    </View>
+                    <View style={styles.aiLabValue}>
+                      <Text style={styles.aiLabValueName} numberOfLines={1} ellipsizeMode="tail">HGB</Text>
+                      <Text style={styles.aiLabValueResult} numberOfLines={1}>14.2 g/dL</Text>
+                      <View style={[styles.aiLabValueBadge, styles.aiLabValueBadgeNormal]}>
+                        <Text style={[styles.aiLabValueBadgeText, styles.aiLabValueBadgeTextNormal]} numberOfLines={1}>Normal</Text>
+                      </View>
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
-          </View>
-        </View>
+            </>
+          )}
+        </Animated.View>
       </View>
     </View>
   );
 }
 
-function TimelineMockup() {
+function TimelineMockup({ isActive }: { isActive: boolean }) {
+  // Three Animated.Value pairs — one per card (opacity + slide)
+  const anim0 = useRef(new Animated.Value(0)).current; // Consultation — May 8
+  const slide0 = useRef(new Animated.Value(10)).current;
+  const anim1 = useRef(new Animated.Value(0)).current; // Prescription — May 10
+  const slide1 = useRef(new Animated.Value(10)).current;
+  const anim2 = useRef(new Animated.Value(0)).current; // Lab Report — May 12
+  const slide2 = useRef(new Animated.Value(10)).current;
+
+  useEffect(() => {
+    // Reset on every activation — no static first frame: cards start at opacity 0 / slide 10
+    anim0.setValue(0); slide0.setValue(10);
+    anim1.setValue(0); slide1.setValue(10);
+    anim2.setValue(0); slide2.setValue(10);
+
+    if (!isActive) return;
+
+    // Card 0 (Consultation May 8) — starts immediately so it's already mid-fade on screen entry
+    const makeEntrance = (opacity: Animated.Value, translate: Animated.Value, delay: number) =>
+      Animated.parallel([
+        Animated.timing(opacity,    { toValue: 1,  duration: 380, delay, useNativeDriver: true }),
+        Animated.timing(translate,  { toValue: 0,  duration: 380, delay, useNativeDriver: true }),
+      ]);
+
+    Animated.stagger(0, [
+      makeEntrance(anim0, slide0, 0),
+      makeEntrance(anim1, slide1, 600),
+      makeEntrance(anim2, slide2, 1200),
+    ]).start();
+
+    // No cleanup needed for Animated — setValue(0) on next activation handles reset
+  }, [isActive]);
+
   return (
     <View style={styles.mockup}>
-      {/* Phone frame */}
       <View style={styles.phoneFrame}>
         {/* Header */}
         <View style={styles.mockupHeader}>
@@ -483,58 +835,63 @@ function TimelineMockup() {
           <MaterialCommunityIcons name="magnify" size={18} color="#2D3A2F" />
         </View>
 
-        {/* Content - Timeline */}
+        {/* Content - animated timeline cards */}
         <View style={styles.mockupContent}>
-          {/* Timeline items with real data */}
-          <View style={styles.timelineItem}>
-            <View style={styles.timelineDot} />
-            <View style={styles.timelineCard}>
-              <View style={styles.timelineCardHeader}>
-                <View style={[styles.timelineCardBadge, { backgroundColor: '#E3F2FD' }]}>
-                  <MaterialCommunityIcons name="flask" size={12} color="#1976D2" />
-                  <Text style={[styles.timelineCardBadgeText, { color: '#1976D2' }]}>Lab Report</Text>
-                </View>
-                <Text style={styles.timelineCardDate}>May 12</Text>
-              </View>
-              <Text style={styles.timelineCardTitle}>Blood Test Results</Text>
-              <Text style={styles.timelineCardSubtitle}>Vitamin D: 18 ng/mL (Low)</Text>
-            </View>
-          </View>
 
-          <View style={styles.timelineItem}>
-            <View style={styles.timelineDot} />
-            <View style={styles.timelineCard}>
-              <View style={styles.timelineCardHeader}>
-                <View style={[styles.timelineCardBadge, { backgroundColor: '#F3E5F5' }]}>
-                  <MaterialCommunityIcons name="pill" size={12} color="#7B1FA2" />
-                  <Text style={[styles.timelineCardBadgeText, { color: '#7B1FA2' }]}>Prescription</Text>
-                </View>
-                <Text style={styles.timelineCardDate}>May 10</Text>
-              </View>
-              <Text style={styles.timelineCardTitle}>Vitamin D Supplement</Text>
-              <Text style={styles.timelineCardSubtitle}>60,000 IU weekly for 8 weeks</Text>
-            </View>
-          </View>
-
-          <View style={styles.timelineItem}>
+          {/* Card 0 — Consultation, May 8 (oldest, enters first) */}
+          <Animated.View style={[styles.timelineItem, { opacity: anim0, transform: [{ translateY: slide0 }] }]}>
             <View style={styles.timelineDot} />
             <View style={styles.timelineCard}>
               <View style={styles.timelineCardHeader}>
                 <View style={[styles.timelineCardBadge, { backgroundColor: '#E8F5E9' }]}>
                   <MaterialCommunityIcons name="stethoscope" size={12} color="#388E3C" />
-                  <Text style={[styles.timelineCardBadgeText, { color: '#388E3C' }]}>Consultation</Text>
+                  <Text style={[styles.timelineCardBadgeText, { color: '#388E3C' }]} numberOfLines={1}>Consultation</Text>
                 </View>
                 <Text style={styles.timelineCardDate}>May 8</Text>
               </View>
-              <Text style={styles.timelineCardTitle}>Dr. Sarah Johnson</Text>
-              <Text style={styles.timelineCardSubtitle}>General checkup and review</Text>
+              <Text style={styles.timelineCardTitle} numberOfLines={1} ellipsizeMode="tail">Dr. Sarah Johnson</Text>
+              <Text style={styles.timelineCardSubtitle} numberOfLines={2} ellipsizeMode="tail">General checkup and review</Text>
             </View>
-          </View>
+          </Animated.View>
+
+          {/* Card 1 — Prescription, May 10 */}
+          <Animated.View style={[styles.timelineItem, { opacity: anim1, transform: [{ translateY: slide1 }] }]}>
+            <View style={styles.timelineDot} />
+            <View style={styles.timelineCard}>
+              <View style={styles.timelineCardHeader}>
+                <View style={[styles.timelineCardBadge, { backgroundColor: '#F3E5F5' }]}>
+                  <MaterialCommunityIcons name="pill" size={12} color="#7B1FA2" />
+                  <Text style={[styles.timelineCardBadgeText, { color: '#7B1FA2' }]} numberOfLines={1}>Prescription</Text>
+                </View>
+                <Text style={styles.timelineCardDate}>May 10</Text>
+              </View>
+              <Text style={styles.timelineCardTitle} numberOfLines={1} ellipsizeMode="tail">Vitamin D Supplement</Text>
+              <Text style={styles.timelineCardSubtitle} numberOfLines={2} ellipsizeMode="tail">60,000 IU weekly for 8 weeks</Text>
+            </View>
+          </Animated.View>
+
+          {/* Card 2 — Lab Report, May 12 (most recent, enters last) */}
+          <Animated.View style={[styles.timelineItem, { opacity: anim2, transform: [{ translateY: slide2 }] }]}>
+            <View style={styles.timelineDot} />
+            <View style={styles.timelineCard}>
+              <View style={styles.timelineCardHeader}>
+                <View style={[styles.timelineCardBadge, { backgroundColor: '#E3F2FD' }]}>
+                  <MaterialCommunityIcons name="flask" size={12} color="#1976D2" />
+                  <Text style={[styles.timelineCardBadgeText, { color: '#1976D2' }]} numberOfLines={1}>Lab Report</Text>
+                </View>
+                <Text style={styles.timelineCardDate}>May 12</Text>
+              </View>
+              <Text style={styles.timelineCardTitle} numberOfLines={1} ellipsizeMode="tail">Blood Test Results</Text>
+              <Text style={styles.timelineCardSubtitle} numberOfLines={2} ellipsizeMode="tail">Vitamin D: 18 ng/mL (Low)</Text>
+            </View>
+          </Animated.View>
+
         </View>
       </View>
     </View>
   );
 }
+
 
 function QRMockup() {
   return (
@@ -590,12 +947,12 @@ function QRMockup() {
           {/* Info cards */}
           <View style={styles.qrInfoCard}>
             <MaterialCommunityIcons name="shield-check" size={16} color="#004D36" />
-            <Text style={styles.qrInfoText}>Secure 10-minute access</Text>
+            <Text style={styles.qrInfoText} numberOfLines={1} ellipsizeMode="tail">Secure 10-minute access</Text>
           </View>
 
           <View style={styles.qrInfoCard}>
             <MaterialCommunityIcons name="eye-off" size={16} color="#004D36" />
-            <Text style={styles.qrInfoText}>View-only access</Text>
+            <Text style={styles.qrInfoText} numberOfLines={1} ellipsizeMode="tail">View-only access</Text>
           </View>
 
           {/* Revoke button */}
@@ -620,57 +977,54 @@ const styles = StyleSheet.create({
   // Overlay
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 16,
   },
   skipButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 20,
+    position: 'absolute',
+    right: 20,
+    zIndex: 100,
+    elevation: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  skipButtonDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  skipButtonLight: {
+    backgroundColor: 'rgba(45, 58, 47, 0.08)',
   },
   skipText: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    color: '#004D36',
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
+  skipTextDark: {
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  skipTextLight: {
+    color: '#2D3A2F',
+  },
+
   dotsContainer: {
     position: 'absolute',
-    right: 24,
-    top: '50%',
-    transform: [{ translateY: -60 }],
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    zIndex: 100,
+    elevation: 10,
   },
-  dot: {
+  dotActiveHorizontal: {
+    width: 22,
+    height: 6,
+    borderRadius: 3,
+  },
+  dotInactiveHorizontal: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  dotActive: {
-    height: 24,
-    backgroundColor: 'white',
-  },
-  nextButton: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
   },
 
   // Brand page
@@ -860,6 +1214,168 @@ const styles = StyleSheet.create({
   mockupContent: {
     flex: 1,
     padding: 14,
+  },
+
+  // Simulation styles (Phase 2)
+  simContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  simFileIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#FFEBEE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  simFileTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    color: '#2D3A2F',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  simFileSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: '#819685',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  simSelectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  simSelectedBadgeText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: '#004D36',
+  },
+  simAiIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  simOrganizingTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    color: '#2D3A2F',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  simOrganizingSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: '#5C6E60',
+    marginBottom: 18,
+    textAlign: 'center',
+  },
+  simProgressBarTrack: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#E5E2DE',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  simProgressBarFill: {
+    height: 6,
+    backgroundColor: '#004D36',
+    borderRadius: 3,
+  },
+  simSuccessIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  simCompleteTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    color: '#2D3A2F',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  simCompleteSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: '#819685',
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  simResultCard: {
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E5E2DE',
+    gap: 6,
+  },
+  simResultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  simResultLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: '#819685',
+  },
+  simResultVal: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: '#2D3A2F',
+  },
+  simChecklistContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  simChecklistHeader: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    color: '#2D3A2F',
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  simChecklistItems: {
+    gap: 10,
+  },
+  simChecklistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E2DE',
+  },
+  simChecklistText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    color: '#819685',
+  },
+  simChecklistTextChecked: {
+    fontFamily: 'Inter_600SemiBold',
+    color: '#2D3A2F',
   },
 
   // Upload mockup

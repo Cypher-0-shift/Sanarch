@@ -43,9 +43,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: 'transparent',
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 80 : 60, // Slightly increased height to accommodate lifting
-          paddingBottom: Platform.OS === 'ios' ? 32 : 16, // Increased bottom padding to lift items
-          paddingTop: 0, // Reduced top padding
+          height: Platform.OS === 'ios' ? 80 : 60,
+          paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+          paddingTop: 0,
           position: 'absolute',
           bottom: 0,
           left: 0,
@@ -86,10 +86,18 @@ export default function TabsLayout() {
         name="doctors"
         options={{
           title: 'Share',
+          tabBarLabel: () => null,
           tabBarIcon: () => (
             <View
-              className="w-[64px] h-[64px] bg-[#004D36] rounded-full items-center justify-center border-4 border-white shadow-xl"
               style={{
+                width: 64,
+                height: 64,
+                backgroundColor: '#004D36',
+                borderRadius: 32,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 4,
+                borderColor: '#FFFFFF',
                 top: -15, // Floating effect
                 shadowColor: '#004D36',
                 shadowOffset: { width: 0, height: 4 },
@@ -105,7 +113,7 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="records/index"
+        name="records"
         options={{
           title: 'Records',
           tabBarIcon: ({ color, focused }) => (
@@ -115,7 +123,7 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="profile/index"
+        name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
@@ -123,17 +131,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
-      {/* Hidden Screens */}
-      <Tabs.Screen name="records/[id]" options={{ href: null }} />
-      <Tabs.Screen name="profile/search" options={{ href: null }} />
-      <Tabs.Screen name="profile/family" options={{ href: null }} />
-      <Tabs.Screen name="profile/settings" options={{ href: null }} />
-      <Tabs.Screen name="profile/edit-profile" options={{ href: null }} />
-      <Tabs.Screen name="profile/add-dependent" options={{ href: null }} />
-      <Tabs.Screen name="profile/data-storage" options={{ href: null }} />
-      <Tabs.Screen name="profile/report-issue" options={{ href: null }} />
-      <Tabs.Screen name="profile/dependent-details" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -143,7 +140,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: width,
-    height: 80, // Matches the new SVG height
+    height: 80,
     backgroundColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -10 },

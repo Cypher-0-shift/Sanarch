@@ -11,6 +11,12 @@ EICAR = (
 
 class TestScanBytes:
 
+    @pytest.fixture(autouse=True)
+    def patch_settings(self):
+        with patch("app.services.virus_scan.settings.skip_virus_scan", False), \
+             patch("app.services.virus_scan.settings.clamav_enabled", True):
+            yield
+
     def test_clean_file_returns_true(self):
         mock_sock = MagicMock()
         mock_sock.recv.side_effect = [b"stream: OK\0", b""]

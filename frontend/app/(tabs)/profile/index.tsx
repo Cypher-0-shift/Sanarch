@@ -1,304 +1,404 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, InteractionManager, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, InteractionManager, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../../store/authStore';
-import { useProfileStore, type Profile } from '../../../store/profileStore';
+import { useProfileStore, Profile } from '../../../store/profileStore';
+import { useAlertStore } from '../../../store/alertStore';
 import { EMPTY_USER } from '../../../constants/placeholders';
-import SanarchIdCard from '../../../components/profile/SanarchIdCard';
-import SkeletonLoader from '../../../components/ui/SkeletonLoader';
-import { useGetProfile, useFamilyProfiles, type ProfileResponse } from '../../../hooks/useProfile';
+import { useGetProfile, useFamilyProfiles } from '../../../hooks/useProfile';
+import { getMe, getPatients } from '../../../services/api';
+import { formatSanarchId } from '../../../utils/sanarchId';
+import ProfileAvatar from '../../../components/profile/ProfileAvatar';
 
 function calculateAge(dob?: string): string {
   if (!dob) return '---';
-  const parts = dob.split('/');
-  if (parts.length !== 3) return '---';
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const year = parseInt(parts[2], 10);
+  let day: number, month: number, year: number;
+  if (dob.includes('-')) {
+    const parts = dob.split('-');
+    if (parts.length !== 3) return '---';
+    year = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10) - 1;
+    day = parseInt(parts[2], 10);
+  } else if (dob.includes('/')) {
+    const parts = dob.split('/');
+    if (parts.length !== 3) return '---';
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10) - 1;
+    year = parseInt(parts[2], 10);
+  } else {
+    return '---';
+  }
   if (isNaN(day) || isNaN(month) || isNaN(year)) return '---';
-  const birth = new Date(year, month, day);
-  const today = new Date();
+  const birth = new Date(year, month, day), today = new Date();
   let age = today.getFullYear() - birth.getFullYear();
   const m = today.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  if (age < 0) return '---';
-  return `${age} yrs`;
+  return age < 0 ? '---' : age + ' yrs';
+}
+
+function getInitials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  return (name[0] ?? '?').toUpperCase();
 }
 
 export default function ProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user) ?? EMPTY_USER;
-  const activeProfile = useProfileStore((s) => s.activeProfile);
-  const familyMembers = useProfileStore((s) => s.familyMembers);
+  const activeProfileFromStore = useProfileStore((s) => s.activeProfile);
   const setActiveProfile = useProfileStore((s) => s.setActiveProfile);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
+  // 1. Fetch live authenticated user profile from /users/me
+  const { data: liveUserData } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getMe,
+    staleTime: 60000,
+  });
 
-  // TODO: Replace localStorage/store-based sanarch_id with auth-injected ID in Sprint 9
-  const sanarchId = user.sanarch_id ?? null;
+  // 2. Fetch live patients / dependents from /patients
+  const { data: patientsData } = useQuery({
+    queryKey: ['patients'],
+    queryFn: getPatients,
+    staleTime: 60000,
+  });
 
-  // Fetch structured profile data from the new profiles API
-  const {
-    data: profileData,
-    isLoading: profileLoading,
-    isError: profileError,
-  } = useGetProfile(sanarchId);
-
-  const {
-    data: familyData,
-    isLoading: familyLoading,
-  } = useFamilyProfiles(sanarchId);
+  const currentUserObj = liveUserData ?? user;
+  const sanarchId = currentUserObj.sanarch_id ?? null;
+  const { data: profileData } = useGetProfile(sanarchId);
+  const { data: familyData } = useFamilyProfiles(sanarchId);
 
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setIsReady(true);
-    });
+    const task = InteractionManager.runAfterInteractions(() => setIsReady(true));
     return () => task.cancel();
   }, []);
 
+  // Compute combined family members dynamically (no store infinite loops)
+  const familyMembers = useMemo(() => {
+    if (!currentUserObj || !currentUserObj.id) return [];
+
+    const primarySanarchId = currentUserObj.sanarch_id ?? '';
+
+    const primaryMember: Profile = {
+      id: currentUserObj.id,
+      sanarchId: primarySanarchId,
+      name: currentUserObj.full_name || 'Primary Account',
+      relation: 'self',
+      isMainAccount: true,
+      phone: currentUserObj.phone_number || undefined,
+      email: currentUserObj.email || undefined,
+      dob: currentUserObj.date_of_birth || undefined,
+      gender: (currentUserObj as any).gender || undefined,
+      heightCm: currentUserObj.height_cm || undefined,
+      weightKg: currentUserObj.weight_kg || undefined,
+    };
+
+    // 1. Dependent patients from /patients
+    const rawPatients = Array.isArray(patientsData)
+      ? patientsData
+      : ((patientsData as any)?.patients ?? (patientsData as any)?.items ?? []);
+
+    const dependentMembers: Profile[] = rawPatients
+      .filter((p: any) => p.sanarch_id !== primarySanarchId && p.relationship_to_owner !== 'self' && p.relation !== 'self')
+      .map((p: any) => {
+        const rawName = p.full_name || p.name;
+        const rel = p.relationship_to_owner ?? p.relation ?? 'Family Member';
+        const formattedRel = rel.charAt(0).toUpperCase() + rel.slice(1);
+        return {
+          id: p.id,
+          sanarchId: p.sanarch_id,
+          name: rawName || formattedRel,
+          relation: rel as any,
+          isMainAccount: false,
+          dob: p.date_of_birth ?? undefined,
+          heightCm: p.height_cm ?? undefined,
+          weightKg: p.weight_kg ?? undefined,
+        };
+      });
+
+    // 2. Profiles from /profiles/{id}/family
+    const rawFamily: any[] = Array.isArray(familyData) ? familyData : [];
+    const storeMembers = useProfileStore.getState().familyMembers || [];
+
+    const extraFamily: Profile[] = rawFamily
+      .filter(f => {
+        // Exclude primary profile
+        if (f.profile_type === 'P' || f.member_index === 0) return false;
+        if (f.sanarch_id === primarySanarchId) return false;
+        // Exclude if already in dependentMembers
+        if (dependentMembers.some(d => d.sanarchId === f.sanarch_id || d.id === f.sanarch_id)) return false;
+        return true;
+      })
+      .map(f => {
+        const known = storeMembers.find(sm => sm.sanarchId === f.sanarch_id || sm.id === f.sanarch_id);
+        const name = (known?.name && !known.name.startsWith('Member'))
+          ? known.name
+          : (known?.relation ? known.relation.charAt(0).toUpperCase() + known.relation.slice(1) : 'Family Member');
+        return {
+          id: f.sanarch_id,
+          sanarchId: f.sanarch_id,
+          name,
+          relation: known?.relation ?? 'other',
+          isMainAccount: false,
+        };
+      });
+
+    // 3. Include any existing profiles stored locally not already present
+    const extraFromStore = storeMembers.filter(sm =>
+      !sm.isMainAccount &&
+      sm.sanarchId !== primarySanarchId &&
+      !dependentMembers.some(d => d.sanarchId === sm.sanarchId || d.id === sm.id) &&
+      !extraFamily.some(e => e.sanarchId === sm.sanarchId || e.id === sm.id)
+    );
+
+    return [primaryMember, ...dependentMembers, ...extraFamily, ...extraFromStore];
+  }, [currentUserObj, patientsData, familyData]);
+
+  // Determine currently active profile
+  const activeProfile = useMemo(() => {
+    if (selectedMemberId) {
+      return familyMembers.find((m) => m.sanarchId === selectedMemberId) ?? familyMembers[0];
+    }
+    if (activeProfileFromStore && familyMembers.some(m => m.sanarchId === activeProfileFromStore.sanarchId)) {
+      return familyMembers.find(m => m.sanarchId === activeProfileFromStore.sanarchId)!;
+    }
+    return familyMembers[0] ?? {
+      id: currentUserObj.id || '---',
+      sanarchId: currentUserObj.sanarch_id || '---',
+      name: currentUserObj.full_name || 'User',
+      relation: 'self' as const,
+      isMainAccount: true,
+      phone: currentUserObj.phone_number,
+      email: currentUserObj.email ?? undefined,
+      dob: currentUserObj.date_of_birth ?? undefined,
+      heightCm: currentUserObj.height_cm ?? undefined,
+      weightKg: currentUserObj.weight_kg ?? undefined,
+    };
+  }, [selectedMemberId, activeProfileFromStore, familyMembers, currentUserObj]);
+
   const handleMemberSelect = useCallback((selectedId: string) => {
-    // Find the family member and switch active profile
+    setSelectedMemberId(selectedId);
     const member = familyMembers.find((m) => m.sanarchId === selectedId);
     if (member) {
       setActiveProfile(member);
     }
   }, [familyMembers, setActiveProfile]);
 
-  if (!isReady) return <View className="flex-1 bg-[#F5F3F0]" />;
+  const displaySanarchId = formatSanarchId(activeProfile?.sanarchId || sanarchId);
 
-  // Dependents = family members that are not the main account
-  const dependents = familyMembers.filter((m) => !m.isMainAccount);
-  const hasDependents = dependents.length > 0;
+  const handleCopyId = useCallback(async () => {
+    if (!displaySanarchId || displaySanarchId === '---') return;
+    try {
+      await Clipboard.setStringAsync(displaySanarchId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      useAlertStore.getState().showAlert('SANARCH ID', displaySanarchId);
+    }
+  }, [displaySanarchId]);
 
-  // Build family members array for the card from API data
-  const cardFamilyMembers = familyData?.map((p: ProfileResponse) => ({
-    sanarchId: p.sanarch_id,
-    patientName:
-      familyMembers.find((fm) => fm.sanarchId === p.sanarch_id)?.name ??
-      `Member ${p.member_index}`,
-    profileType: p.profile_type as 'P' | 'D',
-    memberIndex: p.member_index,
-    qrBase64: p.qr_base64,
-  })) ?? [];
+  if (!isReady) return <View className="flex-1 bg-[#F0F2F1]" />;
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-[#F0F2F1]" edges={['top']}>
       {/* Header */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-[#F8FAF9] flex-row items-center justify-between border-b border-[#E5E2DE]">
-        <View className="w-10 h-10" />
-        <Text className="text-[#2D3A2F] text-lg font-display-bold tracking-tight">My Profile</Text>
+      <View className="flex-row items-center justify-between px-6 pt-3.5 pb-4 bg-white border-b border-[#E5E2DE] z-10" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
+        <Text
+          className="text-[28px] font-display-bold text-[#004D36] tracking-[-0.5px]"
+          maxFontSizeMultiplier={1.3}
+        >
+          My Profile
+        </Text>
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/profile/settings')}
           activeOpacity={0.75}
-          className="w-10 h-10 rounded-full bg-white items-center justify-center"
-          style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          className="w-12 h-12 rounded-full bg-white items-center justify-center border border-[#E5E2DE]"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}
         >
-          <MaterialCommunityIcons name="cog-outline" size={24} color="#2D3A2F" />
+          <MaterialCommunityIcons name="cog-outline" size={22} color="#2D3A2F" />
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 130 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
       >
-        {/* ─── Avatar ─── */}
-        <View className="items-center mt-4">
-          <View className="w-20 h-20 rounded-full bg-[#004D36] items-center justify-center">
-            <Text className="text-white text-3xl font-display-bold">
-              {user.full_name ? user.full_name.charAt(0).toUpperCase() : '?'}
-            </Text>
-          </View>
-
-          {/* ─── Name and ID ─── */}
-          <Text className="text-[#2D3A2F] text-2xl font-display-bold text-center mt-3">
-            {user.full_name ?? 'Your Name'}
-          </Text>
-
-          {/* ─── Edit Profile Button ─── */}
-          <TouchableOpacity
-            className="mt-4 px-5 py-2 bg-white border border-[#E5E2DE] rounded-full flex-row items-center gap-2"
-            style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}
-            activeOpacity={0.75}
-            onPress={() => router.push('/(tabs)/profile/edit-profile')}
-          >
-            <MaterialCommunityIcons name="pencil-outline" size={16} color="#004D36" />
-            <Text className="text-sm font-display-bold text-[#2D3A2F]">Edit Profile</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ─── SANARCH ID Card ─── */}
-        <View className="mt-8">
-          {profileLoading ? (
-            <View className="bg-white rounded-[24px] p-5 border border-[#E5E2DE]">
-              <SkeletonLoader width="60%" height={20} borderRadius={8} />
-              <SkeletonLoader width="100%" height={14} borderRadius={6} style={{ marginTop: 12 }} />
-              <View className="items-center mt-4">
-                <SkeletonLoader width={140} height={140} borderRadius={12} />
-              </View>
-              <SkeletonLoader width="80%" height={14} borderRadius={6} style={{ marginTop: 16 }} />
+        {/* Unified Hero + ID Card */}
+        <LinearGradient
+          colors={['#004D36', '#2D3A2F']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="rounded-3xl mb-5 overflow-hidden border border-white/15"
+          style={{ shadowColor: '#004D36', shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 5 }}
+        >
+          <View className="px-5 pt-5 pb-5">
+            {/* Top Row: Brand & Edit Action */}
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-white/80 font-bold text-[11px] tracking-widest">SANARCH</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/profile/edit-profile')}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Edit Profile"
+                className="w-8 h-8 rounded-full items-center justify-center border border-white/20"
+                style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={16} color="rgba(255,255,255,0.9)" />
+              </TouchableOpacity>
             </View>
-          ) : profileError || !profileData ? (
-            /* Show the existing card style as fallback when profile API is unavailable */
-            <View className="bg-[#004D36] rounded-[24px]" style={{ overflow: 'hidden' }}>
-              {/* Decorative circles */}
-              <View style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' }} pointerEvents="none" />
-              <View style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.04)' }} pointerEvents="none" />
 
-              <View className="p-5">
-                {/* Row 1: Logo + Brand */}
-                <View className="flex-row items-center">
-                  <View className="w-7 h-7 bg-white/20 rounded-lg items-center justify-center">
-                    <Text className="text-white font-bold text-sm">S</Text>
-                  </View>
-                  <Text className="text-white font-bold text-sm ml-2">SANARCH</Text>
-                </View>
-
-                {/* Row 2: Account Holder */}
-                <View className="mt-4">
-                  <Text className="text-white opacity-50 text-[10px] uppercase tracking-widest">Account Holder</Text>
-                  <Text className="text-white text-lg font-display-bold mt-0.5">
-                    {(user.full_name ?? 'Your Name').split(' ')[0]}
-                  </Text>
-                </View>
-
-                {/* Row 3: Sanarch ID */}
-                <View className="flex-row justify-between items-end mt-4">
-                  <View>
-                    <Text className="text-white opacity-50 text-[10px] uppercase tracking-widest">Sanarch ID</Text>
-                    {user.sanarch_id ? (
-                      <Text className="text-white font-mono text-base font-bold tracking-widest mt-0.5">{user.sanarch_id}</Text>
-                    ) : (
-                      <View className="w-32 h-5 bg-white/20 rounded-md mt-0.5" />
-                    )}
-                  </View>
-                </View>
+            {/* Avatar & Name Row */}
+            <View className="flex-row items-center gap-4">
+              <ProfileAvatar
+                size={60}
+                gender={activeProfile?.gender}
+                dob={activeProfile?.dob}
+                relation={activeProfile?.relation}
+                name={activeProfile?.name}
+                borderRadius={18}
+                borderWidth={2}
+                borderColor="rgba(255,255,255,0.3)"
+                backgroundColor="rgba(255,255,255,0.15)"
+              />
+              <View className="flex-1">
+                <Text className="text-white text-[19px] font-bold leading-snug" numberOfLines={1}>{activeProfile?.name || 'Your Name'}</Text>
+                <Text className="text-white/55 text-[12px] mt-0.5" numberOfLines={1}>{activeProfile?.phone || activeProfile?.email || 'No contact set'}</Text>
               </View>
             </View>
-          ) : (
-            <SanarchIdCard
-              sanarchId={profileData.sanarch_id}
-              patientName={user.full_name ?? 'Patient'}
-              profileType={profileData.profile_type as 'P' | 'D'}
-              memberIndex={profileData.member_index}
-              qrBase64={profileData.qr_base64}
-              familyMembers={cardFamilyMembers}
-              onMemberSelect={handleMemberSelect}
-            />
-          )}
-        </View>
 
-        {/* ─── Health Details ─── */}
-        <Text className="text-base font-display-bold text-[#2D3A2F] mt-8 mb-3">Health Details</Text>
-        <View
-          className="bg-white rounded-[20px] border border-[#E5E2DE] p-4"
-          style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}
-        >
-          <HealthRow icon="cake-variant-outline" label="Date of Birth" value={activeProfile?.dob ?? '---'} />
-          <HealthRow icon="account-clock-outline" label="Age" value={calculateAge(activeProfile?.dob)} />
-          <HealthRow icon="water" label="Blood Group" value={activeProfile?.bloodGroup ?? '---'} />
-          <HealthRow icon="human-male-height" label="Height" value={activeProfile?.heightCm ? `${activeProfile.heightCm} cm` : '---'} />
-          <HealthRow icon="scale-bathroom" label="Weight" value={activeProfile?.weightKg ? `${activeProfile.weightKg} kg` : '---'} isLast />
-        </View>
-
-        {/* ─── Account Details ─── */}
-        <Text className="text-base font-display-bold text-[#2D3A2F] mt-8 mb-3">Account Details</Text>
-        <View
-          className="bg-white rounded-[20px] border border-[#E5E2DE] p-4"
-          style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}
-        >
-          <AccountRow icon="phone-outline" label="Phone" value={activeProfile?.phone ?? '\u2014'} truncate />
-          <AccountRow icon="email-outline" label="Email" value={activeProfile?.email ?? '\u2014'} truncate />
-          <AccountRow
-            icon="map-marker-outline"
-            label="Address"
-            value={
-              activeProfile?.address
-                ? `${activeProfile.address}, ${activeProfile.city ?? ''}`.trim().replace(/,$/, '')
-                : '\u2014'
-            }
-          />
-          <AccountRow icon="calendar-outline" label="Member Since" value="May 2026" isLast />
-        </View>
-
-        {/* ─── Family Profiles ─── */}
-        <Text className="text-base font-display-bold text-[#2D3A2F] mt-8 mb-3">Family Profiles</Text>
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/profile/family')}
-          activeOpacity={0.75}
-          className="bg-white rounded-[20px] border border-[#E5E2DE] p-4 flex-row items-center gap-3 mb-6"
-          style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}
-        >
-          <View className="w-10 h-10 rounded-full bg-[#E8F5E9] items-center justify-center">
-            <MaterialCommunityIcons name="account-group-outline" size={22} color="#004D36" />
+            {/* ID & Copy Row */}
+            <View className="border-t border-white/10 mt-5 pt-4 flex-row items-center justify-between">
+              <View className="flex-1 mr-3">
+                <Text className="text-white/40 text-[10px] uppercase tracking-[1.5px] font-semibold mb-0.5">Health ID</Text>
+                <Text
+                  className="text-white text-[13.5px] font-bold"
+                  style={{
+                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                    letterSpacing: 0.5,
+                  }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {displaySanarchId}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleCopyId}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Copy Health ID"
+                className="w-9 h-9 rounded-xl items-center justify-center border border-white/15"
+                style={{ backgroundColor: copied ? 'rgba(52,211,153,0.2)' : 'rgba(255,255,255,0.12)' }}
+              >
+                <MaterialCommunityIcons name={copied ? 'check' : 'content-copy'} size={16} color={copied ? '#34d399' : 'rgba(255,255,255,0.9)'} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text className="flex-1 text-sm font-display-bold text-[#2D3A2F]">
-            {familyMembers.length > 1 ? `Manage ${familyMembers.length} Profiles` : 'Manage Family Profiles'}
-          </Text>
-          <MaterialCommunityIcons name="chevron-right" size={20} color="#819685" />
-        </TouchableOpacity>
+        </LinearGradient>
+
+        {/* Family Members Strip (Always show for profile switching) */}
+        {familyMembers.length > 0 && (
+          <View className="mb-5">
+            <View className="flex-row items-center justify-between mb-2.5 ml-1 mr-2">
+              <Text className="text-[11px] font-bold text-[#8A9E8F] uppercase tracking-[1.8px]">Family Members</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/profile/family')} activeOpacity={0.7}>
+                <Text className="text-[11px] font-bold text-[#1D9E75] uppercase tracking-wider">Manage</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 2 }}>
+              {familyMembers.map((member, idx) => {
+                const isActive = activeProfile ? member.sanarchId === activeProfile.sanarchId : member.isMainAccount;
+                return (
+                  <TouchableOpacity
+                    key={member.sanarchId || member.id || idx}
+                    onPress={() => handleMemberSelect(member.sanarchId)}
+                    activeOpacity={0.75}
+                    className="items-center"
+                    style={{ width: 64 }}
+                  >
+                    <ProfileAvatar
+                      size={48}
+                      gender={member.gender}
+                      dob={member.dob}
+                      relation={member.relation}
+                      name={member.name}
+                      borderWidth={isActive ? 2.5 : 1}
+                      borderColor={isActive ? '#1D9E75' : '#D2E7D6'}
+                    />
+                    <Text className="text-[11px] mt-1.5 text-center" style={{ color: isActive ? '#111A14' : '#6B7A6E', fontWeight: isActive ? '700' : '500' }} numberOfLines={1}>
+                      {member.name ? member.name.split(' ')[0] : `Member`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Health Details */}
+        <SectionLabel title="Health Details" />
+        <View className="flex-row gap-3 mb-3">
+          <StatChip icon="cake-variant-outline" label="DOB" value={activeProfile?.dob || '---'} />
+          <StatChip icon="account-clock-outline" label="Age" value={calculateAge(activeProfile?.dob)} />
+          <StatChip icon="water" label="Blood" value={activeProfile?.bloodGroup || '---'} />
+        </View>
+        <View className="bg-white rounded-[18px] border border-[#EAEAE8] mb-5 overflow-hidden" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
+          <DetailRow icon="human-male-height" label="Height" value={activeProfile?.heightCm ? activeProfile.heightCm + ' cm' : '---'} />
+          <DetailRow icon="scale-bathroom" label="Weight" value={activeProfile?.weightKg ? activeProfile.weightKg + ' kg' : '---'} isLast />
+        </View>
+
+        {/* Account */}
+        <SectionLabel title="Account" />
+        <View className="bg-white rounded-[18px] border border-[#EAEAE8] mb-5 overflow-hidden" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
+          <DetailRow icon="phone-outline" label="Phone" value={activeProfile?.phone || '—'} truncate />
+          <DetailRow icon="email-outline" label="Email" value={activeProfile?.email || '—'} truncate />
+          <DetailRow icon="map-marker-outline" label="Address" value={activeProfile?.address ? activeProfile.address + (activeProfile.city ? ', ' + activeProfile.city : '') : '—'} truncate isLast />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-/* ─── Health Detail Row ─── */
-function HealthRow({
-  icon,
-  label,
-  value,
-  isLast = false,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  isLast?: boolean;
-}) {
+function SectionLabel({ title }: { title: string }) {
+  return <Text className="text-[11px] font-bold text-[#8A9E8F] uppercase tracking-[1.8px] mb-2.5 ml-1">{title}</Text>;
+}
+
+function StatChip({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <View className={`flex-row items-center justify-between py-3 ${!isLast ? 'border-b border-[#F5F3F0]' : ''}`}>
-      <View className="flex-row items-center gap-3">
-        <View className="w-9 h-9 rounded-xl bg-[#E8F5E9] items-center justify-center">
-          <MaterialCommunityIcons name={icon as any} size={18} color="#004D36" />
-        </View>
-        <Text className="text-sm text-[#5C6E60]">{label}</Text>
+    <View className="flex-1 bg-white rounded-[16px] border border-[#EAEAE8] p-3 items-center" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}>
+      <View className="w-9 h-9 rounded-xl bg-[#E6F5EE] items-center justify-center mb-1.5">
+        <MaterialCommunityIcons name={icon as any} size={18} color="#004D36" />
       </View>
-      <Text className="text-sm font-display-bold text-[#2D3A2F]">{value}</Text>
+      <Text className="text-[9px] text-[#8A9E8F] font-bold uppercase tracking-wider">{label}</Text>
+      <Text className="text-[13px] font-bold text-[#111A14] mt-0.5 text-center" numberOfLines={1}>{value}</Text>
     </View>
   );
 }
 
-/* ─── Account Detail Row ─── */
-function AccountRow({
-  icon,
-  label,
-  value,
-  isLast = false,
-  truncate = false,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  isLast?: boolean;
-  truncate?: boolean;
+function DetailRow({ icon, label, value, isLast = false, truncate = false }: {
+  icon: string; label: string; value: string; isLast?: boolean; truncate?: boolean;
 }) {
   return (
-    <View className={`flex-row items-center justify-between py-3 ${!isLast ? 'border-b border-[#F5F3F0]' : ''}`}>
-      <View className="flex-row items-center">
-        <View className="w-9 h-9 rounded-xl bg-[#E8F5E9] items-center justify-center">
-          <MaterialCommunityIcons name={icon as any} size={18} color="#004D36" />
-        </View>
-        <Text className="text-sm text-[#5C6E60] font-display-medium ml-3">{label}</Text>
+    <View className={'flex-row items-center px-4 py-3 ' + (!isLast ? 'border-b border-[#F2F3F1]' : '')}>
+      <View className="w-8 h-8 rounded-[10px] bg-[#E6F5EE] items-center justify-center mr-3">
+        <MaterialCommunityIcons name={icon as any} size={16} color="#004D36" />
       </View>
-      <Text
-        className="text-sm font-display-bold text-[#2D3A2F] text-right"
-        style={{ maxWidth: '55%' }}
-        {...(truncate ? { numberOfLines: 1, ellipsizeMode: 'tail' as const } : {})}
-      >
-        {value}
-      </Text>
+      <Text className="text-[13px] text-[#6B7A6E] font-medium flex-1">{label}</Text>
+      <Text className="text-[13px] font-semibold text-[#111A14] text-right ml-2" style={{ maxWidth: '55%' }} {...(truncate ? { numberOfLines: 1, ellipsizeMode: 'tail' as const } : {})}>{value}</Text>
     </View>
   );
 }

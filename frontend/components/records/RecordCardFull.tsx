@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -26,14 +26,6 @@ export default function RecordCardFull({ id, title, subtitle, icon, previewImage
         </View>
       </View>
 
-      {/* Document Preview */}
-      <View className="w-full aspect-[21/9] rounded-lg bg-slate-100 items-center justify-center overflow-hidden border border-slate-200">
-        {previewImageStr ? (
-           <Image source={{ uri: previewImageStr }} className="w-full h-full" resizeMode="cover" />
-        ) : (
-          <MaterialCommunityIcons name="image-off-outline" size={32} color="#CBD5E1" />
-        )}
-      </View>
 
       {/* Actions Row */}
       <View className="flex-row items-center gap-3">

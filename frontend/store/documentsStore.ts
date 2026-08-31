@@ -1,6 +1,7 @@
 // store/documentsStore.ts
 import { create } from 'zustand';
-import apiClient from '../services/api';
+import { getFirestore, collection, query, where, onSnapshot } from '@react-native-firebase/firestore';
+import { useAuthStore } from './authStore';
 
 export interface DocumentRecord {
   document_id: string;
@@ -10,7 +11,10 @@ export interface DocumentRecord {
   processing_progress: number;
   processing_stage: string;
   file_type: string;
+  b2_file_url?: string;
   extracted_data?: Record<string, any>;
+  condition_terms_raw?: string[];
+  condition_groups?: string[];
   summary?: string;
   created_at: string;
   updated_at: string;
@@ -43,7 +47,10 @@ interface DocumentsState {
 
   // Async
   fetchDocuments: () => Promise<void>;
+  unsubscribeDocuments: () => void;
 }
+
+let documentsUnsubscribe: (() => void) | null = null;
 
 const INITIAL_UPLOAD_STATE: UploadState = {
   isUploading: false,
@@ -105,17 +112,56 @@ export const useDocumentsStore = create<DocumentsState>((set, get) => ({
   resetUploadState: () =>
     set({ uploadState: { ...INITIAL_UPLOAD_STATE } }),
 
-  fetchDocuments: async () => {
-    set({ isLoading: true });
-    try {
-      const response = await apiClient.get('/api/v1/documents');
-      const docs: DocumentRecord[] = response.data.documents ?? [];
-      // Sort newest first
-      docs.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
-      set({ documents: docs, isLoading: false });
-    } catch (error) {
-      console.error('[DocumentsStore] fetchDocuments failed:', error);
-      set({ isLoading: false });
+  unsubscribeDocuments: () => {
+    if (documentsUnsubscribe) {
+      documentsUnsubscribe();
+      documentsUnsubscribe = null;
     }
+  },
+
+  fetchDocuments: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    
+    set({ isLoading: true });
+    
+    get().unsubscribeDocuments();
+    
+    const db = getFirestore();
+    const q = query(collection(db, 'documents'), where('owner_id', '==', userId));
+    
+    documentsUnsubscribe = onSnapshot(
+      q,
+      (snapshot: any) => {
+        const docs: DocumentRecord[] = [];
+        snapshot.forEach((docSnap: any) => {
+          const data = docSnap.data();
+          if (data.hidden_from_list === true) return; // Filter client-side
+          
+          docs.push({
+            document_id: docSnap.id,
+            document_title: data.document_title || '',
+            document_label: data.document_label || '',
+            status: data.status || 'unknown',
+            processing_progress: data.processing_progress || 0,
+            processing_stage: data.processing_stage || 'unknown',
+            file_type: data.file_type || '',
+            b2_file_url: data.b2_file_url,
+            extracted_data: data.extracted_data || {},
+            condition_terms_raw: data.condition_terms_raw || [],
+            condition_groups: data.condition_groups || [],
+            summary: data.summary || '',
+            created_at: data.created_at?.toDate?.()?.toISOString() || '',
+            updated_at: data.updated_at?.toDate?.()?.toISOString() || '',
+          });
+        });
+        docs.sort((a, b) => b.created_at.localeCompare(a.created_at));
+        set({ documents: docs, isLoading: false });
+      },
+      (error: any) => {
+        console.error('[DocumentsStore] onSnapshot failed:', error);
+        set({ isLoading: false });
+      }
+    );
   },
 }));

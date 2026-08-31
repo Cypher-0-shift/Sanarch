@@ -14,6 +14,7 @@ import { LEGAL_URLS } from '../../../constants/legal';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { deleteMe } from '../../../services/api';
 import { logout as firebaseLogout } from '../../../services/auth';
+import { formatSanarchId } from '../../../utils/sanarchId';
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -185,21 +186,21 @@ export default function Settings() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#F5F3F0' }}>
       {/* HEADER */}
-      <View style={{ backgroundColor: 'white', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E5E2DE', flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <View style={{ backgroundColor: 'white', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E5E2DE', flexDirection: 'row', alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
         <TouchableOpacity
           onPress={() => router.back()}
           activeOpacity={0.75}
           hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F5F3F0', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E8F5E9', borderWidth: 1, borderColor: '#D2E7D6', alignItems: 'center', justifyContent: 'center' }}
         >
-          <MaterialCommunityIcons name="chevron-left" size={24} color="#2D3A2F" />
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#004D36" />
         </TouchableOpacity>
         <View>
-          <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#2D3A2F' }}>
+          <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#004D36' }}>
             {user.full_name ?? 'Settings'}
           </Text>
           <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#819685', textTransform: 'uppercase', letterSpacing: 1.5 }}>
-            {user.sanarch_id ?? '—'}
+            {formatSanarchId(user.sanarch_id)}
           </Text>
         </View>
       </View>

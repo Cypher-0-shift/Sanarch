@@ -2,8 +2,8 @@
 """
 SANARCH ID generation, validation, and parsing utilities.
 
-Format: SAN-{CC}-{YY}-{G}-{AB}-{T}-{IX}-{SERIAL}-{CK}
-Example: SAN-IN-25-F-35-P-00-8K3F2A-X7
+Format: SAN-{CC}-{YY}{G}{AB}{T}{IX}{SERIAL}{CK}
+Example: SAN-IN-26X18P00IHC9E7ZP
 
 All functions are pure — no database dependencies.
 """
@@ -115,7 +115,7 @@ def build_sanarch_id(
 
     Returns
     -------
-    str   Formatted ID, e.g. "SAN-IN-25-F-35-P-00-8K3F2A-X7"
+    str   Formatted ID, e.g. "SAN-IN-26X18P00IHC9E7ZP"
     """
     cc = country.upper()[:2]
     yy = f"{reg_year % 100:02d}"
@@ -129,7 +129,9 @@ def build_sanarch_id(
     payload = f"SAN{cc}{yy}{g}{band}{t}{ix}{serial}"
     ck = luhn_mod36_checksum(payload)
 
-    return f"SAN{cc}{yy}{g}{band}{t}{ix}{serial}{ck}"
+    # Format: SAN-{CC}-{YY}{G}{AB}{T}{IX}{SERIAL}{CK}
+    # Example: SAN-IN-26X18P00IHC9E7ZP  (2 hyphens, 23 chars)
+    return f"SAN-{cc}-{yy}{g}{band}{t}{ix}{serial}{ck}"
 
 
 def validate_sanarch_id(sanarch_id: str) -> bool:

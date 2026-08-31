@@ -8,6 +8,12 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import {
+  LobsterTwo_400Regular,
+  LobsterTwo_400Regular_Italic,
+  LobsterTwo_700Bold,
+  LobsterTwo_700Bold_Italic,
+} from '@expo-google-fonts/lobster-two';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
@@ -17,6 +23,7 @@ import { setupTokenRefresh } from '../services/auth';
 import { getMe, getPatients } from '../services/api';
 import { useActiveDocumentListeners } from '../hooks/useDocumentListener';
 import { Dimensions, View, Text, TextInput } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { vars } from 'nativewind';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css'; // NativeWind CSS
@@ -86,6 +93,10 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    LobsterTwo_400Regular,
+    LobsterTwo_400Regular_Italic,
+    LobsterTwo_700Bold,
+    LobsterTwo_700Bold_Italic,
   });
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -94,6 +105,11 @@ export default function RootLayout() {
   // Setup Firebase token auto-refresh
   useEffect(() => {
     setupTokenRefresh();
+  }, []);
+
+  // Silent ping to wake up backend (prevents cold starts on upload)
+  useEffect(() => {
+    fetch(`${process.env.EXPO_PUBLIC_API_URL}/health`).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -129,38 +145,40 @@ export default function RootLayout() {
   if (!fontsLoaded || !authChecked) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <View style={theme} className="flex-1">
-          <ErrorBoundary>
-            <AppListeners />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'slide_from_right',
-                animationDuration: 220,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-                contentStyle: { backgroundColor: '#F5F3F0' },
-              }}
-            >
-              <Stack.Screen
-                name="index"
-                options={{ animation: 'fade', animationDuration: 200 }}
-              />
-              <Stack.Screen
-                name="auth"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="(tabs)"
-                options={{ animation: 'fade', animationDuration: 200 }}
-              />
-            </Stack>
-          </ErrorBoundary>
-          <CustomAlert />
-        </View>
-      </QueryClientProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
+          <View style={theme} className="flex-1">
+            <ErrorBoundary>
+              <AppListeners />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  animationDuration: 220,
+                  gestureEnabled: true,
+                  gestureDirection: 'horizontal',
+                  contentStyle: { backgroundColor: '#F5F3F0' },
+                }}
+              >
+                <Stack.Screen
+                  name="index"
+                  options={{ animation: 'fade', animationDuration: 200 }}
+                />
+                <Stack.Screen
+                  name="auth"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="(tabs)"
+                  options={{ animation: 'fade', animationDuration: 200 }}
+                />
+              </Stack>
+            </ErrorBoundary>
+            <CustomAlert />
+          </View>
+        </QueryClientProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }

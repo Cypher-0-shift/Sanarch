@@ -1,5 +1,6 @@
 # app/main.py
 import uuid
+import socket
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
+import redis
 from app.config import settings
 from app.logging_config import setup_logging, logger
 from app.firestore import check_db_connection
@@ -31,7 +33,6 @@ async def lifespan(app: FastAPI):
     
     # Redis check
     try:
-        import redis
         r = redis.from_url(settings.redis_url)
         r.ping()
         logger.info("Redis: connected")
@@ -134,7 +135,6 @@ def readiness_check():
 
     # Redis
     try:
-        import redis
         r = redis.from_url(settings.redis_url)
         r.ping()
         checks["redis"] = "ok"
@@ -143,7 +143,6 @@ def readiness_check():
 
     # ClamAV
     try:
-        import socket
         s = socket.socket()
         s.settimeout(3)
         s.connect((settings.clamd_host, settings.clamd_port))

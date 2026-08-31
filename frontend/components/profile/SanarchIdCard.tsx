@@ -17,6 +17,9 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAlertStore } from '../../store/alertStore';
+import * as Clipboard from 'expo-clipboard';
+import { formatSanarchId } from '../../utils/sanarchId';
+import ProfileAvatar from './ProfileAvatar';
 
 // Enable LayoutAnimation on Android
 if (
@@ -82,8 +85,6 @@ export default function SanarchIdCard({
   // ── Copy ID to clipboard ────────────────────────────────────────────────
   const handleCopyId = useCallback(async () => {
     try {
-      // Dynamic import to avoid crash if expo-clipboard is not installed
-      const Clipboard = await import('expo-clipboard');
       await Clipboard.setStringAsync(sanarchId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -119,18 +120,31 @@ export default function SanarchIdCard({
               <Text className="text-white/60 text-[10px]">Health ID</Text>
             </View>
           </View>
-          <View
-            className="px-3 py-1 rounded-full"
-            style={{
-              backgroundColor: isPrimary ? TEAL_BG : AMBER_BG,
-            }}
-          >
-            <Text
-              className="text-[11px] font-bold"
-              style={{ color: isPrimary ? TEAL : AMBER }}
+          <View className="flex-row items-center gap-2">
+            <TouchableOpacity 
+              onPress={handleCopyId} 
+              activeOpacity={0.7} 
+              className="w-7 h-7 rounded-full bg-white/10 items-center justify-center"
             >
-              {isPrimary ? 'Primary holder' : 'Dependent'}
-            </Text>
+              <MaterialCommunityIcons 
+                name={copied ? 'check' : 'content-copy'} 
+                size={14} 
+                color={copied ? '#4ade80' : 'white'} 
+              />
+            </TouchableOpacity>
+            <View
+              className="px-3 py-1 rounded-full"
+              style={{
+                backgroundColor: isPrimary ? TEAL_BG : AMBER_BG,
+              }}
+            >
+              <Text
+                className="text-[11px] font-bold"
+                style={{ color: isPrimary ? TEAL : AMBER }}
+              >
+                {isPrimary ? 'Primary holder' : 'Family Member'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -138,14 +152,12 @@ export default function SanarchIdCard({
         <View className="bg-white px-5 py-5">
           {/* Avatar + Name + ID */}
           <View className="items-center">
-            <View
-              className="w-16 h-16 rounded-full items-center justify-center"
-              style={{ backgroundColor: TEAL_DARK }}
-            >
-              <Text className="text-white text-xl font-bold">
-                {getInitials(patientName)}
-              </Text>
-            </View>
+            <ProfileAvatar
+              size={64}
+              name={patientName}
+              borderWidth={3}
+              borderColor="#D2E7D6"
+            />
             <Text className="text-[#2D3A2F] text-lg font-bold mt-2.5 text-center">
               {patientName}
             </Text>
@@ -153,33 +165,11 @@ export default function SanarchIdCard({
               className="text-[#5C6E60] text-[13px] mt-1 tracking-[2px]"
               style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}
             >
-              {sanarchId}
+              {formatSanarchId(sanarchId)}
             </Text>
           </View>
 
-          {/* Action buttons */}
-          <View className="flex-row gap-3 mt-5">
-            <TouchableOpacity
-              onPress={handleCopyId}
-              activeOpacity={0.75}
-              className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl border border-[#E5E2DE]"
-              style={{
-                backgroundColor: copied ? TEAL_BG : '#FAFAF9',
-              }}
-            >
-              <MaterialCommunityIcons
-                name={copied ? 'check-circle' : 'content-copy'}
-                size={16}
-                color={copied ? TEAL : '#5C6E60'}
-              />
-              <Text
-                className="text-[13px] font-semibold ml-1.5"
-                style={{ color: copied ? TEAL : '#2D3A2F' }}
-              >
-                {copied ? 'Copied!' : 'Copy ID'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+
         </View>
       </View>
 
@@ -204,33 +194,12 @@ export default function SanarchIdCard({
                   className="items-center"
                   style={{ width: 64 }}
                 >
-                  <View
-                    className="w-11 h-11 rounded-full items-center justify-center"
-                    style={{
-                      backgroundColor: isActive ? TEAL_DARK : '#E8F5E9',
-                      borderWidth: isActive ? 2 : 0,
-                      borderColor: TEAL,
-                    }}
-                  >
-                    <Text
-                      className="font-bold text-[13px]"
-                      style={{ color: isActive ? '#FFFFFF' : TEAL_DARK }}
-                    >
-                      {getInitials(member.patientName)}
-                    </Text>
-                    {/* Index badge */}
-                    <View
-                      className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full items-center justify-center"
-                      style={{
-                        backgroundColor:
-                          member.profileType === 'P' ? TEAL : AMBER,
-                      }}
-                    >
-                      <Text className="text-white text-[8px] font-bold">
-                        {member.memberIndex}
-                      </Text>
-                    </View>
-                  </View>
+                  <ProfileAvatar
+                    size={44}
+                    name={member.patientName}
+                    borderWidth={isActive ? 2.5 : 1}
+                    borderColor={isActive ? TEAL : '#D2E7D6'}
+                  />
                   <Text
                     className="text-[10px] mt-1 text-center"
                     style={{

@@ -3,12 +3,12 @@ import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
   Pressable,
   StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
+import AnimatedPressable from './Pressable';
 
 interface GlassmorphismCardProps {
   visible: boolean;
@@ -54,7 +54,7 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
       <View style={styles.cardWrapper}>
         <View style={styles.card}>
           {/* Take Photo */}
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.row}
             onPress={handleTakePhoto}
             activeOpacity={0.7}
@@ -72,13 +72,13 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
                 Scan a document with your camera
               </Text>
             </View>
-          </TouchableOpacity>
+          </AnimatedPressable>
 
           {/* Divider */}
           <View style={styles.divider} />
 
           {/* Upload Photo */}
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.row}
             onPress={handleUploadPhoto}
             activeOpacity={0.7}
@@ -96,13 +96,13 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
                 Select an image from gallery
               </Text>
             </View>
-          </TouchableOpacity>
+          </AnimatedPressable>
 
           {/* Divider */}
           <View style={styles.divider} />
 
           {/* Upload File */}
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.row}
             onPress={handleUploadFile}
             activeOpacity={0.7}
@@ -120,7 +120,7 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
                 PDF or image from your device
               </Text>
             </View>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </View>
       </View>
     </Modal>

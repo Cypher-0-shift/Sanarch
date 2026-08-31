@@ -14,11 +14,11 @@ class TestPatientsEndpoint:
             "date_of_birth": "1990-01-15",
             "relationship_to_owner": "self"
         })
-        assert response.status_code == 200
+        assert response.status_code == 201
         data = response.json()
         assert data["full_name"] == "John Doe"
         assert data["sanarch_id"].startswith("SAN-")
-        assert len(data["sanarch_id"]) == 10  # SAN-XXXXXX
+        assert len(data["sanarch_id"]) == 23
 
     def test_create_patient_rejects_invalid_relationship(self, client, dev_headers):
         response = client.post("/patients/create", headers=dev_headers, json={
@@ -55,7 +55,7 @@ class TestPatientsEndpoint:
             "full_name": "Get Test Patient",
             "relationship_to_owner": "child"
         })
-        assert create_resp.status_code == 200
+        assert create_resp.status_code == 201
         patient_id = create_resp.json()["id"]
         
         # Then fetch it

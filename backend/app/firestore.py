@@ -1,6 +1,7 @@
 # app/firestore.py
 from firebase_admin import firestore
 from app.services.firebase_auth import ensure_firebase_initialized
+from app.logging_config import logger
 from google.cloud.firestore import Client
 
 def get_db() -> Client:
@@ -17,6 +18,5 @@ def check_db_connection() -> bool:
         db.collection("users").limit(1).get()
         return True
     except Exception as e:
-        import logging
-        logging.error(f"Firestore connection failed: {e}")
+        logger.error(f"Firestore connection failed: {e}")
         return False

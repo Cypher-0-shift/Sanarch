@@ -1,37 +1,58 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Animated, Modal, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getDocument, summarizeDocument } from '../../../services/api';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { getDocument, deleteDocument, summarizeDocument } from '../../../services/api';
 import { useAlertStore } from '../../../store/alertStore';
+import { useAuthStore } from '../../../store/authStore';
+import { useDocumentsStore, type DocumentRecord } from '../../../store/documentsStore';
+import { CATEGORIES } from '../upload';
+import AnimatedPressable from '../../../components/ui/Pressable';
+import { parseDate, formatDate } from '../../../utils/date';
 
 function ExpandableSection({ title, icon, children, defaultOpen = false }: { title: string, icon: string, children: React.ReactNode, defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <View className="bg-white rounded-[24px] border border-[#E5E2DE] overflow-hidden mb-4">
-      <TouchableOpacity 
-        className="w-full flex-row items-center justify-between p-5"
-        onPress={() => setOpen(!open)}
-        activeOpacity={0.75}
-      >
-        <View className="flex-row items-center gap-3">
-          <MaterialCommunityIcons name={icon as any} size={20} color="#004D36" />
-          <Text className="font-display-bold text-[#2D3A2F] text-base">{title}</Text>
-        </View>
-        <MaterialCommunityIcons 
-          name={open ? "chevron-up" : "chevron-down"} 
-          size={24} 
-          color="#819685" 
-        />
-      </TouchableOpacity>
-      {open && (
-        <View className="px-5 pb-5">
-          {children}
-        </View>
-      )}
+    <View className="rounded-[24px] overflow-hidden mb-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+      <BlurView intensity={40} tint="light">
+        <TouchableOpacity 
+          className="w-full flex-row items-center justify-between p-5 bg-white/20"
+          onPress={() => setOpen(!open)}
+          activeOpacity={0.75}
+        >
+          <View className="flex-row items-center gap-3">
+            <MaterialCommunityIcons name={icon as any} size={20} color="#004D36" />
+            <Text className="font-display-bold text-[#004D36] text-base">{title}</Text>
+          </View>
+          <MaterialCommunityIcons 
+            name={open ? "chevron-up" : "chevron-down"} 
+            size={24} 
+            color="#5C6E60" 
+          />
+        </TouchableOpacity>
+        {open && (
+          <View className="px-5 pb-5 pt-2">
+            <View className="h-[1px] w-full bg-black/5 mb-4" />
+            {children}
+          </View>
+        )}
+      </BlurView>
     </View>
+  );
+}
+
+function MeshBackground() {
+  return (
+    <LinearGradient
+      colors={['#f8faf9', '#e6f0e9', '#f2f5f3']}
+      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: -1 }}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    />
   );
 }
 
@@ -40,20 +61,102 @@ export default function RecordDetailsScreen() {
   const router = useRouter();
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState<any>(null);
-  const [summarizing, setSummarizing] = useState(false);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [pdfImageUrl, setPdfImageUrl] = useState<string | null>(null);
+  const [showOnlyAlerts, setShowOnlyAlerts] = useState(false);
+  // Animation ref for "Explain This" button text reveal
+  const explainAnim = useRef(new Animated.Value(0)).current;
 
-  const handleSummarize = async () => {
-    if (!id) return;
-    setSummarizing(true);
-    try {
-      const data = await summarizeDocument(id as string);
-      setSummaryData(data);
-    } catch (e: any) {
-      useAlertStore.getState().showAlert('Summary Failed', e.response?.data?.detail || 'Could not generate summary.');
-    } finally {
-      setSummarizing(false);
+  const token = useAuthStore((s) => s.token);
+  const allDocuments = useDocumentsStore((s) => s.documents);
+  const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+
+  // Explain This button hint animation — runs independently of preview
+  useEffect(() => {
+    if (loading) return;
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    const runHint = () => {
+      explainAnim.setValue(0);
+      Animated.sequence([
+        // expand open
+        Animated.spring(explainAnim, {
+          toValue: 1,
+          useNativeDriver: false,
+          speed: 12,
+          bounciness: 4,
+        }),
+        // hold open for 4 seconds
+        Animated.delay(4000),
+        // collapse back
+        Animated.timing(explainAnim, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    };
+
+    // First run after 3 seconds
+    timeout = setTimeout(() => {
+      runHint();
+      // Then repeat every 15 seconds
+      interval = setInterval(runHint, 15000);
+    }, 3000);
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+      explainAnim.stopAnimation();
+    };
+  }, [loading]);
+
+  // Handle preview fade in separately
+  useEffect(() => {
+    if (previewLoaded) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
     }
+  }, [previewLoaded, fadeAnim]);
+
+  const openSummary = () => {
+    router.push(`/(tabs)/records/explain?id=${id}`);
+  };
+
+  const handleDelete = () => {
+    setShowMenu(false);
+    Alert.alert(
+      "Delete Document",
+      "Are you sure you want to delete this document? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDocument(id as string);
+              await fetchDocuments();
+              router.back();
+            } catch (error: any) {
+              useAlertStore.getState().showAlert('Delete Failed', error.message || 'Failed to delete document.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleShare = () => {
+    useAlertStore.getState().showAlert('Coming Soon', 'Document sharing feature will be activated shortly.');
   };
 
   useEffect(() => {
@@ -74,6 +177,75 @@ export default function RecordDetailsScreen() {
     };
     load();
   }, [id]);
+
+  const b2Url = record?.b2_file_url;
+  const isPdf = record?.file_type === 'application/pdf' || record?.file_name?.toLowerCase().endsWith('.pdf');
+
+  useEffect(() => {
+    if (!isPdf || !b2Url) return;
+
+    const fetchPdfImage = async () => {
+      try {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (!apiUrl) return;
+
+        const response = await fetch(b2Url);
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        
+        const convertRes = await fetch(`${apiUrl}/documents/pdf/convert`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ pdf_uri: base64Data }),
+        });
+        const convertData = await convertRes.json();
+        if (convertData.success && convertData.images?.length > 0) {
+          setPdfImageUrl(convertData.images[0]);
+        } else {
+          setPreviewLoaded(true);
+        }
+      } catch (err) {
+        console.log('Failed to fetch/convert PDF preview:', err);
+        setPreviewLoaded(true);
+      }
+    };
+    fetchPdfImage();
+  }, [isPdf, b2Url, token]);
+
+  const relatedDocuments = useMemo(() => {
+    if (!record) return [];
+    
+    const hospital = record.extracted_data?.hospital_name || '';
+    const diagnoses: string[] = record.extracted_data?.diagnosis || [];
+    const docDate = record.extracted_data?.document_date || record.created_at || '';
+
+    return allDocuments.filter(other => {
+      if (other.document_id === record.document_id) return false;
+
+      const otherHospital = other.extracted_data?.hospital_name || '';
+      const otherDiagnoses: string[] = other.extracted_data?.diagnosis || [];
+      const otherDate = other.extracted_data?.document_date || other.created_at || '';
+
+      if (!hospital || !otherHospital || hospital.toLowerCase() !== otherHospital.toLowerCase()) return false;
+
+      const d1 = parseDate(docDate)?.getTime() ?? NaN;
+      const d2 = parseDate(otherDate)?.getTime() ?? NaN;
+      if (isNaN(d1) || isNaN(d2) || Math.abs(d1 - d2) > 30 * 24 * 60 * 60 * 1000) return false;
+
+      if (diagnoses.length === 0 && otherDiagnoses.length === 0) return true;
+      return diagnoses.some((d) =>
+        otherDiagnoses.some((od) => d.toLowerCase() === od.toLowerCase())
+      );
+    });
+  }, [record, allDocuments]);
 
   if (loading) {
     return (
@@ -116,233 +288,342 @@ export default function RecordDetailsScreen() {
     );
   }
 
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString('en-US', {
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
-    });
-
-  // Extract display values from record
-  const displayLabel = record.label || 'document';
-  const displayTitle = record.original_filename || 'Document';
-  const displayDate = record.uploaded_at || new Date().toISOString();
-  const extractedFields = record.extracted_fields || {};
+  const displayLabel = record.document_label || 'document';
+  const displayTitle = record.document_title || record.file_name || 'Document';
+  const displayDate = record.extracted_data?.document_date || record.created_at;
+  const extractedData = record.extracted_data || {};
+  
+  const hasPreview = !!b2Url;
+  
+  const labValues = extractedData.lab_values || [];
+  const filteredLabValues = showOnlyAlerts ? labValues.filter((lv: any) => lv.flag && lv.flag.toLowerCase() !== 'normal') : labValues;
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
+    <SafeAreaView className="flex-1" edges={['top']}>
+      <MeshBackground />
       {/* Header Area */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-20 flex-row items-center justify-between">
+      <BlurView intensity={40} tint="light" className="shrink-0 pt-4 pb-4 px-6 border-b border-[#E5E2DE] z-20 flex-row items-center justify-between">
         <TouchableOpacity 
-          className="w-10 h-10 rounded-xl bg-[#F5F3F0] items-center justify-center"
+          className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
           onPress={() => router.back()}
           activeOpacity={0.75}
           hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
         </TouchableOpacity>
-        <Text className="text-[#2D3A2F] text-lg font-display-bold tracking-tight">Report Details</Text>
-        <View className="flex-row gap-2">
+        <Text className="text-[#004D36] text-lg font-display-bold tracking-tight">Report Details</Text>
+        <View className="flex-row gap-2 relative">
           <TouchableOpacity 
-            className="w-10 h-10 rounded-xl bg-[#F5F3F0] items-center justify-center"
-            onPress={() => useAlertStore.getState().showAlert('Coming Soon', 'Document sharing coming in the next update.')}
+            className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
+            onPress={handleShare}
             activeOpacity={0.75}
             hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           >
-            <MaterialCommunityIcons name="share-variant" size={20} color="#2D3A2F" />
+            <MaterialCommunityIcons name="share-variant" size={20} color="#004D36" />
           </TouchableOpacity>
           <TouchableOpacity 
-            className="w-10 h-10 rounded-xl bg-[#F5F3F0] items-center justify-center"
-            onPress={() => useAlertStore.getState().showAlert('Options', 'Coming soon.')}
+            className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
+            onPress={() => setShowMenu(!showMenu)}
             activeOpacity={0.75}
             hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
           >
-            <MaterialCommunityIcons name="dots-vertical" size={24} color="#2D3A2F" />
+            <MaterialCommunityIcons name="dots-vertical" size={24} color="#004D36" />
           </TouchableOpacity>
+          {showMenu && (
+            <View className="absolute top-12 right-0 bg-white rounded-xl shadow-lg border border-black/5 overflow-hidden z-50 w-48">
+              <TouchableOpacity 
+                className="flex-row items-center gap-3 px-4 py-3"
+                onPress={handleDelete}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={20} color="#C62828" />
+                <Text className="text-[#C62828] font-display-medium text-[14px]">Delete Document</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </View>
+      </BlurView>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="px-6 pt-6 pb-8">
           
           {/* Document Preview Hero */}
-          <View className="bg-white rounded-[28px] p-2 border border-[#E5E2DE] mb-6 shadow-sm">
-            <View className="aspect-[3/4] rounded-[22px] bg-[#F8FAF9] border border-[#F0F2F1] items-center justify-center overflow-hidden relative">
-               <MaterialCommunityIcons name="file-document-outline" size={48} color="#004D36" />
-               <Text className="text-[#2D3A2F] font-display-bold mt-4 text-base">Document preview</Text>
-               <Text className="text-[#819685] text-[12px] font-display mt-1">Available after upload</Text>
-            </View>
+          <View className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+            {!hasPreview ? (
+              <View className="flex-1 items-center justify-center">
+                <MaterialCommunityIcons name="file-document-outline" size={48} color="#004D36" />
+                <Text className="text-[#2D3A2F] font-display-bold mt-4 text-base">Document preview</Text>
+                <Text className="text-[#819685] text-[12px] font-display mt-1">Not available for older records</Text>
+              </View>
+            ) : (
+              <View className="flex-1 relative">
+                {!previewLoaded && (
+                  <View className="absolute inset-0 items-center justify-center z-10 bg-white/20">
+                    <ActivityIndicator size="small" color="#004D36" />
+                  </View>
+                )}
+                <Animated.View style={{ flex: 1, width: '100%', height: '100%', opacity: fadeAnim }}>
+                  {isPdf ? (
+                    pdfImageUrl ? (
+                      <Image 
+                        source={{ uri: pdfImageUrl }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                        onLoad={() => setPreviewLoaded(true)}
+                        onError={() => setPreviewLoaded(true)}
+                      />
+                    ) : null
+                  ) : (
+                    <Image 
+                      source={{ uri: b2Url }}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                      onLoad={() => setPreviewLoaded(true)}
+                      onError={() => setPreviewLoaded(true)}
+                    />
+                  )}
+                </Animated.View>
+                
+                {/* Glass Gradient overlay at the bottom */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0, 77, 54, 0.8)']}
+                  style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', justifyContent: 'flex-end', padding: 16 }}
+                >
+                  <TouchableOpacity activeOpacity={0.8} className="flex-row self-start items-center gap-2 bg-white/20 rounded-full px-4 py-2 border border-white/30" style={{ overflow: 'hidden' }}>
+                    <BlurView intensity={20} tint="light" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
+                    <MaterialCommunityIcons name="fullscreen" size={18} color="white" />
+                    <Text className="text-white font-display-medium text-[13px]">View Full Document</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            )}
           </View>
 
           {/* Document Title & Meta */}
-          <View className="flex-col mb-8">
-            <View className="flex-row items-center gap-2 mb-2">
-              <View className="px-2.5 py-1 bg-[#E8F5E9] rounded-lg">
-                <Text className="text-[#004D36] text-[10px] font-display-bold uppercase tracking-widest">
+          <View className="flex-col mb-6">
+            <View className="flex-row items-center gap-2 mb-2 flex-wrap">
+              <View className="px-3 py-1 bg-[#aef1d1]/30 rounded-full border border-[#aef1d1]">
+                <Text className="text-[#07513a] text-[11px] font-display-bold uppercase tracking-widest">
                   {displayLabel.replace(/_/g, ' ')}
                 </Text>
               </View>
-              <Text className="text-[#819685] text-xs font-display-medium">Uploaded {formatDate(displayDate)}</Text>
+              <View className="flex-row items-center gap-1">
+                <MaterialCommunityIcons name="calendar-today" size={14} color="#5C6E60" />
+                <Text className="text-[#5C6E60] text-xs font-display-medium">{formatDate(displayDate)}</Text>
+              </View>
             </View>
-            <Text className="text-[#2D3A2F] text-2xl font-display-bold leading-tight mb-2">
+            <Text className="text-[#004D36] text-2xl font-display-bold leading-tight mb-3">
               {displayTitle}
             </Text>
             
-            <View className="flex-row items-center gap-4 py-3">
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-full bg-[#F5F3F0] items-center justify-center">
-                  <MaterialCommunityIcons name="account" size={16} color="#004D36" />
-                </View>
-                <View className="flex-col">
-                  <Text className="text-[10px] text-[#819685] font-display-bold uppercase tracking-wider">Provider</Text>
-                  <Text className="text-sm text-[#2D3A2F] font-display-semibold">{extractedFields.doctor || 'Unknown'}</Text>
-                </View>
+            <View className="flex-row items-center gap-4">
+              <View className="flex-row items-center gap-1.5">
+                <MaterialCommunityIcons name="account" size={18} color="#5C6E60" />
+                <Text className="text-sm text-[#404944] font-display-medium">{extractedData.doctor_name || 'Unknown'}</Text>
               </View>
-              <View className="w-[1px] h-6 bg-[#E5E2DE]" />
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-full bg-[#F5F3F0] items-center justify-center">
-                  <MaterialCommunityIcons name="hospital-building" size={16} color="#004D36" />
-                </View>
-                <View className="flex-col">
-                  <Text className="text-[10px] text-[#819685] font-display-bold uppercase tracking-wider">Facility</Text>
-                  <Text className="text-sm text-[#2D3A2F] font-display-semibold" numberOfLines={1} style={{ maxWidth: 120 }}>{extractedFields.hospital || 'Unknown'}</Text>
-                </View>
+              <View className="w-1 h-1 rounded-full bg-[#bfc9c2]" />
+              <View className="flex-row items-center gap-1.5">
+                <MaterialCommunityIcons name="hospital-building" size={18} color="#5C6E60" />
+                <Text className="text-sm text-[#404944] font-display-medium" numberOfLines={1} style={{ maxWidth: 160 }}>{extractedData.hospital_name || 'Unknown'}</Text>
               </View>
             </View>
           </View>
 
-          {/* Quick Actions */}
-          <View className="flex-row gap-3 mb-10">
-            <TouchableOpacity activeOpacity={0.75} className="flex-1 flex-col items-center justify-center gap-2 p-4 bg-white rounded-[24px] border border-[#E5E2DE]">
-              <MaterialCommunityIcons name="share-variant-outline" size={20} color="#004D36" />
-              <Text className="text-[11px] font-display-bold text-[#5C6E60] uppercase">Share</Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.75} className="flex-1 flex-col items-center justify-center gap-2 p-4 bg-white rounded-[24px] border border-[#E5E2DE]">
-              <MaterialCommunityIcons name="download-outline" size={20} color="#004D36" />
-              <Text className="text-[11px] font-display-bold text-[#5C6E60] uppercase">Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.75} className="flex-1 flex-col items-center justify-center gap-2 p-4 bg-[#004D36] rounded-[24px] shadow-sm">
-              <MaterialCommunityIcons name="history" size={20} color="white" />
-              <Text className="text-[11px] font-display-bold text-white uppercase">Timeline</Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* Expandable Medical Annotations */}
-          {/* AI Summary Section */}
-          <View className="mb-10">
-            {summaryData ? (
-              <ExpandableSection 
-                title={`✨ AI Summary · ${summaryData.flag === 'normal' ? 'Normal ✓' : summaryData.flag === 'attention' ? 'Attention' : 'Urgent'}`} 
-                icon="auto-fix" 
-                defaultOpen
-              >
-                <View className="mb-4">
-                  <Text className="text-[#2D3A2F] text-base font-display-bold mb-2">{summaryData.headline}</Text>
-                  <Text className="text-[#5C6E60] text-sm leading-relaxed font-display">{summaryData.summary}</Text>
-                </View>
-                
-                {summaryData.key_points && summaryData.key_points.length > 0 && (
-                  <View className="mb-4">
-                    {summaryData.key_points.map((pt: string, idx: number) => (
-                      <View key={idx} className="flex-row items-start gap-2 mb-1">
-                        <Text className="text-[#004D36] mt-0.5">•</Text>
-                        <Text className="text-sm text-[#5C6E60] font-display flex-1">{pt}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
 
-                {summaryData.flag !== 'normal' && (
-                  <View className={`p-4 rounded-xl border ${summaryData.flag === 'attention' ? 'bg-[#FFF8E1] border-[#FFECB3]' : 'bg-[#FFEBEE] border-[#FFCDD2]'}`}>
-                    <View className="flex-row items-center gap-2 mb-2">
-                      <MaterialCommunityIcons 
-                        name="alert-circle-outline" 
-                        size={16} 
-                        color={summaryData.flag === 'attention' ? '#F57F17' : '#C62828'} 
-                      />
-                      <Text className={`text-xs font-display-bold ${summaryData.flag === 'attention' ? 'text-[#F57F17]' : 'text-[#C62828]'}`}>
-                        {summaryData.flag === 'attention' ? 'Attention Needed' : 'Urgent Flag'}
-                      </Text>
-                    </View>
-                    <Text className={`text-xs font-display ${summaryData.flag === 'attention' ? 'text-[#F57F17]' : 'text-[#C62828]'}`}>
-                      {summaryData.flag_reason || 'Values outside optimal range detected.'}
-                    </Text>
-                  </View>
-                )}
-              </ExpandableSection>
-            ) : (
-              (record.status === 'complete' || record.status === 'pending_review') && (
+          {/* Lab Results */}
+          {labValues.length > 0 && (
+            <ExpandableSection title="Lab Results" icon="test-tube" defaultOpen>
+              <View className="flex-row items-center justify-between mb-4 mt-1 px-1">
+                <Text className="text-[12px] font-display-medium text-[#819685]">{filteredLabValues.length} {filteredLabValues.length === 1 ? 'result' : 'results'}</Text>
                 <TouchableOpacity 
-                  onPress={handleSummarize}
-                  disabled={summarizing}
-                  activeOpacity={0.8}
-                  className="bg-[#004D36] rounded-[24px] p-5 flex-row items-center justify-center gap-2 mb-4"
+                  className="flex-row items-center gap-2"
+                  onPress={() => setShowOnlyAlerts(!showOnlyAlerts)}
+                  activeOpacity={0.75}
                 >
-                  {summarizing ? (
-                    <ActivityIndicator color="white" size="small" />
-                  ) : (
-                    <MaterialCommunityIcons name="auto-fix" size={20} color="white" />
-                  )}
-                  <Text className="text-white font-display-bold text-base">
-                    {summarizing ? 'Analyzing document...' : 'Summarize with AI'}
-                  </Text>
+                  <MaterialCommunityIcons 
+                    name={showOnlyAlerts ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
+                    size={20} 
+                    color={showOnlyAlerts ? "#F57F17" : "#bfc9c2"} 
+                  />
+                  <Text className={`text-[12px] font-display-medium ${showOnlyAlerts ? 'text-[#F57F17]' : 'text-[#819685]'}`}>Show Alerts Only</Text>
                 </TouchableOpacity>
-              )
-            )}
+              </View>
 
-            <ExpandableSection title="Clinical Findings" icon="format-list-checks">
-               <View className="flex-row justify-between items-center py-2 border-b border-[#F5F3F0]">
-                 <Text className="text-sm text-[#5C6E60] font-display">White Blood Cells</Text>
-                 <Text className="text-sm font-display-bold text-[#2D3A2F]">6.4 K/uL</Text>
-               </View>
-               <View className="flex-row justify-between items-center py-2 border-b border-[#F5F3F0]">
-                 <Text className="text-sm text-[#5C6E60] font-display">Platelets</Text>
-                 <Text className="text-sm font-display-bold text-[#2D3A2F]">245 K/uL</Text>
-               </View>
-               <View className="flex-row justify-between items-center py-2">
-                 <Text className="text-sm text-[#5C6E60] font-display">RBC Count</Text>
-                 <Text className="text-sm font-display-bold text-[#2D3A2F]">4.2 M/uL</Text>
-               </View>
+              {filteredLabValues.map((lv: any, idx: number) => {
+                const flagColor = lv.flag?.toLowerCase() === 'high' ? '#C62828' : lv.flag?.toLowerCase() === 'low' ? '#F57F17' : '#004D36';
+                const flagBg = lv.flag?.toLowerCase() === 'high' ? 'bg-[#FFCDD2]' : lv.flag?.toLowerCase() === 'low' ? 'bg-[#FFF9C4]' : 'bg-[#C8E6C9]';
+                return (
+                  <View key={idx} className={`flex-col py-3 ${idx !== filteredLabValues.length - 1 ? 'border-b border-black/5' : ''}`}>
+                    <View className="flex-row justify-between items-start mb-1">
+                      <Text className="text-[14px] font-display-bold text-[#004D36] max-w-[60%]">{lv.test_name}</Text>
+                      {lv.flag && lv.flag.toLowerCase() !== 'normal' && (
+                        <View className={`rounded-full px-2 py-0.5 ${flagBg}`}>
+                          <Text className="text-[10px] font-display-bold tracking-wider uppercase" style={{ color: flagColor }}>{lv.flag}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View className="flex-row justify-between items-end">
+                      <View className="flex-row items-baseline gap-1">
+                        <Text className="text-[18px] font-display-bold" style={{ color: flagColor }}>{lv.value || '-'}</Text>
+                        {lv.unit && <Text className="text-[13px] font-display text-[#819685]">{lv.unit}</Text>}
+                      </View>
+                      {lv.reference_range && (
+                        <Text className="text-[12px] font-display text-[#819685]">Ref: {lv.reference_range}</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+              {filteredLabValues.length === 0 && showOnlyAlerts && (
+                <Text className="text-[13px] font-display text-[#819685] py-4 text-center">No abnormal results found.</Text>
+              )}
             </ExpandableSection>
-          </View>
+          )}
+
+          {/* Medications */}
+          {extractedData.medications && extractedData.medications.length > 0 && (
+            <ExpandableSection title="Medications" icon="pill" defaultOpen>
+              <View className="flex-col gap-3 pt-2">
+                {extractedData.medications.map((med: any, idx: number) => {
+                  const details = [med.dose, med.frequency, med.duration].filter(Boolean).join(' · ');
+                  return (
+                    <View key={idx} className="bg-white/20 border border-white/50 rounded-2xl p-4 flex-row items-start gap-3">
+                      <Text className="text-lg">💊</Text>
+                      <View className="flex-1">
+                        <Text className="text-[14px] font-display-bold text-[#E65100]">{med.medicine_name}</Text>
+                        {details ? (
+                          <Text className="text-[13px] font-display text-[#404944] mt-1">{details}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </ExpandableSection>
+          )}
+
+          {/* Diagnoses */}
+          {record.condition_terms_raw && record.condition_terms_raw.length > 0 && (
+            <ExpandableSection title="Diagnoses" icon="stethoscope" defaultOpen>
+              <View className="flex-row flex-wrap gap-2 pt-2">
+                {record.condition_terms_raw.map((term: string, idx: number) => (
+                  <View key={idx} className="bg-[#d7e7d7]/50 border border-white/50 rounded-full px-3 py-1.5 flex-row items-center gap-1.5">
+                    <MaterialCommunityIcons name="hospital-box-outline" size={14} color="#004D36" />
+                    <Text className="text-[12px] font-display-medium text-[#004D36]">{term}</Text>
+                  </View>
+                ))}
+              </View>
+            </ExpandableSection>
+          )}
 
           {/* Related Timeline */}
-          <View className="mb-12">
-            <Text className="text-[#2D3A2F] font-display-bold text-lg mb-6">Related Context</Text>
-            <View className="relative flex-col gap-4">
-              <View className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#E5E2DE] z-0" />
-              
-              <View className="relative z-10 flex-row gap-4 opacity-60">
-                <View className="w-10 h-10 rounded-full bg-white border-4 border-[#F5F3F0] shadow-sm items-center justify-center shrink-0">
-                  <MaterialCommunityIcons name="pill" size={18} color="#004D36" />
-                </View>
-                <View className="bg-white flex-1 p-4 rounded-[20px] shadow-sm border border-[#E5E2DE]">
-                  <View className="flex-row justify-between items-start">
-                    <Text className="text-[#2D3A2F] font-display-bold text-sm">Supplements</Text>
-                    <Text className="text-[11px] text-[#819685] font-display-medium">Previous</Text>
-                  </View>
-                  <Text className="text-[#5C6E60] text-xs font-display mt-1">Prescribed during initial checkup</Text>
-                </View>
+          {relatedDocuments.length > 0 && (
+            <View className="mb-12">
+              <View className="flex-row items-center gap-2 mb-6">
+                <MaterialCommunityIcons name="timeline-clock-outline" size={24} color="#004D36" />
+                <Text className="text-[#004D36] font-display-bold text-lg">Related History</Text>
               </View>
-
-              <View className="relative z-10 flex-row gap-4 opacity-60">
-                <View className="w-10 h-10 rounded-full bg-white border-4 border-[#F5F3F0] shadow-sm items-center justify-center shrink-0">
-                  <MaterialCommunityIcons name="file-document-outline" size={18} color="#004D36" />
-                </View>
-                <View className="bg-white flex-1 p-4 rounded-[20px] shadow-sm border border-[#E5E2DE]">
-                  <View className="flex-row justify-between items-start">
-                    <Text className="text-[#2D3A2F] font-display-bold text-sm">Previous Report</Text>
-                    <Text className="text-[11px] text-[#819685] font-display-medium">Earlier</Text>
-                  </View>
-                  <Text className="text-[#5C6E60] text-xs font-display mt-1">Comparing to baseline values</Text>
-                </View>
+              <View className="relative flex-col gap-5">
+                <View className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#aef1d1]/50 z-0" />
+                
+                {relatedDocuments.map((doc, idx) => {
+                  const category = CATEGORIES.find(c => c.id === doc.document_label) || CATEGORIES.find(c => c.id === 'other')!;
+                  const docDate = doc.extracted_data?.document_date || doc.created_at;
+                  return (
+                    <TouchableOpacity 
+                      key={doc.document_id}
+                      activeOpacity={0.75}
+                      onPress={() => router.push(`/(tabs)/records/${doc.document_id}`)}
+                      className="relative z-10 flex-row gap-4"
+                    >
+                      <View className="w-10 h-10 rounded-full bg-[#f8faf9] border-4 border-[#aef1d1] shadow-sm items-center justify-center shrink-0">
+                        <MaterialCommunityIcons name={category.icon as any} size={16} color="#004D36" />
+                      </View>
+                      <View className="flex-1 p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+                        <BlurView intensity={20} tint="light" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
+                        <View className="flex-row justify-between items-start mb-1">
+                          <Text className="text-[#004D36] font-display-bold text-[15px]" numberOfLines={1}>{doc.document_title || category.name}</Text>
+                          <Text className="text-[11px] text-[#5C6E60] font-display-medium shrink-0 ml-2">{formatDate(docDate)}</Text>
+                        </View>
+                        <Text className="text-[#404944] text-[13px] font-display" numberOfLines={2}>
+                          {doc.summary || 'View document for details.'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-
             </View>
-          </View>
+          )}
           
         </View>
       </ScrollView>
+
+      {record.status === 'ready' && (
+        <TouchableOpacity
+          onPress={openSummary}
+          activeOpacity={0.85}
+          style={{
+            position: 'absolute',
+            bottom: 112,
+            right: 24,
+            elevation: 8,
+            shadowColor: '#004D36',
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 6 },
+          }}
+        >
+          <Animated.View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#004D36',
+              borderRadius: 9999,
+              height: 56,
+              paddingLeft: 17,
+              paddingRight: explainAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [17, 24],
+              }),
+            }}
+          >
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={22} color="white" />
+            <Animated.View
+              style={{
+                overflow: 'hidden',
+                width: explainAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 115],
+                }),
+                opacity: explainAnim.interpolate({
+                  inputRange: [0, 0.3, 1],
+                  outputRange: [0, 0.8, 1],
+                }),
+                marginLeft: explainAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 12],
+                }),
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: 'white',
+                  fontFamily: 'Inter_700Bold',
+                  fontSize: 15,
+                  letterSpacing: 0.3,
+                  width: 140,
+                }}
+              >
+                Explain This
+              </Text>
+            </Animated.View>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
+
+
     </SafeAreaView>
   );
 }

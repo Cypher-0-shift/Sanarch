@@ -9,7 +9,7 @@
  * Called once from AppListeners in app/_layout.tsx so listeners
  * survive navigation changes, tab switches, and app backgrounding.
  */
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, onSnapshot } from '@react-native-firebase/firestore';
 import { useEffect } from 'react';
 import { useDocumentsStore } from '../store/documentsStore';
 
@@ -23,27 +23,28 @@ export function useDocumentListener(documentId: string) {
   useEffect(() => {
     if (!documentId) return;
 
-    const unsubscribe = firestore()
-      .collection('documents')
-      .doc(documentId)
-      .onSnapshot(
-        (snapshot) => {
-          if (!snapshot.exists) return;
-          const data = snapshot.data();
-          if (!data) return;
+    const db = getFirestore();
+    const docRef = doc(db, 'documents', documentId);
 
-          updateDocument(documentId, {
-            status: data.status,
-            processing_progress: data.processing_progress,
-            processing_stage: data.processing_stage,
-            document_title: data.document_title,
-            updated_at: data.updated_at,
-          });
-        },
-        (error) => {
-          console.error('onSnapshot error for', documentId, error);
-        }
-      );
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (!snapshot.exists) return;
+        const data = snapshot.data();
+        if (!data) return;
+
+        updateDocument(documentId, {
+          status: data.status,
+          processing_progress: data.processing_progress,
+          processing_stage: data.processing_stage,
+          document_title: data.document_title,
+          updated_at: data.updated_at,
+        });
+      },
+      (error) => {
+        console.error('onSnapshot error for', documentId, error);
+      }
+    );
 
     return () => unsubscribe();
   }, [documentId]);
@@ -70,33 +71,33 @@ export function useActiveDocumentListeners() {
   useEffect(() => {
     if (activeIds.length === 0) return;
 
+    const db = getFirestore();
     const updateDocument = useDocumentsStore.getState().updateDocument;
 
-    const unsubscribes = activeIds.map((documentId) =>
-      firestore()
-        .collection('documents')
-        .doc(documentId)
-        .onSnapshot(
-          (snapshot) => {
-            if (!snapshot.exists) return;
-            const data = snapshot.data();
-            if (!data) return;
+    const unsubscribes = activeIds.map((documentId) => {
+      const docRef = doc(db, 'documents', documentId);
+      return onSnapshot(
+        docRef,
+        (snapshot) => {
+          if (!snapshot.exists) return;
+          const data = snapshot.data();
+          if (!data) return;
 
-            updateDocument(documentId, {
-              status: data.status,
-              processing_progress: data.processing_progress,
-              processing_stage: data.processing_stage,
-              document_title: data.document_title,
-              extracted_data: data.extracted_data,
-              summary: data.summary,
-              updated_at: data.updated_at,
-            });
-          },
-          (error) => {
-            console.error('onSnapshot error for', documentId, error);
-          }
-        )
-    );
+          updateDocument(documentId, {
+            status: data.status,
+            processing_progress: data.processing_progress,
+            processing_stage: data.processing_stage,
+            document_title: data.document_title,
+            extracted_data: data.extracted_data,
+            summary: data.summary,
+            updated_at: data.updated_at,
+          });
+        },
+        (error) => {
+          console.error('onSnapshot error for', documentId, error);
+        }
+      );
+    });
 
     return () => unsubscribes.forEach((unsub) => unsub());
   }, [activeIdsKey]);

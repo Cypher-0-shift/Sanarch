@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../../store/authStore';
 import { useProfileStore } from '../../../store/profileStore';
 import { useAlertStore } from '../../../store/alertStore';
-import { updateMe } from '../../../services/api';
+import { updateMe, clearUserCache } from '../../../services/api';
 
 const GENDER_OPTIONS = ['Female', 'Male', 'Non-Binary', 'Other'];
 const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown'];
@@ -25,11 +25,11 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState(activeProfile?.city ?? '');
 
   const [bloodGroup, setBloodGroup] = useState(activeProfile?.bloodGroup ?? '');
-  const [heightCm, setHeightCm] = useState(activeProfile?.heightCm ?? '');
-  const [weightKg, setWeightKg] = useState(activeProfile?.weightKg ?? '');
+  const [heightCm, setHeightCm] = useState(activeProfile?.heightCm ?? user?.height_cm ?? '');
+  const [weightKg, setWeightKg] = useState(activeProfile?.weightKg ?? user?.weight_kg ?? '');
   const [gender, setGender] = useState(activeProfile?.gender ?? '');
 
-  const [dob, setDob] = useState(activeProfile?.dob ?? '');
+  const [dob, setDob] = useState(activeProfile?.dob ?? user?.date_of_birth ?? '');
   const dobLocked = !!dob && dob.length > 0;
 
   const [showGenderMenu, setShowGenderMenu] = useState(false);
@@ -63,13 +63,21 @@ export default function EditProfileScreen() {
       const updated = await updateMe({
         full_name: fullName.trim(),
         email: email.trim() || undefined,
+        date_of_birth: dob.trim() || undefined,
+        height_cm: heightCm.trim() || undefined,
+        weight_kg: weightKg.trim() || undefined,
       });
+
+      clearUserCache();
 
       // Sync auth store
       useAuthStore.getState().setUser({
         ...useAuthStore.getState().user,
         full_name: updated.full_name,
         email: updated.email,
+        date_of_birth: updated.date_of_birth,
+        height_cm: updated.height_cm,
+        weight_kg: updated.weight_kg,
       });
 
       // Sync profile store
@@ -77,6 +85,11 @@ export default function EditProfileScreen() {
         ...activeProfile!,
         name: updated.full_name,
         email: updated.email ?? undefined,
+        dob: updated.date_of_birth ?? activeProfile?.dob,
+        heightCm: updated.height_cm ?? activeProfile?.heightCm,
+        weightKg: updated.weight_kg ?? activeProfile?.weightKg,
+        bloodGroup: bloodGroup || activeProfile?.bloodGroup,
+        gender: gender || activeProfile?.gender,
         address: address.trim() || undefined,
         city: city.trim() || undefined,
       };
@@ -102,14 +115,14 @@ export default function EditProfileScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
       {/* Header */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center justify-between">
+      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center justify-between" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
         <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} 
           activeOpacity={0.75} 
           hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-          className="w-10 h-10 rounded-full bg-[#F5F3F0] items-center justify-center">
-          <MaterialCommunityIcons name="chevron-left" size={24} color="#2D3A2F" />
+          className="w-10 h-10 rounded-full bg-[#E8F5E9] border border-[#D2E7D6] items-center justify-center">
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#004D36" />
         </TouchableOpacity>
-        <Text className="text-[#2D3A2F] text-xl font-display-bold tracking-tight">Edit Profile</Text>
+        <Text className="text-[#004D36] text-xl font-display-bold tracking-tight">Edit Profile</Text>
         <View className="w-10 h-10" />
       </View>
 

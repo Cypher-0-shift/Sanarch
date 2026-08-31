@@ -3,9 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useProfileStore } from '../../../store/profileStore';
 import { useAlertStore } from '../../../store/alertStore';
 import { createPatient } from '../../../services/api';
+import { formatSanarchId } from '../../../utils/sanarchId';
+import ProfileAvatar from '../../../components/profile/ProfileAvatar';
 import { useRef, useEffect } from 'react';
 import { Animated, FlatList } from 'react-native';
 
@@ -66,6 +69,7 @@ function SelectorField({ label, value, placeholder, onPress }: {
 
 export default function AddDependentScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const addFamilyMember = useProfileStore((state) => state.addFamilyMember);
 
   const [step, setStep] = useState<Step>('relation');
@@ -127,6 +131,8 @@ export default function AddDependentScreen() {
           name: name.trim(),
           relation: finalRelation,
           date_of_birth: dob ? parseDobToISO(dob) : undefined,
+          gender: gender.trim() || undefined,
+          blood_group: bloodGroup.trim() || undefined,
           height_cm: height || undefined,
           weight_kg: weight || undefined,
         });
@@ -135,10 +141,10 @@ export default function AddDependentScreen() {
         setGeneratedId(newSanarchId);
 
         addFamilyMember({
-          id: patientData.id,        // real UUID from backend
-          sanarchId: newSanarchId,   // real Sanarch ID from backend
-          name: patientData.name,
-          relation: patientData.relation as any,
+          id: patientData.id,
+          sanarchId: newSanarchId,
+          name: patientData.name || name.trim(),
+          relation: (patientData.relation || finalRelation) as any,
           isMainAccount: false,
           dob: dob.trim(),
           gender: gender.trim(),
@@ -146,6 +152,10 @@ export default function AddDependentScreen() {
           heightCm: height.trim(),
           weightKg: weight.trim(),
         });
+
+        // Invalidate patients query cache so Profile page refetches immediately
+        queryClient.invalidateQueries({ queryKey: ['patients'] });
+        queryClient.invalidateQueries({ queryKey: ['profiles'] });
 
         setStep('success');
       } catch (error: any) {
@@ -244,8 +254,16 @@ export default function AddDependentScreen() {
 
   const renderSuccessStep = () => (
     <View className="flex-1 px-6 items-center justify-center">
-      <View className="w-24 h-24 bg-[#E8F5E9] rounded-full items-center justify-center mb-6">
-        <MaterialCommunityIcons name="check-decagram" size={48} color="#004D36" />
+      <View className="mb-5">
+        <ProfileAvatar
+          size={96}
+          gender={gender}
+          dob={dob}
+          relation={relation}
+          name={name}
+          borderWidth={4}
+          borderColor="#D2E7D6"
+        />
       </View>
       <Text className="text-2xl font-display-bold text-[#2D3A2F] mb-2 text-center">Profile Created!</Text>
       <Text className="text-[#5C6E60] font-display text-center mb-8 px-4">
@@ -254,7 +272,9 @@ export default function AddDependentScreen() {
 
       <View className="bg-white border border-[#E5E2DE] rounded-[24px] p-6 w-full mb-10 items-center">
         <Text className="text-xs font-display-bold text-[#819685] uppercase tracking-widest mb-2">Assigned Sanarch ID</Text>
-        <Text className="text-3xl font-display-bold text-[#004D36] tracking-wider">{generatedId}</Text>
+        <Text className="text-xl font-display-bold text-[#004D36] tracking-wider text-center" adjustsFontSizeToFit numberOfLines={1}>
+          {formatSanarchId(generatedId)}
+        </Text>
       </View>
 
       <TouchableOpacity
@@ -270,7 +290,7 @@ export default function AddDependentScreen() {
           setRelation('child');
           setOtherRelation('');
           setSelectedDate(null);
-          router.back();
+          router.replace('/(tabs)/profile');
         }}
         activeOpacity={0.8}
         className="w-full h-[58px] bg-[#004D36] rounded-[22px] items-center justify-center"
@@ -520,17 +540,17 @@ export default function AddDependentScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
       {/* Header */}
-      <View className="shrink-0 pt-4 pb-4 px-6 flex-row items-center justify-between z-10">
+      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center justify-between" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
         <TouchableOpacity
           onPress={() => step === 'details' ? setStep('relation') : router.back()}
           activeOpacity={0.75}
-          className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm"
+          className="w-10 h-10 rounded-full bg-[#E8F5E9] border border-[#D2E7D6] items-center justify-center"
           style={{ opacity: step === 'success' ? 0 : 1 }}
           disabled={step === 'success'}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
         </TouchableOpacity>
-        <Text className="text-lg font-display-bold tracking-tight text-[#2D3A2F]">Add Dependent</Text>
+        <Text className="text-xl font-display-bold tracking-tight text-[#004D36]">Add Family Member</Text>
         <View className="w-10 h-10" />
       </View>
 

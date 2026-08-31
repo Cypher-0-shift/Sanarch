@@ -29,8 +29,10 @@ celery_app = Celery(
     backend=settings.redis_url,
     broker_use_ssl=broker_use_ssl,
     redis_backend_use_ssl=redis_backend_use_ssl,
-    include=["app.workers.extraction_task"]
+    include=["app.workers.extraction_task", "app.workers.cleanup_task"]
 )
+
+from celery.schedules import crontab
 
 celery_app.conf.update(
     task_serializer="json",
@@ -56,6 +58,14 @@ celery_app.conf.update(
     # Worker config
     worker_prefetch_multiplier=1,  # process one task at a time per worker
     worker_max_tasks_per_child=50, # recycle worker after 50 tasks (prevent memory leaks)
+
+    # Scheduled tasks
+    beat_schedule={
+        "cleanup-failed-documents-daily": {
+            "task": "app.workers.cleanup_task.cleanup_failed_documents",
+            "schedule": crontab(hour=0, minute=0),
+        },
+    },
 )
 
 logger.info("Celery app configured")

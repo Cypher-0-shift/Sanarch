@@ -68,15 +68,15 @@ export default function DataStorageScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
       {/* Header */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center gap-4">
+      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center gap-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/profile/settings')}
           activeOpacity={0.75}
-          className="w-10 h-10 rounded-full bg-[#F5F3F0] items-center justify-center"
+          className="w-10 h-10 rounded-full bg-[#E8F5E9] border border-[#D2E7D6] items-center justify-center"
         >
-          <MaterialCommunityIcons name="chevron-left" size={24} color="#2D3A2F" />
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#004D36" />
         </TouchableOpacity>
-        <Text className="text-[#2D3A2F] text-xl font-display-bold tracking-tight">Data & Storage</Text>
+        <Text className="text-[#004D36] text-xl font-display-bold tracking-tight">Data & Storage</Text>
       </View>
 
       <ScrollView className="flex-1 px-6 pt-8" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>

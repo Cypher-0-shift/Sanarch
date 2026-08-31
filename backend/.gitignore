@@ -21,14 +21,22 @@ env/
 # Firebase — NEVER commit real credentials
 firebase-service-account.json
 
-# Alembic
-alembic/versions/__pycache__/
-
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 *.xml
+
+# Binary blobs — install via pip, don't commit
+*.whl
+*.pdf
+med7_extracted/
+
+# Scratch / debug scripts
+test_*.py
+check_*.py
+delete_*.py
+backfill_*.py
 
 # IDE
 .vscode/

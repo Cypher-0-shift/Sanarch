@@ -1,10 +1,10 @@
 # app/services/storage.py
-import os
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 from app.config import settings
 from app.logging_config import logger
+from app.utils import sanitize_filename as _sanitize_filename
 
 def get_b2_client():
     return boto3.client(
@@ -15,16 +15,6 @@ def get_b2_client():
         config=Config(signature_version="s3v4"),
         region_name="us-east-1",  # B2 requires a region even though it ignores it
     )
-
-def _sanitize_filename(filename: str) -> str:
-    """Remove path traversal characters and limit length."""
-    # Strip path components
-    filename = os.path.basename(filename)
-    # Remove any non-alphanumeric except dash, underscore, dot
-    import re
-    filename = re.sub(r"[^\w\-.]", "_", filename)
-    # Limit length
-    return filename[:100]
 
 def upload_to_tmp(file_bytes: bytes, filename: str, content_type: str) -> str:
     """

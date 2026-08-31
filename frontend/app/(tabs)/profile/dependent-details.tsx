@@ -3,6 +3,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useProfileStore } from '../../../store/profileStore';
+import { formatSanarchId } from '../../../utils/sanarchId';
+import ProfileAvatar from '../../../components/profile/ProfileAvatar';
 
 export default function DependentDetailsScreen() {
   const router = useRouter();
@@ -29,36 +31,47 @@ export default function DependentDetailsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
       {/* Header */}
-      <View className="shrink-0 pt-4 pb-4 px-6 bg-[#F5F3F0] flex-row items-center justify-between">
+      <View className="shrink-0 pt-4 pb-4 px-6 bg-white border-b border-[#E5E2DE] z-10 flex-row items-center justify-between" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
         <TouchableOpacity 
           onPress={() => router.back()}
           activeOpacity={0.75}
           hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-          className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm"
+          className="w-10 h-10 rounded-full bg-[#E8F5E9] border border-[#D2E7D6] items-center justify-center"
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
         </TouchableOpacity>
-        <Text className="text-[#2D3A2F] text-lg font-display-bold tracking-tight">Profile Details</Text>
+        <Text className="text-[#004D36] text-xl font-display-bold tracking-tight">Profile Details</Text>
         <View className="w-10 h-10" />
       </View>
 
       <ScrollView className="flex-1 px-6" contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         {/* Avatar & Header */}
         <View className="items-center mt-6 mb-8">
-          <View className="w-24 h-24 rounded-full bg-[#E8F5E9] items-center justify-center border-4 border-white shadow-sm">
-            <Text className="text-[#004D36] text-4xl font-display-bold">
-              {profile.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <ProfileAvatar
+            size={96}
+            gender={profile.gender}
+            dob={profile.dob}
+            relation={profile.relation}
+            name={profile.name}
+            borderWidth={4}
+            borderColor="white"
+          />
           
           <Text className="text-[#2D3A2F] text-2xl font-display-bold text-center mt-4">
             {profile.name}
           </Text>
-          <View className="flex-row items-center gap-2 mt-1">
+          <View className="flex-row items-center gap-2 mt-1.5 px-4 flex-wrap justify-center">
             <View className="bg-[#E8F5E9] px-3 py-1 rounded-full">
               <Text className="text-[10px] font-display-bold text-[#004D36] uppercase tracking-wider">{profile.relation}</Text>
             </View>
-            <Text className="text-[#5C6E60] text-sm font-display-medium">ID: {profile.sanarchId}</Text>
+            <Text 
+              className="text-[#5C6E60] text-sm font-display-medium"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              ID: {formatSanarchId(profile.sanarchId)}
+            </Text>
           </View>
         </View>
 
@@ -71,7 +84,7 @@ export default function DependentDetailsScreen() {
           }}
           className={`w-full h-[54px] rounded-[18px] flex-row items-center justify-center gap-2 mb-8 ${isCurrentActive ? 'bg-[#E8F5E9]' : 'bg-[#004D36]'}`}
         >
-          <MaterialCommunityIcons name={isCurrentActive ? "account-check" : "account-switch"} size={20} color={isCurrentActive ? "#004D36" : "white"} />
+          <MaterialCommunityIcons name={isCurrentActive ? "account-check" : "account-sync"} size={20} color={isCurrentActive ? "#004D36" : "white"} />
           <Text className={`font-display-bold text-base ${isCurrentActive ? 'text-[#004D36]' : 'text-white'}`}>
             {isCurrentActive ? "Active Profile" : "Switch to Profile"}
           </Text>

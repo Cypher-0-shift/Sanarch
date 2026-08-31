@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
   TextInput,
   ActivityIndicator,
@@ -19,6 +18,7 @@ import {
   Pressable,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -29,9 +29,10 @@ import DocumentAdjuster from '../../components/upload/DocumentAdjuster';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
 import { uploadDocument, getDocumentStatus, confirmDocument } from '../../services/api';
+import AnimatedPressable from '../../components/ui/Pressable';
 
 // Categories
-const CATEGORIES = [
+export const CATEGORIES = [
   { id: 'lab_report',       name: 'Lab Report',        icon: 'test-tube',         color: '#004D36', bg: '#E8F5E9' },
   { id: 'prescription',     name: 'Prescription',      icon: 'pill',              color: '#E65100', bg: '#FFF3E0' },
   { id: 'scan',             name: 'Imaging / Scan',    icon: 'radiology-box',     color: '#7B1FA2', bg: '#F3E5F5' },
@@ -50,14 +51,14 @@ function ToolButton({
 }) {
   const bg = active ? '#004D36' : highlight ? 'rgba(0,77,54,0.7)' : 'rgba(255,255,255,0.12)';
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={{ alignItems: 'center', gap: 5 }}>
+    <AnimatedPressable onPress={onPress} activeOpacity={0.75} style={{ alignItems: 'center', gap: 5 }}>
       <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
         <MaterialCommunityIcons name={icon as any} size={24} color={active || highlight ? 'white' : '#E5E2DE'} />
       </View>
       <Text style={{ color: active || highlight ? '#81C784' : '#819685', fontSize: 10, fontFamily: 'Inter_600SemiBold' }}>
         {label}
       </Text>
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }
 
@@ -179,19 +180,20 @@ export default function UploadScreen() {
       const base64Data = await fileUriToBase64(pdfUri);
       
       // Call backend API
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      const formData = new FormData();
+      formData.append('pdf_uri', base64Data);
+      
+      const headers: Record<string, string> = {};
       
       // Add auth token if available
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`${apiUrl}/documents/pdf/convert`, {
+      const response = await fetch(`${apiUrl}/api/v1/documents/pdf/convert`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ pdf_uri: base64Data }),
+        body: formData,
       });
       
       if (!response.ok) {
@@ -373,65 +375,23 @@ export default function UploadScreen() {
 
       setProgress(20);
 
-      // 1. Upload file
+      // 1. Upload file (Async processing)
       const uploadResult = await uploadDocument(
         uploadUri,
         uploadFileName,
         uploadMimeType,
         category,
+        title.trim(),
+        description.trim() || '',
       );
+      
       const documentId = uploadResult.document_id;
-      setProgress(35);
-
-      // 2. Poll status until complete or failed (max 120s)
-      let status = 'processing';
-      let extractedData = null;
-      let pollCount = 0;
-      const MAX_POLLS = 40; // 40 * 3s = 120s max wait
-
-      while ((status === 'processing' || status === 'uploading') && pollCount < MAX_POLLS) {
-        if (!isMounted.current) break;
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        if (!isMounted.current) break;
-        const statusResult = await getDocumentStatus(documentId);
-        status = statusResult.status;
-        extractedData = statusResult.extracted_data;
-        pollCount++;
-
-        // Increment progress bar during polling (35% → 85%)
-        setProgress(Math.min(35 + (pollCount / MAX_POLLS) * 50, 85));
-      }
-
-      if (status === 'failed') {
-        throw new Error('Document processing failed. The file may be corrupted or a virus was detected.');
-      }
-
-      const didComplete = status === 'complete';
-
-      if (didComplete) {
-        setProgress(90);
-
-        // 3. Confirm with user-provided metadata
-        await confirmDocument(documentId, category, {
-          title: title.trim(),
-          notes: description.trim() || undefined,
-        });
-      }
-
-      // NOTE on timeout path: confirmDocument is currently a no-op (the label
-      // was already sent during upload, and there is no PATCH endpoint yet).
-      // The Firestore onSnapshot listener (useActiveDocumentListeners) on the
-      // Records screen will pick up status changes in real time once the
-      // backend finishes processing. If a real confirm/PATCH endpoint is added
-      // later, it will need to be triggered from the Records screen once
-      // onSnapshot reports 'ready' for documents that timed out here.
-
       setProgress(100);
-      setSuccessMessage(
-        didComplete
-          ? { title: 'Saved!', subtitle: 'Your record has been uploaded and is being processed.' }
-          : { title: 'Uploaded!', subtitle: 'Still processing — you\'ll see it update in Records shortly.' }
-      );
+
+      setSuccessMessage({ 
+        title: 'Uploaded!', 
+        subtitle: 'Your record has been saved and is being analyzed in the background.' 
+      });
       setSuccess(true);
       
       // Free base64 images from memory
@@ -497,9 +457,9 @@ export default function UploadScreen() {
             {/* Back � hidden on step 1 */}
             <View style={{ width: 40 }}>
               {step > 1 && (
-                <TouchableOpacity onPress={handleBack} activeOpacity={0.75} style={s.iconBtn}>
+                <AnimatedPressable onPress={handleBack} activeOpacity={0.75} style={s.iconBtn}>
                   <MaterialCommunityIcons name="chevron-left" size={24} color="#2D3A2F" />
-                </TouchableOpacity>
+                </AnimatedPressable>
               )}
             </View>
 
@@ -508,9 +468,9 @@ export default function UploadScreen() {
               <Text style={s.headerSub}>Step {step} of 5 • {STEP_LABELS[step - 1]}</Text>
             </View>
 
-            <TouchableOpacity onPress={handleClosePress} activeOpacity={0.75} style={s.iconBtn}>
+            <AnimatedPressable onPress={handleClosePress} activeOpacity={0.75} style={s.iconBtn}>
               <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
 
           {/* Progress bar */}
@@ -536,7 +496,7 @@ export default function UploadScreen() {
 
           <View style={{ gap: 16, marginTop: 8 }}>
             {/* Take Photo */}
-            <TouchableOpacity onPress={handleTakePhoto} activeOpacity={0.8} style={s.sourceCard}>
+            <AnimatedPressable onPress={handleTakePhoto} activeOpacity={0.8} style={s.sourceCard}>
               <View style={[s.sourceIcon, { backgroundColor: '#E8F5E9' }]}>
                 <MaterialCommunityIcons name="camera-outline" size={28} color="#004D36" />
               </View>
@@ -545,10 +505,10 @@ export default function UploadScreen() {
                 <Text style={s.sourceSub}>Scan a document with your camera</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
-            </TouchableOpacity>
+            </AnimatedPressable>
 
             {/* Upload Photo */}
-            <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.8} style={s.sourceCard}>
+            <AnimatedPressable onPress={handlePickPhoto} activeOpacity={0.8} style={s.sourceCard}>
               <View style={[s.sourceIcon, { backgroundColor: '#F3E5F5' }]}>
                 <MaterialCommunityIcons name="image-outline" size={28} color="#7B1FA2" />
               </View>
@@ -557,10 +517,10 @@ export default function UploadScreen() {
                 <Text style={s.sourceSub}>Select images from gallery</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
-            </TouchableOpacity>
+            </AnimatedPressable>
 
             {/* Upload File */}
-            <TouchableOpacity onPress={handlePickFile} activeOpacity={0.8} style={s.sourceCard}>
+            <AnimatedPressable onPress={handlePickFile} activeOpacity={0.8} style={s.sourceCard}>
               <View style={[s.sourceIcon, { backgroundColor: '#E3F2FD' }]}>
                 <MaterialCommunityIcons name="file-upload-outline" size={28} color="#0277BD" />
               </View>
@@ -569,7 +529,7 @@ export default function UploadScreen() {
                 <Text style={s.sourceSub}>Import a PDF from your device</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color="#C8D5CA" />
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
 
           <View style={s.infoStrip}>
@@ -588,9 +548,9 @@ export default function UploadScreen() {
             // Show loading state while converting PDF
             <View style={{ flex: 1, backgroundColor: '#F5F3F0' }}>
               <View style={s.adjTopBar}>
-                <TouchableOpacity onPress={handleClosePress} style={{ padding: 4 }}>
+                <AnimatedPressable onPress={handleClosePress} style={{ padding: 4 }}>
                   <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
-                </TouchableOpacity>
+                </AnimatedPressable>
                 <Text style={s.adjFileName} numberOfLines={1}>
                   {fileName.length > 26 ? fileName.substring(0, 26) + '...' : fileName}
                 </Text>
@@ -646,9 +606,9 @@ export default function UploadScreen() {
             // PDFs: Conversion failed or not yet converted - show error state
             <View style={{ flex: 1, backgroundColor: '#F5F3F0' }}>
               <View style={s.adjTopBar}>
-                <TouchableOpacity onPress={handleClosePress} style={{ padding: 4 }}>
+                <AnimatedPressable onPress={handleClosePress} style={{ padding: 4 }}>
                   <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
-                </TouchableOpacity>
+                </AnimatedPressable>
                 <Text style={s.adjFileName} numberOfLines={1}>
                   {fileName.length > 26 ? fileName.substring(0, 26) + '...' : fileName}
                 </Text>
@@ -668,14 +628,14 @@ export default function UploadScreen() {
               </View>
               <View style={s.adjToolbar}>
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <TouchableOpacity onPress={() => { resetState(); setStep(1); }} activeOpacity={0.7} style={{ alignItems: 'center', gap: 5 }}>
+                  <AnimatedPressable onPress={() => { resetState(); setStep(1); }} activeOpacity={0.7} style={{ alignItems: 'center', gap: 5 }}>
                     <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#004D36', alignItems: 'center', justifyContent: 'center' }}>
                       <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
                     </View>
                     <Text style={{ color: '#004D36', fontSize: 10, fontFamily: 'Inter_600SemiBold' }}>
                       Back
                     </Text>
-                  </TouchableOpacity>
+                  </AnimatedPressable>
                 </View>
               </View>
             </View>
@@ -693,7 +653,7 @@ export default function UploadScreen() {
             {CATEGORIES.map(cat => {
               const sel = category === cat.id;
               return (
-                <TouchableOpacity key={cat.id} onPress={() => setCategory(cat.id)} activeOpacity={0.75}
+                <AnimatedPressable key={cat.id} onPress={() => setCategory(cat.id)} activeOpacity={0.75}
                   style={[s.catCard, sel && s.catCardSel]}>
                   <View style={[s.catIcon, { backgroundColor: cat.bg }]}>
                     <MaterialCommunityIcons name={cat.icon as any} size={22} color={cat.color} />
@@ -702,15 +662,15 @@ export default function UploadScreen() {
                   <View style={[s.checkbox, sel && s.checkboxSel]}>
                     {sel && <MaterialCommunityIcons name="check" size={13} color="white" />}
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
               );
             })}
           </View>
 
-          <TouchableOpacity onPress={() => setStep(4)} style={s.primaryBtn}>
+          <AnimatedPressable onPress={() => setStep(4)} style={s.primaryBtn}>
             <MaterialCommunityIcons name="arrow-right" size={20} color="white" />
             <Text style={s.primaryBtnText}>Continue</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </ScrollView>
       )}
 
@@ -741,14 +701,14 @@ export default function UploadScreen() {
             />
           </View>
 
-          <TouchableOpacity
+          <AnimatedPressable
             onPress={() => { if (title.trim()) setStep(5); }}
             activeOpacity={title.trim() ? 0.8 : 1}
             style={[s.primaryBtn, { opacity: title.trim() ? 1 : 0.45 }]}
           >
             <MaterialCommunityIcons name="arrow-right" size={20} color="white" />
             <Text style={s.primaryBtnText}>Review</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </ScrollView>
       )}
 
@@ -762,18 +722,24 @@ export default function UploadScreen() {
           <View style={s.reviewCard}>
             {/* File row */}
             <View style={s.reviewRow}>
-              <View style={[s.reviewIcon, { backgroundColor: '#E3F2FD' }]}>
-                <MaterialCommunityIcons
-                  name={fileType === 'pdf' ? 'file-pdf-box' : 'image-outline'}
-                  size={22} color="#0277BD" />
+              <View style={[s.reviewIcon, { backgroundColor: '#E3F2FD', overflow: 'hidden' }]}>
+                {fileType === 'photo' && adjustedUri ? (
+                  <Image source={{ uri: adjustedUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                ) : fileType === 'pdf' && pdfPageImages.length > 0 ? (
+                  <Image source={{ uri: pdfPageImages[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                ) : (
+                  <MaterialCommunityIcons
+                    name={fileType === 'pdf' ? 'file-pdf-box' : 'image-outline'}
+                    size={22} color="#0277BD" />
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.reviewRowLabel}>File</Text>
                 <Text style={s.reviewRowValue} numberOfLines={1}>{fileName}</Text>
               </View>
-              <TouchableOpacity onPress={() => setStep(1)}>
+              <AnimatedPressable onPress={() => setStep(1)}>
                 <Text style={s.editLink}>Edit</Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             </View>
             <View style={s.divider} />
 
@@ -786,9 +752,9 @@ export default function UploadScreen() {
                 <Text style={s.reviewRowLabel}>Category</Text>
                 <Text style={s.reviewRowValue}>{selectedCat.name}</Text>
               </View>
-              <TouchableOpacity onPress={() => setStep(3)}>
+              <AnimatedPressable onPress={() => setStep(3)}>
                 <Text style={s.editLink}>Edit</Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             </View>
             <View style={s.divider} />
 
@@ -802,16 +768,16 @@ export default function UploadScreen() {
                 <Text style={s.reviewRowValue}>{title}</Text>
                 {description ? <Text style={s.reviewRowSub} numberOfLines={2}>{description}</Text> : null}
               </View>
-              <TouchableOpacity onPress={() => setStep(4)}>
+              <AnimatedPressable onPress={() => setStep(4)}>
                 <Text style={s.editLink}>Edit</Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             </View>
           </View>
 
-          <TouchableOpacity onPress={handleSave} style={[s.primaryBtn, s.saveBtn]}>
+          <AnimatedPressable onPress={handleSave} style={[s.primaryBtn, s.saveBtn]}>
             <MaterialCommunityIcons name="cloud-upload-outline" size={20} color="white" />
             <Text style={s.primaryBtnText}>Save Record</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </ScrollView>
       )}
 
@@ -838,8 +804,8 @@ export default function UploadScreen() {
               </View>
               <Text style={s.processingTitle}>Uploading...</Text>
               <Text style={s.processingSubtitle}>
-                Sanarch AI is reading and extracting data from your document.{'\n'}
-                This may take up to 2 minutes for complex files.
+                Securely sending your document to the cloud.{'\n'}
+                Analysis will continue in the background.
               </Text>
               <View style={s.progressTrack}>
                 <View style={[s.progressFill, { width: `${progress}%` }]} />
@@ -863,12 +829,12 @@ export default function UploadScreen() {
               You'll lose your selected file and any adjustments you've made.
             </Text>
             <View style={s.modalBtns}>
-              <TouchableOpacity onPress={() => setShowDiscard(false)} activeOpacity={0.8} style={s.modalBtnSecondary}>
+              <AnimatedPressable onPress={() => setShowDiscard(false)} activeOpacity={0.8} style={s.modalBtnSecondary}>
                 <Text style={s.modalBtnSecondaryText}>Keep editing</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={confirmDiscard} activeOpacity={0.8} style={s.modalBtnDestructive}>
+              </AnimatedPressable>
+              <AnimatedPressable onPress={confirmDiscard} activeOpacity={0.8} style={s.modalBtnDestructive}>
                 <Text style={s.modalBtnDestructiveText}>Discard</Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             </View>
           </View>
         </View>
@@ -892,7 +858,7 @@ const s = StyleSheet.create({
 
   // Scroll content
   scrollContent: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: Platform.OS === 'ios' ? 100 : 80 },
-  pageTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#2D3A2F', marginBottom: 6 },
+  pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: '#004D36', marginBottom: 6 },
   pageSubtitle: { fontSize: 14, color: '#5C6E60', fontFamily: 'Inter_400Regular', marginBottom: 28, lineHeight: 20 },
 
   // Step 1 � source cards

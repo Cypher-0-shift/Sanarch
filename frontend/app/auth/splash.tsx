@@ -93,7 +93,10 @@ export default function SplashScreen() {
   return (
     <View style={styles.container}>
       {/* Ambient glow */}
-      <View style={styles.glow} pointerEvents="none" />
+      <View style={styles.glow1} pointerEvents="none" />
+      <View style={styles.glow2} pointerEvents="none" />
+      <View style={styles.glow3} pointerEvents="none" />
+      <View style={styles.glow4} pointerEvents="none" />
 
       {/* Center content (Logo + Text) */}
       <View style={styles.center}>
@@ -101,7 +104,10 @@ export default function SplashScreen() {
           <SanarchLogo size={100} />
         </Animated.View>
 
-        <Animated.Text style={[styles.brandText, { opacity: textOpacity }]}>
+        <Animated.Text 
+          style={[styles.brandText, { opacity: textOpacity }]}
+          maxFontSizeMultiplier={1.3}
+        >
           Sanarch
         </Animated.Text>
       </View>
@@ -114,11 +120,11 @@ export default function SplashScreen() {
           bottom: Math.max(60, insets.bottom + 24)
         }
       ]}>
-        <Text style={styles.progressLabel}>Initialising</Text>
+        <Text style={styles.progressLabel} maxFontSizeMultiplier={1.2}>Initializing</Text>
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${progress}%` }]} />
         </View>
-        <Text style={styles.percentText}>{progressText}%</Text>
+        <Text style={styles.percentText} maxFontSizeMultiplier={1.2}>{progressText}%</Text>
       </Animated.View>
     </View>
   );
@@ -131,13 +137,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glow: {
+  glow1: {
     position: 'absolute',
     width: 400,
     height: 400,
     borderRadius: 200,
-    backgroundColor: '#006B4D',
-    opacity: 0.15,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.05,
+    top: -100,
+    right: -100,
+  },
+  glow2: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.04,
+    bottom: -80,
+    left: -80,
+  },
+  glow3: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.03,
+    top: '40%',
+    left: -80,
+  },
+  glow4: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.04,
+    bottom: '25%',
+    right: -40,
   },
   center: {
     flex: 1,

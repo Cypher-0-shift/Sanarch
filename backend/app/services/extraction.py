@@ -6,6 +6,7 @@ Structuring: Groq Llama 3.1 70B
 Models loaded lazily — not at import time.
 """
 import json
+import os
 import httpx
 from functools import lru_cache
 from typing import Tuple
@@ -25,11 +26,40 @@ Return ONLY valid JSON matching this exact schema. No markdown, no explanation.
   "patient_name": "string or null",
   "diagnosis": ["list of strings"],
   "medications": [{"name": "", "dose": "", "frequency": "", "duration": ""}],
-  "lab_values": [{"test_name": "", "value": "", "unit": "", "flag": "normal|high|low|null"}],
+  "lab_values": [{"test_name": "", "value": "", "unit": "", "reference_range": "string or null", "flag": "normal|high|low|null"}],
   "follow_up_date": "YYYY-MM-DD or null",
   "follow_up_instructions": "string or null",
-  "summary": "2 sentence plain English summary"
+  "condition_terms_raw": ["list of strings: literal diagnosis/condition phrase(s) as they appear in the document text, unedited"],
+  "condition_groups": ["list of taxonomy ids: best-matching taxonomy id(s) from the provided CANONICAL CONDITION TAXONOMY. If no confident match, use 'uncategorized'"],
+  "summary": "Detailed plain English summary",
+  "overview": {
+    "what_is_this": "Plain English explanation of what this document is",
+    "what_it_tells": "Plain English explanation of the main findings or results",
+    "what_to_do": "Plain English actionable advice or next steps based on the document"
+  }
 }"""
+
+@lru_cache(maxsize=1)
+def get_condition_taxonomy():
+    try:
+        path = os.path.join(os.path.dirname(__file__), "..", "constants", "condition_taxonomy.json")
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load condition taxonomy: {e}")
+        return {"conditions": []}
+
+def get_taxonomy_prompt():
+    taxonomy = get_condition_taxonomy()
+    conditions = taxonomy.get("conditions", [])
+    if not conditions:
+        return ""
+    taxonomy_text = "\n".join([f"- {c['id']}: {c['label']} (Category: {c['category']})" for c in conditions])
+    return f"""
+
+CANONICAL CONDITION TAXONOMY:
+Use this taxonomy to populate the 'condition_groups' field. Each document can map to more than one id. Do not invent new ids — only select from this list (or 'uncategorized').
+{taxonomy_text}"""
 
 # ---------------------------------------------------------------------------
 # Fallback dict — used whenever Groq fails or OCR returns empty text
@@ -45,7 +75,14 @@ _FALLBACK_STRUCTURE = {
     "lab_values": [],
     "follow_up_date": None,
     "follow_up_instructions": None,
+    "condition_terms_raw": [],
+    "condition_groups": [],
     "summary": "Extraction failed — please review document manually.",
+    "overview": {
+        "what_is_this": "Unknown document",
+        "what_it_tells": "We could not extract the contents of this document.",
+        "what_to_do": "Please review the original document manually."
+    }
 }
 
 
@@ -58,7 +95,7 @@ def _get_med7_model():
     import spacy
     try:
         logger.info("Loading Med7 NER model...")
-        nlp = spacy.load("en_core_web_sm")
+        nlp = spacy.load("en_core_med7_lg")
         logger.info("Med7 loaded.")
         return nlp
     except OSError:
@@ -96,6 +133,7 @@ async def structure_with_groq(text: str, entities: dict, retry: bool = True) -> 
         f"Med7 entities:\n{json.dumps(entities, indent=2)}\n\n"
         "Return ONLY the JSON object. No markdown fences."
     )
+    system_prompt = STRUCTURE_PROMPT + get_taxonomy_prompt()
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
             GROQ_URL,
@@ -104,9 +142,9 @@ async def structure_with_groq(text: str, entities: dict, retry: bool = True) -> 
                 "Content-Type": "application/json",
             },
             json={
-                "model": "llama-3.3-70b-versatile",
+                "model": "openai/gpt-oss-20b",
                 "messages": [
-                    {"role": "system", "content": STRUCTURE_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content},
                 ],
                 "temperature": 0.0,
@@ -131,20 +169,7 @@ async def structure_with_groq(text: str, entities: dict, retry: bool = True) -> 
             logger.warning(f"Groq JSON parse failed ({e}), retrying with stricter prompt")
             return await structure_with_groq(text, entities, retry=False)
         logger.error("Groq returned invalid JSON after retry")
-        # Return a safe fallback structure instead of crashing the pipeline
-        return {
-            "document_type": "other",
-            "document_date": None,
-            "hospital_name": None,
-            "doctor_name": None,
-            "patient_name": None,
-            "diagnosis": [],
-            "medications": [],
-            "lab_values": [],
-            "follow_up_date": None,
-            "follow_up_instructions": None,
-            "summary": "Extraction failed — please review document manually.",
-        }
+        return dict(_FALLBACK_STRUCTURE)
 
 
 # ---------------------------------------------------------------------------
@@ -240,19 +265,7 @@ async def extract_from_image(image_bytes: bytes, mime_type: str) -> dict:
 
     if not text.strip():
         logger.warning("Azure DI returned empty text — using fallback structure")
-        return {
-            "document_type": "other",
-            "document_date": None,
-            "hospital_name": None,
-            "doctor_name": None,
-            "patient_name": None,
-            "diagnosis": [],
-            "medications": [],
-            "lab_values": [],
-            "follow_up_date": None,
-            "follow_up_instructions": None,
-            "summary": "Extraction failed — please review document manually.",
-        }
+        return dict(_FALLBACK_STRUCTURE)
 
     entities = extract_entities_med7(text)
     logger.info(f"Med7 entities: {list(entities.keys())}")
