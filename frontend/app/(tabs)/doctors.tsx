@@ -1,424 +1,186 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState } from 'react';
 import { 
-  View, Text, ScrollView, TouchableOpacity, 
-  InteractionManager, StyleSheet 
+  View, 
+  Text, 
+  ScrollView, 
+  TouchableOpacity 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-
-import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
-import { useAuthStore } from '../../store/authStore';
-import { useProfileStore } from '../../store/profileStore';
-import { useDocumentsStore } from '../../store/documentsStore';
-import { EMPTY_USER } from '../../constants/placeholders';
-
-import DocumentCard from '../../components/documents/DocumentCard';
-import PrimaryButton from '../../components/buttons/PrimaryButton';
-import EmptyStateCard from '../../components/empty-states/EmptyStateCard';
-import QRDisplay from '../../components/doctors/QRDisplay';
-
-// Simple payload encoding for the QR code
-const encodePayload = (payload: object): string => {
-  const str = JSON.stringify(payload);
-  return encodeURIComponent(str);
-};
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAlertStore } from '../../store/alertStore';
 
 export default function ShareRecordsScreen() {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user) ?? EMPTY_USER;
-  const activeProfile = useProfileStore((s) => s.activeProfile);
-  
-  const documents = useDocumentsStore((s) => s.documents);
-  const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const showAlert = useAlertStore((s) => s.showAlert);
 
-  const [isReady, setIsReady] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [qrValue, setQrValue] = useState<string | null>(null);
-  const [qrExpired, setQrExpired] = useState(false);
-  
-  const { token } = useLocalSearchParams<{ token?: string }>();
-  const [scanning, setScanning] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setIsReady(true);
-      fetchDocuments(); // Ensure we have the latest documents
-    });
-    return () => task.cancel();
-  }, []);
-
-  // --- Handlers ---
-  const toggleRecord = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    if (selectedIds.size === documents.length) {
-      setSelectedIds(new Set());
+  const handleNotifyPress = () => {
+    if (!isSubscribed) {
+      setIsSubscribed(true);
+      showAlert(
+        'Early Access Confirmed! 🎉',
+        'You will be among the first to get instant doctor QR sharing when this feature launches in the next update.'
+      );
     } else {
-      setSelectedIds(new Set(documents.map((d) => d.document_id)));
-    }
-  }, [documents, selectedIds]);
-
-  const handleGenerateQR = () => {
-    const payload = {
-      patientId: activeProfile?.id ?? user.id,
-      documentIds: Array.from(selectedIds),
-      access: 'read_only',
-      expires: Date.now() + 600 * 1000 // 10 minutes in ms
-    };
-    
-    setQrValue(encodePayload(payload));
-    setQrExpired(false);
-  };
-
-  const handleRegenerate = () => {
-    handleGenerateQR();
-  };
-
-  // --- Scanning Views ---
-  if (token && !scanning) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text>Doctor View Token: {token}</Text>
-      </View>
-    );
-  }
-
-  if (scanning) {
-    if (!permission) return <View />;
-    if (!permission.granted) {
-      return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.canvas, alignItems: 'center', justifyContent: 'center', padding: SPACING[6] }}>
-          <Text style={{ textAlign: 'center', marginBottom: SPACING[4], fontFamily: FONTS.jakartaMedium, color: COLORS.ink900 }}>
-            We need your permission to show the camera
-          </Text>
-          <PrimaryButton label="Grant Permission" onPress={requestPermission as any} />
-        </SafeAreaView>
+      showAlert(
+        'Already on the list',
+        'You are already subscribed to receive early access notifications for doctor sharing.'
       );
     }
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'black' }}>
-        <CameraView
-          style={{ flex: 1 }}
-          onBarcodeScanned={({ data }) => {
-            setScanning(false);
-            if (data.startsWith('sanarch://share/')) {
-              const scannedToken = data.split('/').pop();
-              router.push(`/(tabs)/doctors?token=${scannedToken}`);
-            } else {
-              router.push(`/(tabs)/doctors?token=${data}`);
-            }
-          }}
-        />
-        <TouchableOpacity 
-          onPress={() => setScanning(false)}
-          style={{ position: 'absolute', top: 60, right: 24, backgroundColor: 'rgba(0,0,0,0.5)', padding: 12, borderRadius: 24 }}
-        >
-          <MaterialCommunityIcons name="close" size={24} color="white" />
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  if (!isReady) return <View style={styles.container} />;
-
-  const isAllSelected = documents.length > 0 && selectedIds.size === documents.length;
+  };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.container}>
-      {/* ShareHeader */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Share Records</Text>
-        <TouchableOpacity 
-          onPress={() => setScanning(true)} 
-          style={styles.scanButton}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons name="qrcode-scan" size={16} color={COLORS.catLabPrimary} />
-          <Text style={styles.scanButtonText}>Scan</Text>
-        </TouchableOpacity>
+    <SafeAreaView className="flex-1 bg-[#F8FAF9]" edges={['top']}>
+      {/* Background Gradient Mesh */}
+      <LinearGradient
+        colors={['#F8FAF9', '#E8F5E9', '#F0F5F2']}
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: -1 }}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+
+      {/* Header */}
+      <View className="px-6 pt-4 pb-3.5 flex-row items-center justify-between bg-white/70 border-b border-[#E5E2DE] z-10">
+        <View>
+          <Text className="text-2xl font-display-bold text-[#004D36]">Share Records</Text>
+          <Text className="text-xs text-[#5C6E60] font-display-medium mt-0.5">
+            Instant Doctor Access & Privacy
+          </Text>
+        </View>
+        <View className="bg-[#E8F5E9] border border-[#C8E6C9] px-3 py-1 rounded-full">
+          <Text className="text-[11px] font-display-bold text-[#004D36] uppercase tracking-wider">
+            Coming Soon
+          </Text>
+        </View>
       </View>
 
       <ScrollView 
-        style={styles.scrollContainer}
-        contentContainerStyle={styles.scrollContent}
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 20, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ActiveProfileStrip */}
-        <View style={styles.profileStrip}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(activeProfile?.name ?? user.full_name ?? 'U').charAt(0).toUpperCase()}
+        {/* Main Hero Card */}
+        <View className="bg-white rounded-[28px] p-6 border border-[#E5E2DE] shadow-sm mb-6 items-center overflow-hidden relative">
+          <MaterialCommunityIcons 
+            name="qrcode-scan" 
+            size={160} 
+            color="#004D36" 
+            style={{ position: 'absolute', top: -30, right: -40, opacity: 0.04 }} 
+          />
+
+          {/* Glowing Icon Container */}
+          <View className="w-24 h-24 rounded-[24px] bg-[#E8F5E9] border-2 border-[#C8E6C9] items-center justify-center mb-5 shadow-sm">
+            <MaterialCommunityIcons name="qrcode-scan" size={44} color="#004D36" />
+          </View>
+
+          <View className="bg-[#E8F5E9] px-3.5 py-1 rounded-full mb-3 border border-[#C8E6C9]">
+            <Text className="text-[11px] font-display-bold text-[#004D36] uppercase tracking-widest">
+              Feature in Progress
             </Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>
-              {activeProfile?.name ?? user.full_name ?? 'Your Profile'}
+
+          <Text className="text-2xl font-display-bold text-[#2D3A2F] text-center mb-2">
+            Instant Doctor Sharing
+          </Text>
+          
+          <Text className="text-sm font-display text-[#5C6E60] text-center leading-5 px-2 mb-6">
+            Effortlessly share test results, diagnoses, and prescriptions with consulting doctors via temporary, self-expiring QR codes. Zero login required for the doctor.
+          </Text>
+
+          {/* Action Button */}
+          <TouchableOpacity
+            onPress={handleNotifyPress}
+            activeOpacity={0.8}
+            className={`w-full py-4 rounded-2xl flex-row items-center justify-center gap-2 shadow-sm ${
+              isSubscribed ? 'bg-[#E8F5E9] border border-[#004D36]' : 'bg-[#004D36]'
+            }`}
+          >
+            <MaterialCommunityIcons 
+              name={isSubscribed ? "check-circle" : "bell-ring-outline"} 
+              size={18} 
+              color={isSubscribed ? "#004D36" : "#FFFFFF"} 
+            />
+            <Text className={`font-display-bold text-sm ${isSubscribed ? 'text-[#004D36]' : 'text-white'}`}>
+              {isSubscribed ? "You're on the early access list" : "Notify Me When Available"}
             </Text>
-            <Text style={styles.profileId}>
-              {activeProfile?.sanarchId ?? user.sanarch_id ?? '—'}
-            </Text>
-          </View>
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>ACTIVE PROFILE</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        {/* QR Section or Document Selection */}
-        {qrValue && !qrExpired ? (
-          <View style={styles.qrSection}>
-            <QRDisplay 
-              value={qrValue} 
-              durationSeconds={600} 
-              onExpired={() => setQrExpired(true)} 
-            />
-            <View style={styles.qrSummaryPill}>
-              <Text style={styles.qrSummaryText}>
-                {selectedIds.size} record{selectedIds.size > 1 ? 's' : ''} · Read Only
+        {/* Feature Preview Section */}
+        <Text className="text-base font-display-bold text-[#2D3A2F] mb-3 px-1">
+          What's Coming in Doctor Sharing:
+        </Text>
+
+        <View className="flex-col gap-3 mb-6">
+          {/* Tile 1 */}
+          <View className="bg-white rounded-[20px] p-4 border border-[#E5E2DE] flex-row items-start gap-4 shadow-sm">
+            <View className="w-11 h-11 rounded-xl bg-[#E8F5E9] items-center justify-center shrink-0">
+              <MaterialCommunityIcons name="timer-sand" size={22} color="#004D36" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-[15px] font-display-bold text-[#2D3A2F] mb-0.5">
+                10-Minute Expiring QR Codes
+              </Text>
+              <Text className="text-[13px] font-display text-[#718575] leading-5">
+                Generates a one-time access token that automatically expires after consultation for total privacy.
               </Text>
             </View>
           </View>
-        ) : qrValue && qrExpired ? (
-          <View style={styles.qrSection}>
-            <MaterialCommunityIcons name="timer-off-outline" size={48} color={COLORS.ink400} />
-            <Text style={styles.expiredTitle}>QR Code Expired</Text>
-            <Text style={styles.expiredSubtitle}>For security, codes expire after 10 minutes.</Text>
-            
-            <View style={styles.regenerateContainer}>
-              <TouchableOpacity onPress={handleRegenerate} activeOpacity={0.7} style={styles.regenerateBtn}>
-                <MaterialCommunityIcons name="refresh" size={18} color={COLORS.brandPrimary} />
-                <Text style={styles.regenerateText}>Generate new code</Text>
-              </TouchableOpacity>
+
+          {/* Tile 2 */}
+          <View className="bg-white rounded-[20px] p-4 border border-[#E5E2DE] flex-row items-start gap-4 shadow-sm">
+            <View className="w-11 h-11 rounded-xl bg-[#E3F2FD] items-center justify-center shrink-0">
+              <MaterialCommunityIcons name="account-search-outline" size={22} color="#0277BD" />
             </View>
-            <TouchableOpacity onPress={() => { setQrValue(null); setQrExpired(false); }} activeOpacity={0.7}>
-              <Text style={styles.cancelText}>Change selection</Text>
-            </TouchableOpacity>
+            <View className="flex-1">
+              <Text className="text-[15px] font-display-bold text-[#2D3A2F] mb-0.5">
+                Zero Doctor Sign-Up
+              </Text>
+              <Text className="text-[13px] font-display text-[#718575] leading-5">
+                Doctors simply scan the QR code with their mobile phone or tablet to open a clean web viewer.
+              </Text>
+            </View>
           </View>
-        ) : (
-          <View style={styles.selectionSection}>
-            {documents.length > 0 ? (
-              <>
-                <View style={styles.selectionHeader}>
-                  <Text style={styles.selectionTitle}>Select Records</Text>
-                  <TouchableOpacity onPress={handleSelectAll} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.selectAllText}>
-                      {isAllSelected ? "Deselect All" : "Select All"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
 
-                {documents.map((doc) => (
-                  <DocumentCard 
-                    key={doc.document_id} 
-                    document={doc}
-                    variant="selectable"
-                    selected={selectedIds.has(doc.document_id)}
-                    onPress={() => toggleRecord(doc.document_id)}
-                    style={{ marginBottom: SPACING[3] }}
-                  />
-                ))}
-
-                <View style={styles.generateButtonWrapper}>
-                  <PrimaryButton 
-                    label="Generate QR" 
-                    onPress={handleGenerateQR}
-                    variant={selectedIds.size === 0 ? 'disabled' : 'default'}
-                  />
-                </View>
-              </>
-            ) : (
-              <EmptyStateCard
-                illustration={<MaterialCommunityIcons name="folder-open-outline" size={48} color={COLORS.ink400} />}
-                headline="No records yet"
-                subtext="Upload medical documents first to share them with a doctor."
-                cta={{ label: "Upload Records", onPress: () => router.push('/(tabs)/upload') }}
-              />
-            )}
+          {/* Tile 3 */}
+          <View className="bg-white rounded-[20px] p-4 border border-[#E5E2DE] flex-row items-start gap-4 shadow-sm">
+            <View className="w-11 h-11 rounded-xl bg-[#FFF3E0] items-center justify-center shrink-0">
+              <MaterialCommunityIcons name="tune-variant" size={22} color="#E65100" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-[15px] font-display-bold text-[#2D3A2F] mb-0.5">
+                Selective Record Privacy
+              </Text>
+              <Text className="text-[13px] font-display text-[#718575] leading-5">
+                You decide what to share: hand-pick individual lab tests or share your complete health timeline.
+              </Text>
+            </View>
           </View>
-        )}
+
+          {/* Tile 4 */}
+          <View className="bg-white rounded-[20px] p-4 border border-[#E5E2DE] flex-row items-start gap-4 shadow-sm">
+            <View className="w-11 h-11 rounded-xl bg-[#F3E5F5] items-center justify-center shrink-0">
+              <MaterialCommunityIcons name="shield-check" size={22} color="#7B1FA2" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-[15px] font-display-bold text-[#2D3A2F] mb-0.5">
+                Instant Revocation
+              </Text>
+              <Text className="text-[13px] font-display text-[#718575] leading-5">
+                Revoke shared access anytime with one tap right from your Sanarch app.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Security Note */}
+        <View className="bg-[#E8F5E9]/70 rounded-[20px] p-4 border border-[#C8E6C9] flex-row items-center gap-3">
+          <MaterialCommunityIcons name="lock-check" size={20} color="#004D36" />
+          <Text className="text-xs font-display-medium text-[#004D36] flex-1 leading-4">
+            All shared data is end-to-end encrypted with scoped tokens. Your primary credentials remain completely secure.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.canvas,
-  },
-  header: {
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING[6],
-    paddingTop: SPACING[4],
-    paddingBottom: SPACING[4],
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.ink200,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.jakartaBold,
-    color: COLORS.ink900,
-  },
-  scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.catLabBg,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
-  },
-  scanButtonText: {
-    color: COLORS.catLabPrimary,
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 12,
-    textTransform: 'uppercase',
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: SPACING[6],
-    paddingBottom: 120,
-  },
-  profileStrip: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.ink200,
-    padding: SPACING[4],
-    marginBottom: SPACING[6],
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.brandPrimary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: COLORS.surface,
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 16,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 14,
-    fontFamily: FONTS.jakartaBold,
-    color: COLORS.ink900,
-  },
-  profileId: {
-    fontSize: 11,
-    fontFamily: FONTS.jakartaMedium,
-    color: COLORS.ink400,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 2,
-  },
-  activeBadge: {
-    backgroundColor: COLORS.brandTint,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
-  },
-  activeBadgeText: {
-    fontSize: 9,
-    fontFamily: FONTS.jakartaBold,
-    color: COLORS.brandPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  selectionSection: {
-    flex: 1,
-  },
-  selectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING[3],
-  },
-  selectionTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.jakartaBold,
-    color: COLORS.ink900,
-  },
-  selectAllText: {
-    fontSize: 14,
-    fontFamily: FONTS.jakartaBold,
-    color: COLORS.brandPrimary,
-  },
-  generateButtonWrapper: {
-    marginTop: SPACING[6],
-  },
-  qrSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING[6],
-  },
-  qrSummaryPill: {
-    marginTop: SPACING[6],
-    backgroundColor: COLORS.ink100,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: RADIUS.full,
-  },
-  qrSummaryText: {
-    fontFamily: FONTS.jakartaMedium,
-    fontSize: 13,
-    color: COLORS.ink600,
-  },
-  expiredTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.jakartaBold,
-    color: COLORS.ink900,
-    marginTop: SPACING[4],
-    marginBottom: 4,
-  },
-  expiredSubtitle: {
-    fontSize: 14,
-    fontFamily: FONTS.jakartaRegular,
-    color: COLORS.ink600,
-    textAlign: 'center',
-    marginBottom: SPACING[6],
-  },
-  regenerateContainer: {
-    marginBottom: SPACING[4],
-  },
-  regenerateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: COLORS.brandTint,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: RADIUS.full,
-  },
-  regenerateText: {
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 14,
-    color: COLORS.brandPrimary,
-  },
-  cancelText: {
-    fontFamily: FONTS.jakartaMedium,
-    fontSize: 14,
-    color: COLORS.ink600,
-  }
-});

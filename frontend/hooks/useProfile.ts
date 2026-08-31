@@ -51,6 +51,7 @@ const profileKeys = {
  * Fetch a single SANARCH profile by its ID.
  */
 export function useGetProfile(sanarchId: string | null | undefined) {
+  const isValidId = !!sanarchId && sanarchId !== '---' && sanarchId.trim().length > 3;
   return useQuery({
     queryKey: profileKeys.detail(sanarchId ?? ''),
     queryFn: async (): Promise<ProfileResponse> => {
@@ -59,7 +60,7 @@ export function useGetProfile(sanarchId: string | null | undefined) {
       );
       return response.data;
     },
-    enabled: !!sanarchId,
+    enabled: isValidId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
   });
@@ -69,6 +70,7 @@ export function useGetProfile(sanarchId: string | null | undefined) {
  * Fetch all family members for a given SANARCH ID.
  */
 export function useFamilyProfiles(sanarchId: string | null | undefined) {
+  const isValidId = !!sanarchId && sanarchId !== '---' && sanarchId.trim().length > 3;
   return useQuery({
     queryKey: profileKeys.family(sanarchId ?? ''),
     queryFn: async (): Promise<ProfileResponse[]> => {
@@ -77,7 +79,7 @@ export function useFamilyProfiles(sanarchId: string | null | undefined) {
       );
       return response.data;
     },
-    enabled: !!sanarchId,
+    enabled: isValidId,
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });

@@ -8,6 +8,7 @@ import RecordCardCompact from '../../../components/records/RecordCardCompact';
 import EmptyState from '../../../components/ui/EmptyState';
 import { searchRecords } from '../../../services/api';
 import { getRecentSearches, saveRecentSearch, clearRecentSearches } from '../../../services/storage';
+import { formatDate } from '../../../utils/date';
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -87,9 +88,9 @@ export default function SearchScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
       {/* Header */}
-      <View className="bg-white border-b border-[#E5E2DE] px-4 pt-4 pb-4 z-10">
+      <View className="bg-white border-b border-[#E5E2DE] px-4 pt-4 pb-4 z-10" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
         <View className="flex-row items-center mb-4">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 rounded-full bg-[#E8F5E9] border border-[#D2E7D6] items-center justify-center mr-3" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
           </TouchableOpacity>
           <Text className="text-xl font-display-bold text-[#004D36]">Search</Text>
@@ -159,7 +160,7 @@ export default function SearchScreen() {
                   {result.description}
                 </Text>
                 <Text className="text-[#819685] text-xs font-display-medium mt-2">
-                  {new Date(result.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {formatDate(result.date, { month: 'short', day: 'numeric', year: 'numeric' }, '')}
                 </Text>
               </TouchableOpacity>
             ))}

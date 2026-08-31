@@ -4,6 +4,7 @@
     "slug": "sanarch",
     "scheme": "sanarch",
     "version": "1.0.0",
+    "userInterfaceStyle": "automatic",
     "platforms": [
       "ios",
       "android"

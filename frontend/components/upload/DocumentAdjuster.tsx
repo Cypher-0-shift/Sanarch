@@ -1,7 +1,7 @@
 // Required: npx expo install expo-image-manipulator react-native-svg
 //   react-native-gesture-handler react-native-reanimated
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,10 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  withTiming,
+  withSequence,
   runOnJS,
 } from 'react-native-reanimated';
-import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 
 interface DocumentAdjusterProps {
   pageUri: string;
@@ -47,20 +48,22 @@ interface CropBox {
 }
 
 // ─── Draggable crop corner handle ─────────────────────────────────────────────
-function CropCorner({
-  x,
-  y,
+export function CropCorner({
+  x, y,
   position,
   onMove,
-  maxW,
-  maxH,
+  maxW, maxH,
+  renderOffsetX = 0,
+  renderOffsetY = 0,
 }: {
   x: number;
   y: number;
-  position: 'tl' | 'tr' | 'br' | 'bl';
-  onMove: (position: string, nx: number, ny: number) => void;
+  position: 'tl' | 'tr' | 'bl' | 'br';
+  onMove: (pos: 'tl' | 'tr' | 'bl' | 'br', nx: number, ny: number) => void;
   maxW: number;
   maxH: number;
+  renderOffsetX?: number;
+  renderOffsetY?: number;
 }) {
   const HANDLE = 44;
   const TOUCH_SLOP = 12;
@@ -116,8 +119,8 @@ function CropCorner({
         style={[
           {
             position: 'absolute',
-            left: x - HANDLE / 2,
-            top: y - HANDLE / 2,
+            left: x + renderOffsetX - HANDLE / 2,
+            top: y + renderOffsetY - HANDLE / 2,
             width: HANDLE,
             height: HANDLE,
             alignItems: 'center',
@@ -131,9 +134,9 @@ function CropCorner({
           width: 28,
           height: 28,
           borderRadius: 14,
-          backgroundColor: COLORS.brandPrimary,
+          backgroundColor: '#004D36',
           borderWidth: 4,
-          borderColor: COLORS.surface,
+          borderColor: 'white',
           shadowColor: '#000',
           shadowOpacity: 0.5,
           shadowRadius: 8,
@@ -161,32 +164,76 @@ export default function DocumentAdjuster({
   const [cropBox, setCropBox] = useState<CropBox | null>(null);
   const [isSmartSnapDone, setIsSmartSnapDone] = useState(false);
   const [imgLayout, setImgLayout] = useState({ width: 0, height: 0 });
+  const [imgNaturalSize, setImgNaturalSize] = useState({ width: 0, height: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showDiscardAlert, setShowDiscardAlert] = useState(false);
-  const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
   const [hasEdited, setHasEdited] = useState(false);
+  const [originalUri, setOriginalUri] = useState<string | null>(null);
+
+  // When page changes, store its initial URI so we can reset to it
+  useEffect(() => {
+    setOriginalUri(pageUri);
+    setHasEdited(false);
+  }, [pageNumber]);
+
+  const handleResetImage = () => {
+    if (originalUri) {
+      onAdjusted(originalUri);
+      setHasEdited(false);
+    }
+  };
+
+  // Rotate button press animation
+  const rotateLeftScale = useSharedValue(1);
+  const rotateRightScale = useSharedValue(1);
+  const rotateLeftAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: rotateLeftScale.value }],
+  }));
+  const rotateRightAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: rotateRightScale.value }],
+  }));
+
+  // Load the image's natural dimensions so we can compute rendered bounds
+  useEffect(() => {
+    if (pageUri) {
+      Image.getSize(
+        pageUri,
+        (w, h) => setImgNaturalSize({ width: w, height: h }),
+        () => setImgNaturalSize({ width: 0, height: 0 }),
+      );
+    }
+  }, [pageUri]);
+
+  // Calculate the actual rendered image rect inside the "contain" layout
+  const getRenderedImageBounds = useCallback(() => {
+    const lw = imgLayout.width;
+    const lh = imgLayout.height;
+    const nw = imgNaturalSize.width;
+    const nh = imgNaturalSize.height;
+    if (lw === 0 || lh === 0 || nw === 0 || nh === 0) {
+      return { x: 0, y: 0, w: lw, h: lh };
+    }
+    const scale = Math.min(lw / nw, lh / nh);
+    const renderedW = nw * scale;
+    const renderedH = nh * scale;
+    const offsetX = (lw - renderedW) / 2;
+    const offsetY = (lh - renderedH) / 2;
+    return { x: offsetX, y: offsetY, w: renderedW, h: renderedH };
+  }, [imgLayout, imgNaturalSize]);
 
   // ── Smart snap ──────────────────────────────────────────────────────────────
   // TODO: Replace with POST /api/ocr/detect-edges for real edge detection.
   const runSmartSnap = () => {
     if (imgLayout.width === 0 || imgLayout.height === 0) return;
-    const w = imgLayout.width;
-    const h = imgLayout.height;
-    // Add more margin so crop area is clearly visible and handles don't go off-screen
-    // Account for handle size (44px / 2 = 22px) plus extra padding for safety
-    const handleRadius = 22;
-    const extraPadding = 12;
-    const minMargin = handleRadius + extraPadding;
-    
-    // Use larger of: minimum margin or percentage-based margin
-    const mx = Math.max(minMargin, w * 0.12);
-    const my = Math.max(minMargin, h * 0.10);
-    
+
+    // Use the actual rendered image bounds (not full layout) for smart snap
+    const bounds = getRenderedImageBounds();
+    const inset = 16; // small inset from document edge
+
     setCropBox({
-      left: mx,
-      top: my,
-      right: w - mx,
-      bottom: h - my,
+      left: bounds.x + inset,
+      top: bounds.y + inset,
+      right: bounds.x + bounds.w - inset,
+      bottom: bounds.y + bounds.h - inset,
     });
     setIsSmartSnapDone(true);
     setMode('crop');
@@ -205,13 +252,37 @@ export default function DocumentAdjuster({
     setMode('none');
   }, [pageUri]);
 
+  // Auto-run smart snap when entering crop mode and dimensions are ready
+  useEffect(() => {
+    if (mode === 'crop' && !cropBox && imgLayout.width > 0 && imgNaturalSize.width > 0) {
+      runSmartSnap();
+    }
+  }, [mode, cropBox, imgLayout, imgNaturalSize]);
+
   // ── Rotate ──────────────────────────────────────────────────────────────────
-  const handleRotate = async () => {
+  const handleRotateRight = async () => {
     setIsProcessing(true);
     try {
       const result = await ImageManipulator.manipulateAsync(
         pageUri,
         [{ rotate: 90 }],
+        { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setHasEdited(true);
+      onAdjusted(result.uri);
+    } catch {
+      useAlertStore.getState().showAlert('Error', 'Could not rotate the image.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRotateLeft = async () => {
+    setIsProcessing(true);
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        pageUri,
+        [{ rotate: -90 }],
         { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
       );
       setHasEdited(true);
@@ -259,15 +330,7 @@ export default function DocumentAdjuster({
     }
   };
 
-  // Handle next with unsaved changes check
-  const handleNextClick = () => {
-    if (mode === 'crop' && cropBox) {
-      // User is in crop mode with unsaved crop
-      setShowUnsavedAlert(true);
-    } else {
-      onNext();
-    }
-  };
+
 
   // Handle corner movement
   const moveCorner = (position: string, nx: number, ny: number) => {
@@ -307,27 +370,52 @@ export default function DocumentAdjuster({
 
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => setShowDiscardAlert(true)} activeOpacity={0.7} style={styles.closeBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
-          <MaterialCommunityIcons name="close" size={20} color={COLORS.ink600} />
+        <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+          <MaterialCommunityIcons name="close" size={20} color="#2D3A2F" />
         </TouchableOpacity>
         
         <Text style={styles.topBarPage}>Page {pageNumber} of {totalPages}</Text>
         
         {mode === 'crop' ? (
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity onPress={() => { setCropBox(null); runSmartSnap(); }}>
-              <Text style={styles.resetBtn}>Reset</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => { setCropBox(null); runSmartSnap(); }}
+              style={styles.resetBtnWrap}
+            >
+              <Text style={styles.resetBtnText}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={handleApplyCrop}
+              onPress={async () => { await handleApplyCrop(); onNext(); }}
               disabled={!cropBox}
               style={[styles.applyBtn, !cropBox && { opacity: 0.45 }]}
             >
-              <Text style={styles.applyBtnText}>Apply Crop</Text>
+              <Text style={styles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        ) : hasEdited ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={handleResetImage}
+              style={styles.resetBtnWrap}
+            >
+              <Text style={styles.resetBtnText}>Reset</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onNext}
+              activeOpacity={0.7}
+              style={styles.applyBtn}
+            >
+              <Text style={styles.applyBtnText}>Apply</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={{ width: 80 }} />
+          <TouchableOpacity
+            onPress={onNext}
+            activeOpacity={0.7}
+            style={styles.skipBtn}
+          >
+            <Text style={styles.skipBtnText}>Skip Editing</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -342,7 +430,7 @@ export default function DocumentAdjuster({
           shadowRadius: 20,
           shadowOffset: { width: 0, height: 4 },
           elevation: 8,
-          overflow: 'hidden',
+          overflow: 'visible',
           borderWidth: 1,
           borderColor: '#E5E2DE',
         }}>
@@ -362,30 +450,30 @@ export default function DocumentAdjuster({
             {/* SVG dark overlay + crop rectangle */}
             {mode === 'crop' && cropBox && imgLayout.width > 0 && (
               <Svg
-                style={[StyleSheet.absoluteFill, { margin: 16 }]}
-                width={imgLayout.width}
-                height={imgLayout.height}
+                style={StyleSheet.absoluteFill}
+                width="100%"
+                height="100%"
                 pointerEvents="none"
               >
                 {/* Dark mask */}
                 <Rect
-                  x={0} y={0}
+                  x={16} y={16}
                   width={imgLayout.width}
                   height={imgLayout.height}
                   fill="rgba(0,0,0,0.5)"
                 />
                 {/* White crop window background */}
                 <Rect
-                  x={cropBox.left}
-                  y={cropBox.top}
+                  x={cropBox.left + 16}
+                  y={cropBox.top + 16}
                   width={cropBox.right - cropBox.left}
                   height={cropBox.bottom - cropBox.top}
                   fill="rgba(255,255,255,0.2)"
                 />
                 {/* Green border */}
                 <Rect
-                  x={cropBox.left}
-                  y={cropBox.top}
+                  x={cropBox.left + 16}
+                  y={cropBox.top + 16}
                   width={cropBox.right - cropBox.left}
                   height={cropBox.bottom - cropBox.top}
                   fill="transparent"
@@ -394,8 +482,8 @@ export default function DocumentAdjuster({
                 />
                 {/* White outline for better visibility */}
                 <Rect
-                  x={cropBox.left + 1.5}
-                  y={cropBox.top + 1.5}
+                  x={cropBox.left + 17.5}
+                  y={cropBox.top + 17.5}
                   width={cropBox.right - cropBox.left - 3}
                   height={cropBox.bottom - cropBox.top - 3}
                   fill="transparent"
@@ -408,7 +496,7 @@ export default function DocumentAdjuster({
 
             {/* Draggable corners only */}
             {mode === 'crop' && cropBox && imgLayout.width > 0 && (
-              <View style={[StyleSheet.absoluteFill, { margin: 16 }]} pointerEvents="box-none">
+              <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
                 {/* Corners */}
                 <CropCorner
                   x={cropBox.left} y={cropBox.top}
@@ -416,6 +504,7 @@ export default function DocumentAdjuster({
                   onMove={moveCorner}
                   maxW={imgLayout.width}
                   maxH={imgLayout.height}
+                  renderOffsetX={16} renderOffsetY={16}
                 />
                 <CropCorner
                   x={cropBox.right} y={cropBox.top}
@@ -423,6 +512,7 @@ export default function DocumentAdjuster({
                   onMove={moveCorner}
                   maxW={imgLayout.width}
                   maxH={imgLayout.height}
+                  renderOffsetX={16} renderOffsetY={16}
                 />
                 <CropCorner
                   x={cropBox.right} y={cropBox.bottom}
@@ -430,6 +520,7 @@ export default function DocumentAdjuster({
                   onMove={moveCorner}
                   maxW={imgLayout.width}
                   maxH={imgLayout.height}
+                  renderOffsetX={16} renderOffsetY={16}
                 />
                 <CropCorner
                   x={cropBox.left} y={cropBox.bottom}
@@ -437,6 +528,7 @@ export default function DocumentAdjuster({
                   onMove={moveCorner}
                   maxW={imgLayout.width}
                   maxH={imgLayout.height}
+                  renderOffsetX={16} renderOffsetY={16}
                 />
               </View>
             )}
@@ -462,126 +554,60 @@ export default function DocumentAdjuster({
 
       {/* Bottom toolbar */}
       <View style={styles.toolbar}>
-        {/* Prev - show for all pages except first */}
-        {pageNumber > 1 && (
-          <TouchableOpacity onPress={onPrev} activeOpacity={0.7} style={styles.toolItem}>
-            <View style={styles.toolIcon}>
-              <MaterialCommunityIcons name="chevron-left" size={24} color={COLORS.ink600} />
-            </View>
-            <Text style={styles.toolLabel}>Previous</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Rotate */}
-        <TouchableOpacity onPress={handleRotate} activeOpacity={0.7} style={styles.toolItem}>
-          <View style={styles.toolIcon}>
-            <MaterialCommunityIcons name="rotate-right" size={22} color={COLORS.ink600} />
-          </View>
-          <Text style={styles.toolLabel}>Rotate</Text>
+        {/* Rotate Left */}
+        <TouchableOpacity
+          onPress={() => {
+            rotateLeftScale.value = withSequence(
+              withTiming(0.8, { duration: 80 }),
+              withTiming(1, { duration: 150 }),
+            );
+            handleRotateLeft();
+          }}
+          activeOpacity={1}
+          style={styles.toolItem}
+        >
+          <Animated.View style={[styles.toolIcon, styles.toolIconGreen, rotateLeftAnimStyle]}>
+            <MaterialCommunityIcons name="rotate-left" size={22} color="white" />
+          </Animated.View>
+          <Text style={styles.toolLabel}>Rotate Left</Text>
         </TouchableOpacity>
 
         {/* Crop */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => {
-            if (mode === 'crop') {
-              // Turn off crop mode
-              setMode('none');
-              setCropBox(null);
-            } else {
-              // Turn on crop mode and run smart snap
+            if (mode !== 'crop') {
               setMode('crop');
-              if (!cropBox && imgLayout.width > 0) {
-                runSmartSnap();
-              }
             }
           }}
           style={styles.toolItem}
         >
-          <View style={[styles.toolIcon, mode === 'crop' && styles.toolIconActive]}>
-            <MaterialCommunityIcons name="crop-free" size={22}
-              color={mode === 'crop' ? 'white' : COLORS.ink600} />
+          <View style={[styles.toolIcon, mode === 'crop' ? styles.toolIconGreen : styles.toolIconEmpty]}>
+            <MaterialCommunityIcons name="crop-free" size={22} color={mode === 'crop' ? 'white' : '#2D3A2F'} />
           </View>
           <Text style={[styles.toolLabel, mode === 'crop' && styles.toolLabelActive]}>Crop</Text>
         </TouchableOpacity>
 
-        {/* Next / Done */}
-        <TouchableOpacity onPress={handleNextClick} activeOpacity={0.7} style={styles.toolItem}>
-          <View style={[styles.toolIcon, styles.toolIconHighlight]}>
-            <MaterialCommunityIcons
-              name={pageNumber < totalPages ? 'chevron-right' : 'check'}
-              size={24} color="white" />
-          </View>
-          <Text style={styles.toolLabelActive}>
-            {pageNumber < totalPages ? 'Next' : 'Done'}
-          </Text>
+        {/* Rotate Right */}
+        <TouchableOpacity
+          onPress={() => {
+            rotateRightScale.value = withSequence(
+              withTiming(0.8, { duration: 80 }),
+              withTiming(1, { duration: 150 }),
+            );
+            handleRotateRight();
+          }}
+          activeOpacity={1}
+          style={styles.toolItem}
+        >
+          <Animated.View style={[styles.toolIcon, styles.toolIconGreen, rotateRightAnimStyle]}>
+            <MaterialCommunityIcons name="rotate-right" size={22} color="white" />
+          </Animated.View>
+          <Text style={styles.toolLabel}>Rotate Right</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Discard Alert Modal */}
-      <Modal visible={showDiscardAlert} transparent animationType="fade" onRequestClose={() => setShowDiscardAlert(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowDiscardAlert(false)} />
-        <View style={styles.modalWrap}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconWrap}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={28} color="#E65100" />
-            </View>
-            <Text style={styles.modalTitle}>Discard changes?</Text>
-            <Text style={styles.modalBody}>
-              Any edits you've made to this image will be lost.
-            </Text>
-            <View style={styles.modalBtns}>
-              <TouchableOpacity onPress={() => setShowDiscardAlert(false)} activeOpacity={0.8} style={styles.modalBtnSecondary}>
-                <Text style={styles.modalBtnSecondaryText}>Keep editing</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onClose} activeOpacity={0.8} style={styles.modalBtnDestructive}>
-                <Text style={styles.modalBtnDestructiveText}>Discard</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Unsaved Changes Alert Modal */}
-      <Modal visible={showUnsavedAlert} transparent animationType="fade" onRequestClose={() => setShowUnsavedAlert(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowUnsavedAlert(false)} />
-        <View style={styles.modalWrap}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconWrap}>
-              <MaterialCommunityIcons name="content-save-alert-outline" size={28} color="#E65100" />
-            </View>
-            <Text style={styles.modalTitle}>Apply crop changes?</Text>
-            <Text style={styles.modalBody}>
-              You have unsaved crop changes. Apply them before continuing?
-            </Text>
-            <View style={styles.modalBtns}>
-              <TouchableOpacity 
-                onPress={() => {
-                  setShowUnsavedAlert(false);
-                  setMode('none');
-                  setCropBox(null);
-                  onNext();
-                }} 
-                activeOpacity={0.8} 
-                style={styles.modalBtnSecondary}
-              >
-                <Text style={styles.modalBtnSecondaryText}>Skip</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={async () => {
-                  setShowUnsavedAlert(false);
-                  await handleApplyCrop();
-                  onNext();
-                }} 
-                activeOpacity={0.8} 
-                style={styles.modalBtnPrimary}
-              >
-                <Text style={styles.modalBtnPrimaryText}>Apply & Continue</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -605,15 +631,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  topBarPage: { color: COLORS.ink900, fontSize: 14, fontFamily: 'Inter_700Bold' },
-  resetBtn: { color: COLORS.ink600, fontSize: 14, fontFamily: 'Inter_700Bold' },
+  topBarPage: { color: '#2D3A2F', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  resetBtnWrap: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#004D36',
+  },
+  resetBtnText: {
+    color: '#004D36',
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+  },
   applyBtn: {
     backgroundColor: '#004D36',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderWidth: 1.5,
+    borderColor: '#004D36',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
-  applyBtnText: { color: 'white', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  applyBtnText: { color: 'white', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  skipBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#004D36',
+  },
+  skipBtnText: { color: 'white', fontSize: 13, fontFamily: 'Inter_700Bold' },
   cropHintExternal: {
     marginTop: 16,
     backgroundColor: '#E8F5E9',
@@ -635,7 +681,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  processingText: { color: COLORS.ink900, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  processingText: { color: '#2D3A2F', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   toolbar: {
     backgroundColor: 'white',
     paddingHorizontal: 24,
@@ -651,14 +697,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#F5F3F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolIconActive: { backgroundColor: COLORS.brandPrimary },
-  toolIconHighlight: { backgroundColor: COLORS.brandPrimary },
-  toolLabel: { fontSize: 10, color: COLORS.ink600, fontFamily: FONTS.jakartaSemiBold },
-  toolLabelActive: { fontSize: 10, color: COLORS.brandPrimary, fontFamily: FONTS.jakartaSemiBold },
+  toolIconGreen: { backgroundColor: '#004D36' },
+  toolIconEmpty: { backgroundColor: '#F5F3F0' },
+  toolLabel: { fontSize: 10, color: '#2D3A2F', fontFamily: 'Inter_600SemiBold' },
+  toolLabelActive: { color: '#004D36', fontFamily: 'Inter_700Bold' },
   // Modal styles
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -689,13 +734,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
-    color: COLORS.ink900,
+    color: '#2D3A2F',
     marginBottom: 8,
   },
   modalBody: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
-    color: COLORS.ink600,
+    color: '#5C6E60',
     lineHeight: 20,
     marginBottom: 24,
   },
@@ -713,7 +758,7 @@ const styles = StyleSheet.create({
   },
   modalBtnSecondaryText: {
     fontFamily: 'Inter_700Bold',
-    color: COLORS.ink900,
+    color: '#2D3A2F',
     fontSize: 15,
   },
   modalBtnDestructive: {

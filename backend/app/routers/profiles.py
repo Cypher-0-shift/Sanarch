@@ -176,7 +176,7 @@ def create_dependent_profile(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"failed to create dependent profile: {e}",
+            detail=f"failed to create family member profile: {e}",
         )
 
 @router.get("/{sanarch_id}", response_model=ProfileResponse)

@@ -1,51 +1,176 @@
-/**
- * Record Detail — Phase 5
- *
- * Visual and hierarchical refactor of the document detail screen.
- * Prioritizes the Overview section and uses progressive rendering.
- */
-
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
-import { router, useLocalSearchParams as useLocalParams } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Animated, Modal, Alert } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-import { getDocument, deleteDocument } from '../../../services/api'; 
-import { useDocumentsStore } from '../../../store/documentsStore';
-import { COLORS, FONTS, RADIUS, SPACING } from '../../../constants/theme';
-import CategoryBadge, { normaliseCategory } from '../../../components/documents/CategoryBadge';
-import CollapsibleSection from '../../../components/records/CollapsibleSection';
-import ExplainThisFAB from '../../../components/records/ExplainThisFAB';
-import AISummaryModal from '../../../components/records/AISummaryModal';
-import EditDocumentSheet from '../../../components/records/EditDocumentSheet';
-import DeleteConfirmSheet from '../../../components/records/DeleteConfirmSheet';
-import PrimaryButton from '../../../components/buttons/PrimaryButton';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { getDocument, deleteDocument, summarizeDocument } from '../../../services/api';
 import { useAlertStore } from '../../../store/alertStore';
+import { useAuthStore } from '../../../store/authStore';
+import { useDocumentsStore, type DocumentRecord } from '../../../store/documentsStore';
+import { CATEGORIES } from '../upload';
+import AnimatedPressable from '../../../components/ui/Pressable';
+import { parseDate, formatDate } from '../../../utils/date';
+
+function ExpandableSection({ title, icon, children, defaultOpen = false }: { title: string, icon: string, children: React.ReactNode, defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <View className="rounded-[24px] overflow-hidden mb-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+      <BlurView intensity={40} tint="light">
+        <TouchableOpacity 
+          className="w-full flex-row items-center justify-between p-5 bg-white/20"
+          onPress={() => setOpen(!open)}
+          activeOpacity={0.75}
+        >
+          <View className="flex-row items-center gap-3">
+            <MaterialCommunityIcons name={icon as any} size={20} color="#004D36" />
+            <Text className="font-display-bold text-[#004D36] text-base">{title}</Text>
+          </View>
+          <MaterialCommunityIcons 
+            name={open ? "chevron-up" : "chevron-down"} 
+            size={24} 
+            color="#5C6E60" 
+          />
+        </TouchableOpacity>
+        {open && (
+          <View className="px-5 pb-5 pt-2">
+            <View className="h-[1px] w-full bg-black/5 mb-4" />
+            {children}
+          </View>
+        )}
+      </BlurView>
+    </View>
+  );
+}
+
+function MeshBackground() {
+  return (
+    <LinearGradient
+      colors={['#f8faf9', '#e6f0e9', '#f2f5f3']}
+      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: -1 }}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    />
+  );
+}
 
 export default function RecordDetailsScreen() {
-  const { id } = useLocalParams<{ id: string }>();
-  const insets = useSafeAreaInsets();
-  
-  // State
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isAiModalVisible, setIsAiModalVisible] = useState(false);
-  const [isEditSheetVisible, setIsEditSheetVisible] = useState(false);
-  const [isDeleteSheetVisible, setIsDeleteSheetVisible] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [pdfImageUrl, setPdfImageUrl] = useState<string | null>(null);
+  const [showOnlyAlerts, setShowOnlyAlerts] = useState(false);
+  // Animation ref for "Explain This" button text reveal
+  const explainAnim = useRef(new Animated.Value(0)).current;
 
+  const token = useAuthStore((s) => s.token);
+  const allDocuments = useDocumentsStore((s) => s.documents);
   const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+
+  // Explain This button hint animation — runs independently of preview
+  useEffect(() => {
+    if (loading) return;
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    const runHint = () => {
+      explainAnim.setValue(0);
+      Animated.sequence([
+        // expand open
+        Animated.spring(explainAnim, {
+          toValue: 1,
+          useNativeDriver: false,
+          speed: 12,
+          bounciness: 4,
+        }),
+        // hold open for 4 seconds
+        Animated.delay(4000),
+        // collapse back
+        Animated.timing(explainAnim, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    };
+
+    // First run after 3 seconds
+    timeout = setTimeout(() => {
+      runHint();
+      // Then repeat every 15 seconds
+      interval = setInterval(runHint, 15000);
+    }, 3000);
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+      explainAnim.stopAnimation();
+    };
+  }, [loading]);
+
+  // Handle preview fade in separately
+  useEffect(() => {
+    if (previewLoaded) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [previewLoaded, fadeAnim]);
+
+  const openSummary = () => {
+    router.push(`/(tabs)/records/explain?id=${id}`);
+  };
+
+  const handleDelete = () => {
+    setShowMenu(false);
+    Alert.alert(
+      "Delete Document",
+      "Are you sure you want to delete this document? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDocument(id as string);
+              await fetchDocuments();
+              router.back();
+            } catch (error: any) {
+              useAlertStore.getState().showAlert('Delete Failed', error.message || 'Failed to delete document.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleShare = () => {
+    useAlertStore.getState().showAlert('Coming Soon', 'Document sharing feature will be activated shortly.');
+  };
 
   useEffect(() => {
     const load = async () => {
-      if (!id) return;
+      if (!id) {
+        setLoading(false);
+        return;
+      }
       try {
         const data = await getDocument(id);
         setRecord(data);
       } catch (e) {
         console.error('[RecordDetail] Failed:', e);
+        setRecord(null);
       } finally {
         setLoading(false);
       }
@@ -53,430 +178,452 @@ export default function RecordDetailsScreen() {
     load();
   }, [id]);
 
-  // Handlers
-  const handleShare = () => {
-    router.push(`/(tabs)/doctors?docs=${id}`);
-  };
+  const b2Url = record?.b2_file_url;
+  const isPdf = record?.file_type === 'application/pdf' || record?.file_name?.toLowerCase().endsWith('.pdf');
 
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    try {
-      await deleteDocument(id as string);
-      await fetchDocuments();
-      setIsDeleteSheetVisible(false);
-      router.back();
-    } catch (error: any) {
-      useAlertStore.getState().showAlert('Delete Failed', error.message || 'Failed to delete document.');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  useEffect(() => {
+    if (!isPdf || !b2Url) return;
 
-  const handleSaveEdit = async (newTitle: string, newCategory: string) => {
-    setIsSaving(true);
-    try {
-      // updateDocument not available, fallback to local state
-      setRecord({ ...record, document_title: newTitle, document_label: newCategory });
-      await fetchDocuments();
-      setIsEditSheetVisible(false);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    const fetchPdfImage = async () => {
+      try {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (!apiUrl) return;
+
+        const response = await fetch(b2Url);
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        
+        const convertRes = await fetch(`${apiUrl}/documents/pdf/convert`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ pdf_uri: base64Data }),
+        });
+        const convertData = await convertRes.json();
+        if (convertData.success && convertData.images?.length > 0) {
+          setPdfImageUrl(convertData.images[0]);
+        } else {
+          setPreviewLoaded(true);
+        }
+      } catch (err) {
+        console.log('Failed to fetch/convert PDF preview:', err);
+        setPreviewLoaded(true);
+      }
+    };
+    fetchPdfImage();
+  }, [isPdf, b2Url, token]);
+
+  const relatedDocuments = useMemo(() => {
+    if (!record) return [];
+    
+    const hospital = record.extracted_data?.hospital_name || '';
+    const diagnoses: string[] = record.extracted_data?.diagnosis || [];
+    const docDate = record.extracted_data?.document_date || record.created_at || '';
+
+    return allDocuments.filter(other => {
+      if (other.document_id === record.document_id) return false;
+
+      const otherHospital = other.extracted_data?.hospital_name || '';
+      const otherDiagnoses: string[] = other.extracted_data?.diagnosis || [];
+      const otherDate = other.extracted_data?.document_date || other.created_at || '';
+
+      if (!hospital || !otherHospital || hospital.toLowerCase() !== otherHospital.toLowerCase()) return false;
+
+      const d1 = parseDate(docDate)?.getTime() ?? NaN;
+      const d2 = parseDate(otherDate)?.getTime() ?? NaN;
+      if (isNaN(d1) || isNaN(d2) || Math.abs(d1 - d2) > 30 * 24 * 60 * 60 * 1000) return false;
+
+      if (diagnoses.length === 0 && otherDiagnoses.length === 0) return true;
+      return diagnoses.some((d) =>
+        otherDiagnoses.some((od) => d.toLowerCase() === od.toLowerCase())
+      );
+    });
+  }, [record, allDocuments]);
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.brandPrimary} />
-      </View>
+      <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
+        <View className="bg-white border-b border-[#E5E2DE] px-4 py-4 flex-row items-center">
+          <TouchableOpacity onPress={() => router.back()} className="mr-3" activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
+          </TouchableOpacity>
+          <Text className="text-xl font-display-bold text-[#2D3A2F]">Record Details</Text>
+        </View>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#004D36" />
+          <Text className="text-sm text-[#819685] font-display-medium mt-4">Loading record...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!record) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Document not found.</Text>
-        <PrimaryButton label="Go Back" onPress={() => router.back()} />
-      </View>
+      <SafeAreaView className="flex-1 bg-[#F5F3F0]" edges={['top']}>
+        <View className="bg-white border-b border-[#E5E2DE] px-4 py-4 flex-row items-center">
+          <TouchableOpacity onPress={() => router.back()} className="mr-3" activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#2D3A2F" />
+          </TouchableOpacity>
+          <Text className="text-xl font-display-bold text-[#2D3A2F]">Record Details</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-6">
+          <MaterialCommunityIcons name="file-alert-outline" size={64} color="#94A3B8" />
+          <Text className="text-xl font-display-bold mt-4 text-slate-900">Record not found</Text>
+          <TouchableOpacity
+            className="mt-6 h-12 px-8 bg-[#004D36] rounded-full items-center justify-center"
+            onPress={() => router.back()}
+            activeOpacity={0.75}
+          >
+            <Text className="text-white font-display-bold">Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  const extData = record.extracted_data || {};
-  const isFailed = record.processing_status === 'failed' || !extData;
-  const labResults = extData.lab_results || [];
-  const meds = extData.medications || [];
-  const diagnoses = extData.diagnosis || [];
+  const displayLabel = record.document_label || 'document';
+  const displayTitle = record.document_title || record.file_name || 'Document';
+  const displayDate = record.extracted_data?.document_date || record.created_at;
+  const extractedData = record.extracted_data || {};
   
-  const hasLabAlerts = labResults.some((l: any) => l.flag && l.flag.toLowerCase() !== 'normal');
-  const summaryText = extData.summary || 'No overview generated.';
+  const hasPreview = !!b2Url;
+  
+  const labValues = extractedData.lab_values || [];
+  const filteredLabValues = showOnlyAlerts ? labValues.filter((lv: any) => lv.flag && lv.flag.toLowerCase() !== 'normal') : labValues;
 
   return (
-    <View style={styles.container}>
-      {/* ── Fixed Header ── */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={12}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.ink900} />
-        </Pressable>
-
-        <View style={styles.headerActions}>
-          <Pressable onPress={handleShare} style={styles.iconBtn} hitSlop={12}>
-            <MaterialCommunityIcons name="share-variant" size={22} color={COLORS.ink600} />
-          </Pressable>
-          <Pressable onPress={() => setIsEditSheetVisible(true)} style={styles.iconBtn} hitSlop={12}>
-            <MaterialCommunityIcons name="pencil-outline" size={22} color={COLORS.ink600} />
-          </Pressable>
-          <Pressable onPress={() => setIsDeleteSheetVisible(true)} style={styles.iconBtn} hitSlop={12}>
-            <MaterialCommunityIcons name="delete-outline" size={22} color={COLORS.resultHighBg} />
-          </Pressable>
+    <SafeAreaView className="flex-1" edges={['top']}>
+      <MeshBackground />
+      {/* Header Area */}
+      <BlurView intensity={40} tint="light" className="shrink-0 pt-4 pb-4 px-6 border-b border-[#E5E2DE] z-20 flex-row items-center justify-between">
+        <TouchableOpacity 
+          className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
+          onPress={() => router.back()}
+          activeOpacity={0.75}
+          hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
+        </TouchableOpacity>
+        <Text className="text-[#004D36] text-lg font-display-bold tracking-tight">Report Details</Text>
+        <View className="flex-row gap-2 relative">
+          <TouchableOpacity 
+            className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
+            onPress={handleShare}
+            activeOpacity={0.75}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+          >
+            <MaterialCommunityIcons name="share-variant" size={20} color="#004D36" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
+            onPress={() => setShowMenu(!showMenu)}
+            activeOpacity={0.75}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+          >
+            <MaterialCommunityIcons name="dots-vertical" size={24} color="#004D36" />
+          </TouchableOpacity>
+          {showMenu && (
+            <View className="absolute top-12 right-0 bg-white rounded-xl shadow-lg border border-black/5 overflow-hidden z-50 w-48">
+              <TouchableOpacity 
+                className="flex-row items-center gap-3 px-4 py-3"
+                onPress={handleDelete}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={20} color="#C62828" />
+                <Text className="text-[#C62828] font-display-medium text-[14px]">Delete Document</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </View>
+      </BlurView>
 
-      <ScrollView 
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Top Area (Thumbnail + Title + Meta) ── */}
-        <View style={styles.titleSection}>
-          <View style={styles.titleHeaderRow}>
-            <CategoryBadge category={record.document_label} />
-            {record.b2_file_url && (
-              <Image 
-                source={{ uri: record.b2_file_url }} 
-                style={styles.thumbnailTag} 
-                resizeMode="cover"
-              />
-            )}
-          </View>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-6 pt-6 pb-8">
           
-          <Text style={styles.title}>{record.document_title}</Text>
-          
-          <View style={styles.metaRow}>
-            {extData.document_date && (
-              <View style={styles.metaItem}>
-                <MaterialCommunityIcons name="calendar-blank" size={16} color={COLORS.ink400} />
-                <Text style={styles.metaText}>{extData.document_date}</Text>
-              </View>
-            )}
-            {extData.doctor_name && (
-              <View style={styles.metaItem}>
-                <MaterialCommunityIcons name="stethoscope" size={16} color={COLORS.ink400} />
-                <Text style={styles.metaText}>{extData.doctor_name}</Text>
-              </View>
-            )}
-            {extData.hospital_name && (
-              <View style={styles.metaItem}>
-                <MaterialCommunityIcons name="hospital-building" size={16} color={COLORS.ink400} />
-                <Text style={styles.metaText}>{extData.hospital_name}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* ── Progressive Rendering Sections ── */}
-        
-        {/* 1. Overview (Always Expanded) */}
-        <View style={styles.overviewSection}>
-          <Text style={styles.sectionHeader}>Overview</Text>
-          <View style={styles.overviewCard}>
-            {isFailed ? (
-              <View style={styles.failedBanner}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={20} color={COLORS.resultHigh} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.failedTitle}>Processing failed</Text>
-                  <Text style={styles.failedSub}>We couldn't extract data from this document.</Text>
-                </View>
-                <Pressable style={styles.retryBtn}>
-                  <Text style={styles.retryText}>Retry</Text>
-                </Pressable>
+          {/* Document Preview Hero */}
+          <View className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+            {!hasPreview ? (
+              <View className="flex-1 items-center justify-center">
+                <MaterialCommunityIcons name="file-document-outline" size={48} color="#004D36" />
+                <Text className="text-[#2D3A2F] font-display-bold mt-4 text-base">Document preview</Text>
+                <Text className="text-[#819685] text-[12px] font-display mt-1">Not available for older records</Text>
               </View>
             ) : (
-              <Text style={styles.overviewText}>{summaryText}</Text>
+              <View className="flex-1 relative">
+                {!previewLoaded && (
+                  <View className="absolute inset-0 items-center justify-center z-10 bg-white/20">
+                    <ActivityIndicator size="small" color="#004D36" />
+                  </View>
+                )}
+                <Animated.View style={{ flex: 1, width: '100%', height: '100%', opacity: fadeAnim }}>
+                  {isPdf ? (
+                    pdfImageUrl ? (
+                      <Image 
+                        source={{ uri: pdfImageUrl }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                        onLoad={() => setPreviewLoaded(true)}
+                        onError={() => setPreviewLoaded(true)}
+                      />
+                    ) : null
+                  ) : (
+                    <Image 
+                      source={{ uri: b2Url }}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                      onLoad={() => setPreviewLoaded(true)}
+                      onError={() => setPreviewLoaded(true)}
+                    />
+                  )}
+                </Animated.View>
+                
+                {/* Glass Gradient overlay at the bottom */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0, 77, 54, 0.8)']}
+                  style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', justifyContent: 'flex-end', padding: 16 }}
+                >
+                  <TouchableOpacity activeOpacity={0.8} className="flex-row self-start items-center gap-2 bg-white/20 rounded-full px-4 py-2 border border-white/30" style={{ overflow: 'hidden' }}>
+                    <BlurView intensity={20} tint="light" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
+                    <MaterialCommunityIcons name="fullscreen" size={18} color="white" />
+                    <Text className="text-white font-display-medium text-[13px]">View Full Document</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
             )}
           </View>
-        </View>
 
-        {/* 2. Related History */}
-        <CollapsibleSection title="Related History" count={0} initiallyExpanded={false}>
-          <Text style={styles.placeholderText}>Related history will appear here.</Text>
-        </CollapsibleSection>
-
-        {/* 3. Lab Results */}
-        <CollapsibleSection 
-          title="Lab Results" 
-          count={labResults.length} 
-          hasAlerts={hasLabAlerts}
-          initiallyExpanded={hasLabAlerts}
-        >
-          {labResults.map((lab: any, idx: number) => {
-            const isAlert = lab.flag && lab.flag.toLowerCase() !== 'normal';
-            return (
-              <View key={idx} style={[styles.dataRow, isAlert && styles.dataRowAlert]}>
-                <View style={styles.dataColLeft}>
-                  <Text style={styles.dataLabel}>{lab.test_name}</Text>
-                  {lab.reference_range && (
-                    <Text style={styles.dataSub}>Ref: {lab.reference_range}</Text>
-                  )}
-                </View>
-                <View style={styles.dataColRight}>
-                  <Text style={[styles.dataVal, isAlert && styles.dataValAlert]}>
-                    {lab.result_value} {lab.unit}
-                  </Text>
-                  {isAlert && <MaterialCommunityIcons name="alert" size={14} color={COLORS.resultHigh} />}
-                </View>
+          {/* Document Title & Meta */}
+          <View className="flex-col mb-6">
+            <View className="flex-row items-center gap-2 mb-2 flex-wrap">
+              <View className="px-3 py-1 bg-[#aef1d1]/30 rounded-full border border-[#aef1d1]">
+                <Text className="text-[#07513a] text-[11px] font-display-bold uppercase tracking-widest">
+                  {displayLabel.replace(/_/g, ' ')}
+                </Text>
               </View>
-            );
-          })}
-        </CollapsibleSection>
-
-        {/* 4. Medications */}
-        <CollapsibleSection title="Medications" count={meds.length}>
-          {meds.map((m: any, idx: number) => (
-            <View key={idx} style={styles.dataRow}>
-              <View style={styles.dataColLeft}>
-                <Text style={styles.dataLabel}>{m.medication_name}</Text>
-                {m.duration && <Text style={styles.dataSub}>{m.duration}</Text>}
+              <View className="flex-row items-center gap-1">
+                <MaterialCommunityIcons name="calendar-today" size={14} color="#5C6E60" />
+                <Text className="text-[#5C6E60] text-xs font-display-medium">{formatDate(displayDate)}</Text>
               </View>
-              <Text style={styles.dataVal}>{m.dosage} • {m.frequency}</Text>
             </View>
-          ))}
-        </CollapsibleSection>
-
-        {/* 5. Diagnoses */}
-        <CollapsibleSection title="Diagnoses" count={diagnoses.length}>
-          <View style={styles.diagContainer}>
-            {diagnoses.map((d: string, idx: number) => (
-              <View key={idx} style={styles.diagPill}>
-                <Text style={styles.diagText}>{d}</Text>
+            <Text className="text-[#004D36] text-2xl font-display-bold leading-tight mb-3">
+              {displayTitle}
+            </Text>
+            
+            <View className="flex-row items-center gap-4">
+              <View className="flex-row items-center gap-1.5">
+                <MaterialCommunityIcons name="account" size={18} color="#5C6E60" />
+                <Text className="text-sm text-[#404944] font-display-medium">{extractedData.doctor_name || 'Unknown'}</Text>
               </View>
-            ))}
+              <View className="w-1 h-1 rounded-full bg-[#bfc9c2]" />
+              <View className="flex-row items-center gap-1.5">
+                <MaterialCommunityIcons name="hospital-building" size={18} color="#5C6E60" />
+                <Text className="text-sm text-[#404944] font-display-medium" numberOfLines={1} style={{ maxWidth: 160 }}>{extractedData.hospital_name || 'Unknown'}</Text>
+              </View>
+            </View>
           </View>
-        </CollapsibleSection>
 
+
+
+          {/* Lab Results */}
+          {labValues.length > 0 && (
+            <ExpandableSection title="Lab Results" icon="test-tube" defaultOpen>
+              <View className="flex-row items-center justify-between mb-4 mt-1 px-1">
+                <Text className="text-[12px] font-display-medium text-[#819685]">{filteredLabValues.length} {filteredLabValues.length === 1 ? 'result' : 'results'}</Text>
+                <TouchableOpacity 
+                  className="flex-row items-center gap-2"
+                  onPress={() => setShowOnlyAlerts(!showOnlyAlerts)}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons 
+                    name={showOnlyAlerts ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
+                    size={20} 
+                    color={showOnlyAlerts ? "#F57F17" : "#bfc9c2"} 
+                  />
+                  <Text className={`text-[12px] font-display-medium ${showOnlyAlerts ? 'text-[#F57F17]' : 'text-[#819685]'}`}>Show Alerts Only</Text>
+                </TouchableOpacity>
+              </View>
+
+              {filteredLabValues.map((lv: any, idx: number) => {
+                const flagColor = lv.flag?.toLowerCase() === 'high' ? '#C62828' : lv.flag?.toLowerCase() === 'low' ? '#F57F17' : '#004D36';
+                const flagBg = lv.flag?.toLowerCase() === 'high' ? 'bg-[#FFCDD2]' : lv.flag?.toLowerCase() === 'low' ? 'bg-[#FFF9C4]' : 'bg-[#C8E6C9]';
+                return (
+                  <View key={idx} className={`flex-col py-3 ${idx !== filteredLabValues.length - 1 ? 'border-b border-black/5' : ''}`}>
+                    <View className="flex-row justify-between items-start mb-1">
+                      <Text className="text-[14px] font-display-bold text-[#004D36] max-w-[60%]">{lv.test_name}</Text>
+                      {lv.flag && lv.flag.toLowerCase() !== 'normal' && (
+                        <View className={`rounded-full px-2 py-0.5 ${flagBg}`}>
+                          <Text className="text-[10px] font-display-bold tracking-wider uppercase" style={{ color: flagColor }}>{lv.flag}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View className="flex-row justify-between items-end">
+                      <View className="flex-row items-baseline gap-1">
+                        <Text className="text-[18px] font-display-bold" style={{ color: flagColor }}>{lv.value || '-'}</Text>
+                        {lv.unit && <Text className="text-[13px] font-display text-[#819685]">{lv.unit}</Text>}
+                      </View>
+                      {lv.reference_range && (
+                        <Text className="text-[12px] font-display text-[#819685]">Ref: {lv.reference_range}</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+              {filteredLabValues.length === 0 && showOnlyAlerts && (
+                <Text className="text-[13px] font-display text-[#819685] py-4 text-center">No abnormal results found.</Text>
+              )}
+            </ExpandableSection>
+          )}
+
+          {/* Medications */}
+          {extractedData.medications && extractedData.medications.length > 0 && (
+            <ExpandableSection title="Medications" icon="pill" defaultOpen>
+              <View className="flex-col gap-3 pt-2">
+                {extractedData.medications.map((med: any, idx: number) => {
+                  const details = [med.dose, med.frequency, med.duration].filter(Boolean).join(' · ');
+                  return (
+                    <View key={idx} className="bg-white/20 border border-white/50 rounded-2xl p-4 flex-row items-start gap-3">
+                      <Text className="text-lg">💊</Text>
+                      <View className="flex-1">
+                        <Text className="text-[14px] font-display-bold text-[#E65100]">{med.medicine_name}</Text>
+                        {details ? (
+                          <Text className="text-[13px] font-display text-[#404944] mt-1">{details}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </ExpandableSection>
+          )}
+
+          {/* Diagnoses */}
+          {record.condition_terms_raw && record.condition_terms_raw.length > 0 && (
+            <ExpandableSection title="Diagnoses" icon="stethoscope" defaultOpen>
+              <View className="flex-row flex-wrap gap-2 pt-2">
+                {record.condition_terms_raw.map((term: string, idx: number) => (
+                  <View key={idx} className="bg-[#d7e7d7]/50 border border-white/50 rounded-full px-3 py-1.5 flex-row items-center gap-1.5">
+                    <MaterialCommunityIcons name="hospital-box-outline" size={14} color="#004D36" />
+                    <Text className="text-[12px] font-display-medium text-[#004D36]">{term}</Text>
+                  </View>
+                ))}
+              </View>
+            </ExpandableSection>
+          )}
+
+          {/* Related Timeline */}
+          {relatedDocuments.length > 0 && (
+            <View className="mb-12">
+              <View className="flex-row items-center gap-2 mb-6">
+                <MaterialCommunityIcons name="timeline-clock-outline" size={24} color="#004D36" />
+                <Text className="text-[#004D36] font-display-bold text-lg">Related History</Text>
+              </View>
+              <View className="relative flex-col gap-5">
+                <View className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#aef1d1]/50 z-0" />
+                
+                {relatedDocuments.map((doc, idx) => {
+                  const category = CATEGORIES.find(c => c.id === doc.document_label) || CATEGORIES.find(c => c.id === 'other')!;
+                  const docDate = doc.extracted_data?.document_date || doc.created_at;
+                  return (
+                    <TouchableOpacity 
+                      key={doc.document_id}
+                      activeOpacity={0.75}
+                      onPress={() => router.push(`/(tabs)/records/${doc.document_id}`)}
+                      className="relative z-10 flex-row gap-4"
+                    >
+                      <View className="w-10 h-10 rounded-full bg-[#f8faf9] border-4 border-[#aef1d1] shadow-sm items-center justify-center shrink-0">
+                        <MaterialCommunityIcons name={category.icon as any} size={16} color="#004D36" />
+                      </View>
+                      <View className="flex-1 p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+                        <BlurView intensity={20} tint="light" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
+                        <View className="flex-row justify-between items-start mb-1">
+                          <Text className="text-[#004D36] font-display-bold text-[15px]" numberOfLines={1}>{doc.document_title || category.name}</Text>
+                          <Text className="text-[11px] text-[#5C6E60] font-display-medium shrink-0 ml-2">{formatDate(docDate)}</Text>
+                        </View>
+                        <Text className="text-[#404944] text-[13px] font-display" numberOfLines={2}>
+                          {doc.summary || 'View document for details.'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+          
+        </View>
       </ScrollView>
 
-      {/* ── Fixed FAB ── */}
-      {!isFailed && <ExplainThisFAB onPress={() => setIsAiModalVisible(true)} />}
+      {record.status === 'ready' && (
+        <TouchableOpacity
+          onPress={openSummary}
+          activeOpacity={0.85}
+          style={{
+            position: 'absolute',
+            bottom: 112,
+            right: 24,
+            elevation: 8,
+            shadowColor: '#004D36',
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 6 },
+          }}
+        >
+          <Animated.View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#004D36',
+              borderRadius: 9999,
+              height: 56,
+              paddingLeft: 17,
+              paddingRight: explainAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [17, 24],
+              }),
+            }}
+          >
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={22} color="white" />
+            <Animated.View
+              style={{
+                overflow: 'hidden',
+                width: explainAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 115],
+                }),
+                opacity: explainAnim.interpolate({
+                  inputRange: [0, 0.3, 1],
+                  outputRange: [0, 0.8, 1],
+                }),
+                marginLeft: explainAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 12],
+                }),
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: 'white',
+                  fontFamily: 'Inter_700Bold',
+                  fontSize: 15,
+                  letterSpacing: 0.3,
+                  width: 140,
+                }}
+              >
+                Explain This
+              </Text>
+            </Animated.View>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
 
-      {/* ── Modals & Sheets ── */}
-      <AISummaryModal
-        visible={isAiModalVisible}
-        onClose={() => setIsAiModalVisible(false)}
-        summaryText={summaryText}
-      />
-      
-      <EditDocumentSheet
-        visible={isEditSheetVisible}
-        onClose={() => setIsEditSheetVisible(false)}
-        initialTitle={record.document_title}
-        initialCategory={normaliseCategory(record.document_label)}
-        onSave={handleSaveEdit}
-        isSaving={isSaving}
-      />
 
-      <DeleteConfirmSheet
-        visible={isDeleteSheetVisible}
-        onClose={() => setIsDeleteSheetVisible(false)}
-        onConfirm={handleDelete}
-        isDeleting={isDeleting}
-      />
-    </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.canvas,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.canvas,
-  },
-  errorText: {
-    fontFamily: FONTS.jakartaMedium,
-    fontSize: 16,
-    color: COLORS.ink400,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING[4],
-    paddingBottom: SPACING[2],
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.ink100,
-    zIndex: 10,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[2],
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollContent: {
-    padding: SPACING[4],
-  },
-  titleSection: {
-    marginBottom: SPACING[6],
-    gap: SPACING[3],
-  },
-  titleHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  thumbnailTag: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.ink200,
-  },
-  title: {
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 24,
-    color: COLORS.ink900,
-    lineHeight: 32,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: SPACING[4],
-    rowGap: SPACING[2],
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-  },
-  metaText: {
-    fontFamily: FONTS.jakartaMedium,
-    fontSize: 13,
-    color: COLORS.ink600,
-  },
-  overviewSection: {
-    marginBottom: SPACING[6],
-    gap: SPACING[3],
-  },
-  sectionHeader: {
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 18,
-    color: COLORS.ink900,
-  },
-  overviewCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    padding: SPACING[4],
-    borderWidth: 1,
-    borderColor: COLORS.ink100,
-  },
-  overviewText: {
-    fontFamily: FONTS.jakartaRegular,
-    fontSize: 15,
-    lineHeight: 24,
-    color: COLORS.ink600,
-  },
-  failedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.resultHighBg,
-    borderRadius: RADIUS.lg,
-    padding: SPACING[3],
-    gap: SPACING[3],
-  },
-  failedTitle: {
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 14,
-    color: COLORS.resultHigh,
-  },
-  failedSub: {
-    fontFamily: FONTS.jakartaRegular,
-    fontSize: 12,
-    color: COLORS.ink600,
-    marginTop: 2,
-  },
-  retryBtn: {
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING[3],
-    paddingVertical: SPACING[2],
-    borderRadius: RADIUS.md,
-  },
-  retryText: {
-    fontFamily: FONTS.jakartaBold,
-    fontSize: 12,
-    color: COLORS.resultHigh,
-  },
-  placeholderText: {
-    fontFamily: FONTS.jakartaRegular,
-    fontSize: 14,
-    color: COLORS.ink400,
-    fontStyle: 'italic',
-  },
-  dataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: SPACING[2],
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.ink100,
-  },
-  dataRowAlert: {
-    backgroundColor: 'rgba(255,59,48,0.05)',
-    marginHorizontal: -SPACING[4],
-    paddingHorizontal: SPACING[4],
-  },
-  dataColLeft: {
-    flex: 1,
-    paddingRight: SPACING[4],
-  },
-  dataColRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  dataLabel: {
-    fontFamily: FONTS.jakartaMedium,
-    fontSize: 14,
-    color: COLORS.ink800,
-  },
-  dataSub: {
-    fontFamily: FONTS.jakartaRegular,
-    fontSize: 12,
-    color: COLORS.ink400,
-    marginTop: 2,
-  },
-  dataVal: {
-    fontFamily: FONTS.jakartaSemiBold,
-    fontSize: 14,
-    color: COLORS.ink900,
-  },
-  dataValAlert: {
-    color: COLORS.resultHigh,
-  },
-  diagContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING[2],
-  },
-  diagPill: {
-    backgroundColor: COLORS.brandTint,
-    paddingHorizontal: SPACING[3],
-    paddingVertical: SPACING[2],
-    borderRadius: RADIUS.full,
-  },
-  diagText: {
-    fontFamily: FONTS.jakartaMedium,
-    fontSize: 13,
-    color: COLORS.brandPrimary,
-  },
-});

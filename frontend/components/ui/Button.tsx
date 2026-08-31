@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  TouchableOpacity,
   Text,
   ActivityIndicator,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/theme';
+import AnimatedPressable from './Pressable';
 
 interface ButtonProps {
   title: string;
@@ -48,7 +48,7 @@ const Button: React.FC<ButtonProps> = ({
   ].filter(Boolean) as TextStyle[];
 
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       style={containerStyle}
       onPress={onPress}
       disabled={disabled || loading}
@@ -69,7 +69,7 @@ const Button: React.FC<ButtonProps> = ({
           <Text style={textStyle}>{title}</Text>
         </>
       )}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 };
 

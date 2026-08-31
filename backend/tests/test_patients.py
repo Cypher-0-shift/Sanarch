@@ -18,7 +18,7 @@ class TestPatientsEndpoint:
         data = response.json()
         assert data["full_name"] == "John Doe"
         assert data["sanarch_id"].startswith("SAN-")
-        assert len(data["sanarch_id"]) == 29
+        assert len(data["sanarch_id"]) == 23
 
     def test_create_patient_rejects_invalid_relationship(self, client, dev_headers):
         response = client.post("/patients/create", headers=dev_headers, json={

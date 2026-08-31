@@ -64,6 +64,8 @@ async def upload_document(
     file: UploadFile = File(None),
     files: Optional[List[UploadFile]] = File(None),
     document_label: str = Form("Other"),
+    document_title: str = Form(""),
+    notes: str = Form(""),
     pages_count: int = Form(1),
     db: Client = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -132,7 +134,8 @@ async def upload_document(
             "b2_file_url": "",
             "b2_page_keys": b2_page_keys,
             "document_label": document_label,
-            "document_title": "",
+            "document_title": document_title,
+            "notes": notes,
             "status": "uploaded",
             "processing_progress": 20,
             "processing_stage": "uploaded",
@@ -195,7 +198,8 @@ async def upload_document(
             "b2_file_id": b2_key,
             "b2_file_url": b2_url,
             "document_label": document_label,
-            "document_title": "",
+            "document_title": document_title,
+            "notes": notes,
             "status": "uploaded",
             "processing_progress": 20,
             "processing_stage": "uploaded",
@@ -361,6 +365,12 @@ def delete_document(
 
     # Delete from Firestore
     doc_ref.delete()
+    try:
+        db.collection("medical_events").document(document_id).delete()
+        from app.routers.timeline import invalidate_timeline_cache
+        invalidate_timeline_cache(str(doc.get("patient_id") or doc.get("owner_id") or current_user["id"]))
+    except Exception as e:
+        logger.warning(f"Failed to delete medical_event or invalidate cache for {document_id}: {e}")
     logger.info(f"Document {document_id} deleted by user {current_user['id']}")
 
     return {"status": "deleted", "document_id": document_id}

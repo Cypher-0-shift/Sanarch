@@ -90,3 +90,32 @@ export async function clearRecentSearches(): Promise<void> {
     logger.error('[Storage] Failed to clear recent searches:', error);
   }
 }
+
+const CONSENT_KEY = 'sanarch_consent_record';
+
+export interface ConsentRecord {
+  timestamp: string;
+  termsVersion: string;
+  privacyVersion: string;
+  action: string;
+  identifier: string;
+}
+
+export async function saveConsentRecord(record: ConsentRecord): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(CONSENT_KEY, JSON.stringify(record));
+    logger.log('[Storage] Consent record stored successfully');
+  } catch (error) {
+    logger.error('[Storage] Failed to save consent record:', error);
+  }
+}
+
+export async function getConsentRecord(): Promise<ConsentRecord | null> {
+  try {
+    const data = await SecureStore.getItemAsync(CONSENT_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    logger.error('[Storage] Failed to get consent record:', error);
+    return null;
+  }
+}

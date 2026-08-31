@@ -241,15 +241,56 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
             extracted = {}
 
         # ── STAGE 6: READY (100%) ─────────────────────────────────────────
+        condition_terms_raw = extracted.get("condition_terms_raw", [])
+        condition_groups = extracted.get("condition_groups", [])
+        
         doc_ref.update({
             "status": "ready",
             "processing_progress": 100,
             "processing_stage": "ready",
             "document_title": document_title,
             "extracted_data": extracted,
+            "condition_terms_raw": condition_terms_raw,
+            "condition_groups": condition_groups,
             "summary": summary,
             "updated_at": SERVER_TIMESTAMP,
         })
+
+        # Create corresponding entry in medical_events collection
+        try:
+            from datetime import datetime, timezone
+            event_date_str = extracted.get("document_date")
+            if not event_date_str or len(str(event_date_str)) < 10:
+                event_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            else:
+                event_date_str = str(event_date_str)[:10]
+
+            patient_id = doc.get("patient_id") or owner_id
+            event_data = {
+                "patient_id": str(patient_id),
+                "document_id": document_id,
+                "event_date": event_date_str,
+                "hospital_name": extracted.get("hospital_name"),
+                "doctor_name": extracted.get("doctor_name"),
+                "diagnosis": extracted.get("diagnosis", []),
+                "medications": extracted.get("medications", []),
+                "lab_values": extracted.get("lab_values", []),
+                "condition_terms_raw": condition_terms_raw,
+                "condition_groups": condition_groups,
+                "summary": summary,
+                "created_at": SERVER_TIMESTAMP,
+            }
+            db.collection("medical_events").document(document_id).set(event_data)
+            logger.info(f"Created medical_event for document {document_id}")
+        except Exception as event_err:
+            logger.error(f"Failed to create medical_event for {document_id}: {event_err}", exc_info=True)
+
+        # Invalidate the timeline cache so the frontend can sync immediately
+        from app.routers.timeline import invalidate_timeline_cache
+        try:
+            invalidate_timeline_cache(str(doc.get("patient_id") or owner_id))
+        except Exception as e:
+            logger.warning(f"Failed to invalidate timeline cache for {owner_id}: {e}")
 
         elapsed = time.time() - start_time
         logger.info(f"Document {document_id} ready in {elapsed:.1f}s")

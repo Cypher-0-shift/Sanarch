@@ -1,56 +1,70 @@
-import React from 'react';
-import { Animated, Pressable as RNPressable, ViewStyle } from 'react-native';
+import React, { useRef } from 'react';
+import { Animated, Pressable as RNPressable, ViewStyle, StyleProp, PressableProps } from 'react-native';
 
-interface AnimatedPressableProps {
-  onPress: () => void;
-  children: React.ReactNode;
-  style?: ViewStyle | ViewStyle[];
-  className?: string;
-  disabled?: boolean;
-  scaleAmount?: number; // default 0.97
-  haptic?: boolean; // default false for now
+const AnimatedRNPressable = Animated.createAnimatedComponent(RNPressable);
+
+interface AnimatedPressableProps extends PressableProps {
+  style?: StyleProp<ViewStyle> | any;
+  scaleAmount?: number;
+  activeOpacity?: number; // Accept but ignore to act as drop-in replacement for TouchableOpacity
 }
 
 export default function AnimatedPressable({
   onPress,
   children,
   style,
-  className,
   disabled = false,
-  scaleAmount = 0.97,
-  haptic = false,
+  scaleAmount = 0.95,
+  activeOpacity, // ignored
+  ...rest
 }: AnimatedPressableProps) {
-  const scale = React.useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = () => {
-    Animated.spring(scale, {
-      toValue: scaleAmount,
-      useNativeDriver: true,
-      tension: 300,
-      friction: 20,
-    }).start();
+  const handlePressIn = (e: any) => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: scaleAmount,
+        useNativeDriver: true,
+        speed: 20,
+        bounciness: 5,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0.85, // subtle blink instead of full fade
+        duration: 100,
+        useNativeDriver: true,
+      })
+    ]).start();
+    if (rest.onPressIn) rest.onPressIn(e);
   };
 
-  const handlePressOut = () => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 300,
-      friction: 20,
-    }).start();
+  const handlePressOut = (e: any) => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 20,
+        bounciness: 5,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      })
+    ]).start();
+    if (rest.onPressOut) rest.onPressOut(e);
   };
 
   return (
-    <RNPressable
+    <AnimatedRNPressable
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled}
-      className={className}
+      style={[style, { transform: [{ scale }], opacity }]}
+      {...rest}
     >
-      <Animated.View style={[{ transform: [{ scale }] }, style]}>
-        {children}
-      </Animated.View>
-    </RNPressable>
+      {typeof children === 'function' ? children({ pressed: false }) : children}
+    </AnimatedRNPressable>
   );
 }

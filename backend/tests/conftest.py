@@ -28,7 +28,7 @@ def _ensure_test_user():
     # Create test user
     doc_ref = db.collection("users").document()
     doc_ref.set({
-        "sanarch_id": "SAN-IN-25-M-18-P-00-TEST01-T1",
+        "sanarch_id": "SAN-IN25M18P00-TEST01T1",
         "phone_number": TEST_USER_PHONE,
         "firebase_uid": TEST_USER_UID,
         "full_name": "Test User",

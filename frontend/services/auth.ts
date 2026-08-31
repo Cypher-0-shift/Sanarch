@@ -1,4 +1,10 @@
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { 
+  getAuth, 
+  signInWithPhoneNumber, 
+  onIdTokenChanged, 
+  signOut, 
+  FirebaseAuthTypes 
+} from '@react-native-firebase/auth';
 import apiClient from './api';
 import { saveToken, clearToken, saveUserData, clearUserData, getToken } from './storage';
 import { ENDPOINTS } from '../constants/api';
@@ -8,8 +14,9 @@ let confirmResult: FirebaseAuthTypes.ConfirmationResult | null = null;
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
   // phoneNumber must be E.164 format: +919876543210
+  const auth = getAuth();
   try {
-    confirmResult = await auth().signInWithPhoneNumber(phoneNumber);
+    confirmResult = await signInWithPhoneNumber(auth, phoneNumber);
   } catch (error: any) {
     logger.error('[Auth] sendOTP failed:', error);
     // Map Firebase error codes to user-friendly messages
@@ -64,7 +71,8 @@ export async function verifyOTP(otp: string): Promise<{ firebase_token: string; 
 
 export async function getFirebaseToken(): Promise<string> {
   // Always get a fresh token from Firebase (auto-refreshes if needed)
-  const currentUser = auth().currentUser;
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
   if (!currentUser) {
     // Fall back to stored token for dev mode
     const stored = await getToken();
@@ -78,9 +86,8 @@ export async function getFirebaseToken(): Promise<string> {
 }
 
 export async function setupTokenRefresh(): Promise<void> {
-  // Firebase automatically handles token refresh.
-  // We only care about logout events here to clear the backend JWT.
-  auth().onIdTokenChanged(async (user) => {
+  const auth = getAuth();
+  onIdTokenChanged(auth, async (user) => {
     if (!user) {
       const currentToken = await getToken();
       // Do not clear the token if we are using the mock dev JWT
@@ -93,8 +100,9 @@ export async function setupTokenRefresh(): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
+  const auth = getAuth();
   try {
-    await auth().signOut();
+    await signOut(auth);
     await clearToken();
     await clearUserData();
     confirmResult = null;
