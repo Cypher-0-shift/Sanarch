@@ -79,6 +79,22 @@ const MonthSeparator = ({ label }: { label: string }) => (
   </View>
 );
 
+function isKnown(val?: string | null): boolean {
+  if (!val) return false;
+  const cleaned = val.trim().toLowerCase();
+  return (
+    cleaned.length > 0 &&
+    cleaned !== 'unknown' &&
+    cleaned !== 'null' &&
+    cleaned !== 'undefined' &&
+    cleaned !== 'none' &&
+    cleaned !== 'n/a' &&
+    cleaned !== 'na' &&
+    cleaned !== 'nil' &&
+    cleaned !== 'not available'
+  );
+}
+
 // ─── Single card ───────────────────────────────────────────────────────────────
 const TimelineCard = ({
   event, doc, onPress, isLast,
@@ -103,14 +119,17 @@ const TimelineCard = ({
     : 'Date not available';
   const dateUnavailable = !rawDate;
 
-  const doctorName =
+  const rawDoctor =
     doc?.extracted_data?.doctor_name || event.doctor || event.doctor_name || null;
-  const labName =
+  const doctorName = isKnown(rawDoctor) ? rawDoctor!.trim().replace(/^Dr\.\s*/i, '') : null;
+
+  const rawLab =
     doc?.extracted_data?.hospital_name ||
     doc?.extracted_data?.lab_name ||
     event.hospital ||
     event.hospital_name ||
     null;
+  const labName = isKnown(rawLab) ? rawLab!.trim() : null;
   const badge = labName ? providerBadge(labName) : null;
 
   return (

@@ -20,9 +20,48 @@ from app.workers.celery_app import celery_app
 from app.firestore import get_db
 from google.cloud.firestore import SERVER_TIMESTAMP
 from app.services.extraction import extract_from_image
-from app.services.storage import get_presigned_url, get_b2_client, move_to_final
+from app.services.storage import get_presigned_url, get_b2_client, move_to_final, upload_to_tmp
 from app.config import settings
 from app.logging_config import logger
+
+
+def _generate_thumbnail(image_bytes: bytes, mime_type: str, target_width: int = 1200, quality: int = 70) -> bytes | None:
+    """
+    Resize an image to at most `target_width` px (longest side), preserving aspect ratio.
+    Returns JPEG bytes at the given quality, or None if generation fails.
+    Never upscales.
+    """
+    import io
+    from PIL import Image
+
+    try:
+        if mime_type == "application/pdf":
+            # Rasterize the first page of the PDF at 150 DPI.
+            import fitz
+            pdf_doc = fitz.open(stream=image_bytes)
+            page = pdf_doc[0]
+            mat = fitz.Matrix(150 / 72, 150 / 72)  # 150 DPI
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            pdf_doc.close()
+            pil_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        else:
+            pil_img = Image.open(io.BytesIO(image_bytes))
+            if pil_img.mode in ("RGBA", "P", "LA"):
+                pil_img = pil_img.convert("RGB")
+
+        w, h = pil_img.size
+        if max(w, h) > target_width:
+            scale = target_width / max(w, h)
+            new_w = max(1, round(w * scale))
+            new_h = max(1, round(h * scale))
+            pil_img = pil_img.resize((new_w, new_h), Image.LANCZOS)
+
+        buf = io.BytesIO()
+        pil_img.save(buf, format="JPEG", quality=quality, optimize=True)
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"Thumbnail generation failed (non-fatal): {e}")
+        return None
 
 
 def run_async(coro):
@@ -160,6 +199,24 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
                 logger.warning(f"Failed to upload merged PDF (non-fatal): {upload_err}")
                 merged_pdf_key = None
 
+            # Generate thumbnail from the first page image (before merging loses the raw bytes).
+            thumb_bytes = _generate_thumbnail(page_bytes_list[0], "image/jpeg") if page_bytes_list else None
+            thumb_key = None
+            if thumb_bytes:
+                try:
+                    thumb_key = upload_to_tmp(
+                        thumb_bytes,
+                        f"{owner_id}/{document_id}_thumb",
+                        "image/jpeg",
+                    )
+                    final_thumb_key = f"thumbs/{owner_id}/{document_id}"
+                    move_to_final(thumb_key, final_thumb_key)
+                    thumb_key = final_thumb_key
+                    logger.info(f"Multi-page thumbnail generated: {final_thumb_key} ({len(thumb_bytes)} bytes)")
+                except Exception as thumb_err:
+                    logger.warning(f"Multi-page thumbnail upload failed (non-fatal): {thumb_err}")
+                    thumb_key = None
+
             # Move each page to final location
             final_page_keys = []
             for i, page_key in enumerate(b2_page_keys):
@@ -181,7 +238,7 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
                 
             doc_ref.update(update_data)
         else:
-            # ── Single-file path: unchanged ──
+            # ── Single-file path ──
             logger.info(f"Downloading {b2_key} from B2")
             response = client.get_object(
                 Bucket=settings.b2_bucket_name,
@@ -202,6 +259,25 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
             except Exception as move_err:
                 logger.warning(f"Move to final failed (non-fatal): {move_err}")
                 # Continue with extraction even if move fails
+
+            # Generate thumbnail from the original single file.
+            thumb_bytes = _generate_thumbnail(file_bytes, mime_type)
+            thumb_key = None
+            if thumb_bytes:
+                try:
+                    thumb_key = upload_to_tmp(
+                        thumb_bytes,
+                        f"{owner_id}/{document_id}_thumb",
+                        "image/jpeg",
+                    )
+                    # Move immediately to final thumbs/ location
+                    final_thumb_key = f"thumbs/{owner_id}/{document_id}"
+                    move_to_final(thumb_key, final_thumb_key)
+                    thumb_key = final_thumb_key
+                    logger.info(f"Thumbnail generated: {final_thumb_key} ({len(thumb_bytes)} bytes)")
+                except Exception as thumb_err:
+                    logger.warning(f"Thumbnail upload failed (non-fatal): {thumb_err}")
+                    thumb_key = None
 
         # ── STAGE 3: EXTRACTING (75%) ─────────────────────────────────────
         _update_progress(doc_ref, "extracting", 75)
@@ -255,6 +331,20 @@ def process_document(self, document_id: str, owner_id: str) -> dict:
             "summary": summary,
             "updated_at": SERVER_TIMESTAMP,
         })
+
+        # Write thumbnail metadata if generated in this run (Phase C).
+        # thumb_key may be unset if this document went through the multi-page path
+        # with no pages, or if thumbnail generation failed — both are non-fatal.
+        try:
+            if thumb_key:
+                thumb_url = get_presigned_url(thumb_key, expires_in=3600)
+                doc_ref.update({
+                    "thumbnail_file_id": thumb_key,
+                    "thumbnail_url": thumb_url,
+                })
+                logger.info(f"Thumbnail metadata written for {document_id}")
+        except Exception as thumb_meta_err:
+            logger.warning(f"Failed to write thumbnail metadata (non-fatal): {thumb_meta_err}")
 
         # Create corresponding entry in medical_events collection
         try:

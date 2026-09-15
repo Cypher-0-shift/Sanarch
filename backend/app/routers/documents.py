@@ -185,8 +185,9 @@ async def upload_document(
             raise HTTPException(503, "Storage service unavailable — try again")
 
         # Generate a presigned URL for the uploaded file
+        # TTL is 1 hour to match the client-side URL cache in documentsStore.
         try:
-            b2_url = get_presigned_url(b2_key, expires_in=86400)  # 24h
+            b2_url = get_presigned_url(b2_key, expires_in=3600)  # 1h
         except Exception:
             b2_url = ""
 
@@ -256,6 +257,26 @@ def list_documents(
         if data.get("hidden_from_list"):
             continue
             
+        created_at_val = data.get("created_at")
+        if isinstance(created_at_val, datetime):
+            created_at_str = created_at_val.isoformat()
+        elif hasattr(created_at_val, "isoformat"):
+            created_at_str = created_at_val.isoformat()
+        elif hasattr(created_at_val, "toDate"):
+            created_at_str = created_at_val.toDate().isoformat()
+        else:
+            created_at_str = str(created_at_val) if created_at_val else None
+
+        updated_at_val = data.get("updated_at")
+        if isinstance(updated_at_val, datetime):
+            updated_at_str = updated_at_val.isoformat()
+        elif hasattr(updated_at_val, "isoformat"):
+            updated_at_str = updated_at_val.isoformat()
+        elif hasattr(updated_at_val, "toDate"):
+            updated_at_str = updated_at_val.toDate().isoformat()
+        else:
+            updated_at_str = str(updated_at_val) if updated_at_val else None
+
         documents.append(DocumentListItem(
             document_id=d.id,
             document_title=data.get("document_title", ""),
@@ -264,8 +285,14 @@ def list_documents(
             processing_progress=data.get("processing_progress", 0),
             processing_stage=data.get("processing_stage", "unknown"),
             file_type=data.get("file_type", ""),
-            created_at=data.get("created_at").isoformat() if isinstance(data.get("created_at"), datetime) else None,
-            updated_at=data.get("updated_at").isoformat() if isinstance(data.get("updated_at"), datetime) else None,
+            b2_file_url=data.get("b2_file_url"),
+            thumbnail_url=data.get("thumbnail_url"),
+            extracted_data=data.get("extracted_data") or {},
+            condition_terms_raw=data.get("condition_terms_raw") or [],
+            condition_groups=data.get("condition_groups") or [],
+            summary=data.get("summary") or "",
+            created_at=created_at_str,
+            updated_at=updated_at_str,
         ))
 
     # Sort newest first
@@ -293,14 +320,24 @@ def get_document(
     if doc.get("owner_id") != current_user["id"]:
         raise HTTPException(403, "You do not have access to this document")
 
-    # Generate fresh presigned URL if we have a B2 key
+    # Generate fresh presigned URL if we have a B2 key.
+    # TTL is 1 hour — matches the client-side URL cache in documentsStore.
     b2_url = None
     b2_key = doc.get("b2_file_id")
     if b2_key:
         try:
-            b2_url = get_presigned_url(b2_key)
+            b2_url = get_presigned_url(b2_key, expires_in=3600)  # 1h
         except Exception:
             b2_url = doc.get("b2_file_url")
+
+    # Generate fresh presigned URL for the thumbnail (Phase C).
+    thumbnail_url = None
+    thumb_key = doc.get("thumbnail_file_id")
+    if thumb_key:
+        try:
+            thumbnail_url = get_presigned_url(thumb_key, expires_in=3600)  # 1h
+        except Exception:
+            thumbnail_url = doc.get("thumbnail_url")
 
     return DocumentDetailResponse(
         document_id=document_id,
@@ -314,6 +351,7 @@ def get_document(
         extracted_data=doc.get("extracted_data", {}),
         summary=doc.get("summary", ""),
         b2_file_url=b2_url,
+        thumbnail_url=thumbnail_url,
         created_at=doc.get("created_at").isoformat() if isinstance(doc.get("created_at"), datetime) else None,
         updated_at=doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else None,
     )

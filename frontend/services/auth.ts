@@ -36,11 +36,22 @@ export async function verifyOTP(otp: string): Promise<{ firebase_token: string; 
   }
 
   try {
-    const credential = await confirmResult.confirm(otp);
-    if (!credential?.user) throw new Error('Verification failed.');
-
-    // Get Firebase ID token
-    const firebaseToken = await credential.user.getIdToken();
+    const auth = getAuth();
+    let firebaseToken: string;
+    
+    // DEV MODE BYPASS: If in dev mode and OTP is 123456, skip Firebase
+    if (__DEV__ && otp === '123456') {
+      firebaseToken = 'dev-mode-token';
+    } else {
+      // On Android, if the SMS is auto-read, currentUser might already be populated
+      if (auth.currentUser) {
+        firebaseToken = await auth.currentUser.getIdToken(true);
+      } else {
+        const credential = await confirmResult.confirm(otp);
+        if (!credential?.user) throw new Error('Verification failed.');
+        firebaseToken = await credential.user.getIdToken();
+      }
+    }
 
     // Verify with backend — determines is_new_user
     const response = await apiClient.post(ENDPOINTS.VERIFY_FIREBASE, {

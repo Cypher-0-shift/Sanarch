@@ -25,6 +25,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import DocumentAdjuster from '../../components/upload/DocumentAdjuster';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
@@ -267,11 +268,33 @@ export default function UploadScreen() {
       mediaTypes: ['images'],
       quality: 0.92,
       allowsMultipleSelection: true,
+      // Phase D: exif metadata is not needed for document scanning.
+      exif: false,
     });
     if (!result.canceled && result.assets?.length > 0) {
       // For now, take the first selected image and proceed
       // TODO: Support multi-page upload from multiple photos
-      const uri = result.assets[0].uri;
+      let uri = result.assets[0].uri;
+
+      // Phase D: cap to MAX_UPLOAD_DIM px on the longest side using expo-image-manipulator.
+      // The picker itself does not expose maxWidth/maxHeight in SDK 54, so we resize
+      // post-pick before handing the URI to DocumentAdjuster. Images already within
+      // bounds pass through with only a quality re-encode (compress: 0.92).
+      const MAX_UPLOAD_DIM = 2048;
+      const asset = result.assets[0];
+      if (asset.width > MAX_UPLOAD_DIM || asset.height > MAX_UPLOAD_DIM) {
+        try {
+          const resized = await ImageManipulator.manipulateAsync(
+            uri,
+            [{ resize: { width: MAX_UPLOAD_DIM } }],
+            { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          uri = resized.uri;
+        } catch {
+          // Non-fatal — proceed with original if resize fails
+        }
+      }
+
       setFileUri(uri);
       setAdjustedUri(uri);
       setFileName(result.assets[0].fileName || 'Photo_' + Date.now() + '.jpg');

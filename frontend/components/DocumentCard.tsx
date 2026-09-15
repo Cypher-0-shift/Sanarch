@@ -62,16 +62,18 @@ export default function DocumentCard({ document }: DocumentCardProps) {
   const category = CATEGORIES.find((c) => c.id === document_label) || CATEGORIES.find((c) => c.id === 'other')!;
 
   const ext = document.extracted_data || {};
-  let secondaryLine = 'Details pending';
-  if (ext.hospital_name || ext.doctor_name) {
-    if (ext.hospital_name && ext.doctor_name) {
-      secondaryLine = `Dr. ${ext.doctor_name} · ${ext.hospital_name}`;
-    } else if (ext.doctor_name) {
-      secondaryLine = `Dr. ${ext.doctor_name}`;
-    } else {
-      secondaryLine = ext.hospital_name;
-    }
-  }
+  const isKnown = (val?: string | null) =>
+    !!val &&
+    val.trim().length > 0 &&
+    val.trim().toLowerCase() !== 'unknown' &&
+    val.trim().toLowerCase() !== 'null' &&
+    val.trim().toLowerCase() !== 'undefined' &&
+    val.trim().toLowerCase() !== 'none' &&
+    val.trim().toLowerCase() !== 'n/a' &&
+    val.trim().toLowerCase() !== 'nil';
+
+  const knownDoctor = isKnown(ext.doctor_name) ? ext.doctor_name.trim() : null;
+  const knownHospital = isKnown(ext.hospital_name) ? ext.hospital_name.trim() : null;
 
   const isInProgress =
     status === 'uploading' ||
@@ -80,6 +82,22 @@ export default function DocumentCard({ document }: DocumentCardProps) {
     status === 'processing';
   const isReady = status === 'ready';
   const isFailed = status === 'failed';
+
+  let secondaryLine = '';
+  if (knownDoctor && knownHospital) {
+    secondaryLine = `Dr. ${knownDoctor.replace(/^Dr\.\s*/i, '')} · ${knownHospital}`;
+  } else if (knownDoctor) {
+    secondaryLine = `Dr. ${knownDoctor.replace(/^Dr\.\s*/i, '')}`;
+  } else if (knownHospital) {
+    secondaryLine = knownHospital;
+  } else if (isReady) {
+    const diag = ext.diagnosis?.[0] || document.condition_terms_raw?.[0];
+    if (diag && isKnown(diag)) {
+      secondaryLine = diag;
+    }
+  } else if (isInProgress) {
+    secondaryLine = STAGE_LABELS[processing_stage] ?? 'Processing…';
+  }
 
   // Animated progress bar width
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -245,20 +263,20 @@ export default function DocumentCard({ document }: DocumentCardProps) {
   // ── Shared card content renderers ─────────────────────────────
 
   const renderCardContent = (showProgress: boolean) => (
-    <View className="rounded-[24px] overflow-hidden shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.5)' }}>
+    <View className="rounded-[24px] overflow-hidden shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', borderWidth: 1.5, borderColor: isFailed ? 'rgba(239, 83, 80, 0.35)' : 'rgba(255, 255, 255, 0.5)' }}>
       <BlurView intensity={40} tint="light" className="p-4 flex-row">
         {/* Left: Category Icon area */}
         <View
-          className={`w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-white/60 items-center justify-center mr-4 ${showProgress ? 'opacity-60' : ''}`}
-          style={{ backgroundColor: category.bg }}
+          className={`w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border items-center justify-center mr-4 ${isFailed ? 'border-red-200' : 'border-white/60'} ${showProgress ? 'opacity-60' : ''}`}
+          style={{ backgroundColor: isFailed ? '#FFEBEE' : category.bg }}
         >
-          <MaterialCommunityIcons name={category.icon as any} size={32} color={category.color} />
+          <MaterialCommunityIcons name={isFailed ? 'alert-circle-outline' : (category.icon as any)} size={32} color={isFailed ? '#C62828' : category.color} />
         </View>
 
         {/* Right: Content */}
         <View className="flex-1 flex-col justify-between">
           <View className="flex-row justify-between items-start">
-            <Text className="text-[15px] font-display-bold text-[#004D36] flex-1 mr-2" numberOfLines={1}>
+            <Text className={`text-[15px] font-display-bold ${isFailed ? 'text-[#C62828]' : 'text-[#004D36]'} flex-1 mr-2`} numberOfLines={1}>
               {document_title || category.name}
             </Text>
             <Text className="text-[11px] font-display-medium text-[#707973] shrink-0 mt-0.5">
@@ -266,17 +284,37 @@ export default function DocumentCard({ document }: DocumentCardProps) {
             </Text>
           </View>
 
-          <Text className="text-[13px] font-display-medium text-[#404944] mt-1 mb-2" numberOfLines={1}>
-            {secondaryLine}
-          </Text>
+          {(isFailed || secondaryLine) ? (
+            <Text className={`text-[13px] font-display-medium ${isFailed ? 'text-[#C62828]' : 'text-[#404944]'} mt-1 mb-2`} numberOfLines={1}>
+              {isFailed ? (isRetrying ? 'Retrying processing…' : 'Processing failed · Tap to retry') : secondaryLine}
+            </Text>
+          ) : (
+            <View className="h-2" />
+          )}
 
           <View className="flex-row flex-wrap items-center gap-2 mt-auto">
-            <View className="px-2 py-0.5 rounded bg-[#d7e7d7]">
-              <Text className="text-[10px] font-display-bold uppercase tracking-wider text-[#004D36]">
+            <View className={`px-2 py-0.5 rounded ${isFailed ? 'bg-[#FFCDD2]' : 'bg-[#d7e7d7]'}`}>
+              <Text className={`text-[10px] font-display-bold uppercase tracking-wider ${isFailed ? 'text-[#C62828]' : 'text-[#004D36]'}`}>
                 {category.name}
               </Text>
             </View>
-            {showProgress ? (
+            {isFailed ? (
+              <View className="flex-row items-center gap-1">
+                {isRetrying ? (
+                  <>
+                    <ActivityIndicator size="small" color="#C62828" style={{ transform: [{ scale: 0.6 }] }} />
+                    <Text className="text-[11px] font-display-medium text-[#C62828]">Retrying…</Text>
+                  </>
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="alert-circle" size={14} color="#C62828" />
+                    <Text className="text-[11px] font-display-medium text-[#C62828]">
+                      Failed · Tap to retry
+                    </Text>
+                  </>
+                )}
+              </View>
+            ) : showProgress ? (
               <View className="flex-row items-center gap-1">
                 <ActivityIndicator size="small" color="#546255" style={{ transform: [{ scale: 0.6 }] }} />
                 <Text className="text-[11px] font-display-medium text-[#546255]">
@@ -415,6 +453,60 @@ export default function DocumentCard({ document }: DocumentCardProps) {
     );
   }
 
-  // ── FAILED STATE (Dead code — filtered out by hidden_from_list) ──
+  // ── FAILED STATE ────────────────────────────────────────────────
+  if (isFailed) {
+    return (
+      <View style={{ marginBottom: 12, position: 'relative' }}>
+        {/* Delete button behind card (right side) */}
+        <RNAnimated.View
+          style={[
+            {
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 80,
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+            deleteButtonAnimatedStyle,
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => { translateX.value = withSpring(0); openDeleteModal(); }}
+            activeOpacity={0.8}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: '#FFCDD2',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={26} color="#C62828" />
+          </TouchableOpacity>
+        </RNAnimated.View>
+
+        {/* Swipeable card */}
+        <GestureDetector gesture={panGesture}>
+          <RNAnimated.View style={cardAnimatedStyle}>
+            <Animated.View style={{ transform: [{ scale: pressScale }] }}>
+              <Pressable
+                onPress={handlePress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+              >
+                {renderCardContent(false)}
+              </Pressable>
+            </Animated.View>
+          </RNAnimated.View>
+        </GestureDetector>
+
+        {deleteModal}
+      </View>
+    );
+  }
+
   return null;
 }

@@ -1,17 +1,25 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Animated, Modal, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Animated, Modal, Alert, Switch } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getDocument, deleteDocument, summarizeDocument } from '../../../services/api';
 import { useAlertStore } from '../../../store/alertStore';
 import { useAuthStore } from '../../../store/authStore';
-import { useDocumentsStore, type DocumentRecord } from '../../../store/documentsStore';
+import { useDocumentsStore, type DocumentRecord, PRESIGNED_URL_TTL_MS } from '../../../store/documentsStore';
 import { CATEGORIES } from '../upload';
 import AnimatedPressable from '../../../components/ui/Pressable';
 import { parseDate, formatDate } from '../../../utils/date';
+
+/**
+ * Module-level cache for PDF converted JPEGs.
+ * Keyed by `${document_id}:${updated_at}` so an updated document always busts the cache.
+ * Survives navigation within a session without persisting to disk.
+ */
+const pdfCache = new Map<string, { uri: string; expiresAt: number }>();
 
 function ExpandableSection({ title, icon, children, defaultOpen = false }: { title: string, icon: string, children: React.ReactNode, defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -56,9 +64,297 @@ function MeshBackground() {
   );
 }
 
+function cleanDocumentTitle(title: string): string {
+  if (!title) return 'Document';
+  return (
+    title
+      .replace(/[\s\-_–—]*[\(\[]?\d{4}[-/.]\d{1,2}[-/.]\d{1,2}[\)\]]?[\s\-_–—]*$/i, '')
+      .replace(/[\(\[]\d{4}[-/.]\d{1,2}[-/.]\d{1,2}[\)\]]/g, '')
+      .trim() || title
+  );
+}
+
+function isKnown(val?: string | null): boolean {
+  if (!val) return false;
+  const cleaned = val.trim().toLowerCase();
+  return (
+    cleaned.length > 0 &&
+    cleaned !== 'unknown' &&
+    cleaned !== 'null' &&
+    cleaned !== 'undefined' &&
+    cleaned !== 'none' &&
+    cleaned !== 'n/a' &&
+    cleaned !== 'na' &&
+    cleaned !== 'nil' &&
+    cleaned !== 'not available'
+  );
+}
+
+function isReferenceRangeValid(range: string | null | undefined): boolean {
+  if (!range) return false;
+  const cleaned = range.trim().toLowerCase();
+  return (
+    cleaned.length > 0 &&
+    cleaned !== 'null' &&
+    cleaned !== 'undefined' &&
+    cleaned !== 'none' &&
+    cleaned !== 'unknown' &&
+    cleaned !== 'n/a' &&
+    cleaned !== 'na' &&
+    cleaned !== 'nil' &&
+    cleaned !== 'not available' &&
+    cleaned !== '-' &&
+    cleaned !== '—'
+  );
+}
+
+function condenseReferenceRange(range: string | null | undefined): string {
+  if (!isReferenceRangeValid(range)) return '';
+  return range!.replace(/[,;]\s*/g, ' · ').trim();
+}
+
+type LabStatus = 'HIGH' | 'LOW' | 'NORMAL';
+
+function getLabStatus(item: { flag?: string | null; value?: string | null; reference_range?: string | null }): LabStatus {
+  const rawFlag = (item.flag || '').toLowerCase().trim();
+  if (rawFlag === 'high') return 'HIGH';
+  if (rawFlag === 'low') return 'LOW';
+  if (rawFlag === 'normal') return 'NORMAL';
+
+  if (!item.value || !item.reference_range) return 'NORMAL';
+
+  const valMatch = item.value.match(/-?\d+(?:\.\d+)?/);
+  if (!valMatch) return 'NORMAL';
+  const numVal = parseFloat(valMatch[0]);
+  if (isNaN(numVal)) return 'NORMAL';
+
+  const ref = item.reference_range;
+
+  const rangeMatch = ref.match(/(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)/i);
+  if (rangeMatch) {
+    const min = parseFloat(rangeMatch[1]);
+    const max = parseFloat(rangeMatch[2]);
+    if (!isNaN(min) && numVal < min) return 'LOW';
+    if (!isNaN(max) && numVal > max) return 'HIGH';
+    return 'NORMAL';
+  }
+
+  const upperMatch = ref.match(/(?:<|<=|less\s+than)\s*(-?\d+(?:\.\d+)?)/i);
+  if (upperMatch) {
+    const max = parseFloat(upperMatch[1]);
+    if (!isNaN(max) && numVal > max) return 'HIGH';
+    return 'NORMAL';
+  }
+
+  const lowerMatch = ref.match(/(?:>|>=|greater\s+than)\s*(-?\d+(?:\.\d+)?)/i);
+  if (lowerMatch) {
+    const min = parseFloat(lowerMatch[1]);
+    if (!isNaN(min) && numVal < min) return 'LOW';
+    return 'NORMAL';
+  }
+
+  return 'NORMAL';
+}
+
+interface ParsedPhase {
+  label?: string;
+  value: string;
+}
+
+function parseReferenceRangePhases(range: string | null | undefined): ParsedPhase[] {
+  if (!isReferenceRangeValid(range)) return [];
+
+  const rawCleaned = range!.trim();
+  const primarySplits = rawCleaned.split(/[\n;·|]+/);
+  const segments: string[] = [];
+
+  for (const part of primarySplits) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.includes(',')) {
+      const commaParts = trimmed.split(/,\s*/);
+      let currentAcc = '';
+      for (let i = 0; i < commaParts.length; i++) {
+        const cp = commaParts[i];
+        if (currentAcc && /^\d+$/.test(cp) && /\d+$/.test(currentAcc)) {
+          currentAcc += ',' + cp;
+        } else {
+          if (currentAcc) segments.push(currentAcc);
+          currentAcc = cp;
+        }
+      }
+      if (currentAcc) segments.push(currentAcc);
+    } else {
+      segments.push(trimmed);
+    }
+  }
+
+  return segments
+    .map((seg) => {
+      const s = seg.trim();
+      if (!s) return null;
+
+      if (s.includes(':')) {
+        const colonIdx = s.indexOf(':');
+        const label = s.slice(0, colonIdx).trim();
+        const value = s.slice(colonIdx + 1).trim();
+        if (label && value) {
+          return { label, value };
+        }
+      }
+
+      const dashMatch = s.match(/^([A-Za-z\s()]+)\s*[—–]\s*(.+)$/);
+      if (dashMatch) {
+        return { label: dashMatch[1].trim(), value: dashMatch[2].trim() };
+      }
+
+      return { value: s };
+    })
+    .filter((p): p is ParsedPhase => p !== null);
+}
+
+interface LabResultRowProps {
+  lv: {
+    test_name?: string;
+    value?: string | null;
+    unit?: string | null;
+    reference_range?: string | null;
+    flag?: string | null;
+  };
+  isLast: boolean;
+}
+
+function LabResultRow({ lv, isLast }: LabResultRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  const status = getLabStatus(lv);
+  const isHigh = status === 'HIGH';
+  const isLow = status === 'LOW';
+
+  const phases = useMemo(() => parseReferenceRangePhases(lv.reference_range), [lv.reference_range]);
+
+  const toggleExpand = () => {
+    const toValue = expanded ? 0 : 1;
+    Animated.timing(rotateAnim, {
+      toValue,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    setExpanded(!expanded);
+  };
+
+  const chevronRotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  return (
+    <View className={`py-3.5 ${!isLast ? 'border-b border-black/5' : ''}`}>
+      {/* Line 1: Title on top (wrap to 2 lines if needed) + Status Chip on top-right */}
+      <View className="flex-row items-start justify-between gap-3 mb-1.5">
+        <Text
+          className="text-[14px] font-display-bold text-[#1F2937] flex-1 leading-5"
+          numberOfLines={2}
+        >
+          {lv.test_name}
+        </Text>
+        {isHigh && (
+          <View className="bg-[#FFFBEB] border border-[#FDE68A] rounded-full px-2.5 py-0.5 self-start">
+            <Text className="text-[10px] font-display-bold text-[#D97706] tracking-wider uppercase">
+              HIGH
+            </Text>
+          </View>
+        )}
+        {isLow && (
+          <View className="bg-[#ECFEFF] border border-[#A5F3FC] rounded-full px-2.5 py-0.5 self-start">
+            <Text className="text-[10px] font-display-bold text-[#0891B2] tracking-wider uppercase">
+              LOW
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Line 2: Value + unit on their own line directly below in large bold type */}
+      <View className="flex-row items-baseline gap-1.5 mb-1">
+        <Text
+          className={`text-[22px] font-display-bold ${
+            isHigh ? 'text-[#D97706]' : isLow ? 'text-[#0891B2]' : 'text-[#004D36]'
+          }`}
+          style={{ letterSpacing: -0.5 }}
+        >
+          {lv.value || '—'}
+        </Text>
+        {lv.unit ? (
+          <Text className="text-[13px] font-display-medium text-[#819685]">
+            {lv.unit}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Line 3: Tappable Reference range line with small rotating chevron at the end */}
+      {isReferenceRangeValid(lv.reference_range) ? (
+        <View className="mt-0.5">
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={toggleExpand}
+            className="flex-row items-center justify-between py-1"
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Text
+              className="text-[12px] font-display text-[#819685] flex-1 mr-2"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Ref: {condenseReferenceRange(lv.reference_range)}
+            </Text>
+            <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
+              <MaterialCommunityIcons name="chevron-down" size={16} color="#819685" />
+            </Animated.View>
+          </TouchableOpacity>
+
+          {/* Expanded inset panel */}
+          {expanded && phases.length > 0 && (
+            <View className="bg-black/[0.03] border border-[#E5E2DE] rounded-xl px-3.5 py-2.5 mt-2">
+              <View className="flex-col gap-1.5">
+                {phases.map((phase, pIdx) => (
+                  <View
+                    key={pIdx}
+                    className={`flex-row items-start justify-between py-1 ${
+                      pIdx !== phases.length - 1 ? 'border-b border-black/[0.04]' : ''
+                    }`}
+                  >
+                    {phase.label ? (
+                      <View className="flex-row items-baseline flex-1 flex-wrap">
+                        <Text className="text-[12px] font-display-semibold text-[#1F2937]">
+                          {phase.label}
+                        </Text>
+                        <Text className="text-[12px] font-display text-[#819685]"> — </Text>
+                        <Text className="text-[12px] font-display-medium text-[#004D36]">
+                          {phase.value}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text className="text-[12px] font-display-semibold text-[#004D36]">
+                        {phase.value}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function RecordDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [previewLoaded, setPreviewLoaded] = useState(false);
@@ -73,6 +369,8 @@ export default function RecordDetailsScreen() {
   const token = useAuthStore((s) => s.token);
   const allDocuments = useDocumentsStore((s) => s.documents);
   const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+  const cacheB2Url = useDocumentsStore((s) => s.cacheB2Url);
+  const getValidB2Url = useDocumentsStore((s) => s.getValidB2Url);
 
   // Explain This button hint animation — runs independently of preview
   useEffect(() => {
@@ -166,7 +464,24 @@ export default function RecordDetailsScreen() {
         return;
       }
       try {
+        // Phase A: check whether a still-valid cached URL exists for this document.
+        // If so, use the store record directly and skip the API round-trip.
+        const cachedUrl = getValidB2Url(id);
+        if (cachedUrl) {
+          const stored = useDocumentsStore.getState().documents.find(
+            (d) => d.document_id === id
+          );
+          if (stored) {
+            setRecord({ ...stored, b2_file_url: cachedUrl });
+            setLoading(false);
+            return;
+          }
+        }
+        // Slow path — fetch a fresh presigned URL from the backend.
         const data = await getDocument(id);
+        if (data.b2_file_url) {
+          cacheB2Url(id, data.b2_file_url, Date.now() + PRESIGNED_URL_TTL_MS);
+        }
         setRecord(data);
       } catch (e) {
         console.error('[RecordDetail] Failed:', e);
@@ -179,12 +494,32 @@ export default function RecordDetailsScreen() {
   }, [id]);
 
   const b2Url = record?.b2_file_url;
+  const thumbnailUrl = record?.thumbnail_url || null;
+  // Hero preview uses thumbnail when available (Phase C); falls back to full-res
+  // for documents uploaded before thumbnail generation was introduced.
+  const previewUrl = thumbnailUrl || b2Url;
   const isPdf = record?.file_type === 'application/pdf' || record?.file_name?.toLowerCase().endsWith('.pdf');
 
   useEffect(() => {
-    if (!isPdf || !b2Url) return;
+    // PDF preview: if a server-generated thumbnail exists, use it directly
+    // and skip the expensive blob-fetch + /convert cycle entirely.
+    if (!isPdf) return;
+    if (thumbnailUrl) {
+      setPdfImageUrl(thumbnailUrl);
+      return;
+    }
+    if (!b2Url) return;
 
     const fetchPdfImage = async () => {
+      // Phase A+B: check module-level PDF cache before re-fetching/re-converting.
+      // Key includes updated_at so an edited/replaced document still busts correctly.
+      const cacheKey = `${id}:${record?.updated_at ?? ''}`;
+      const cached = pdfCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt - 2 * 60 * 1000) {
+        setPdfImageUrl(cached.uri);
+        return;
+      }
+
       try {
         const apiUrl = process.env.EXPO_PUBLIC_API_URL;
         if (!apiUrl) return;
@@ -208,7 +543,10 @@ export default function RecordDetailsScreen() {
         });
         const convertData = await convertRes.json();
         if (convertData.success && convertData.images?.length > 0) {
-          setPdfImageUrl(convertData.images[0]);
+          const uri = convertData.images[0];
+          // Cache the converted JPEG for the session duration.
+          pdfCache.set(cacheKey, { uri, expiresAt: Date.now() + PRESIGNED_URL_TTL_MS });
+          setPdfImageUrl(uri);
         } else {
           setPreviewLoaded(true);
         }
@@ -289,14 +627,23 @@ export default function RecordDetailsScreen() {
   }
 
   const displayLabel = record.document_label || 'document';
-  const displayTitle = record.document_title || record.file_name || 'Document';
+  const rawTitle = record.document_title || record.file_name || 'Document';
+  const displayTitle = cleanDocumentTitle(rawTitle);
   const displayDate = record.extracted_data?.document_date || record.created_at;
   const extractedData = record.extracted_data || {};
   
   const hasPreview = !!b2Url;
   
   const labValues = extractedData.lab_values || [];
-  const filteredLabValues = showOnlyAlerts ? labValues.filter((lv: any) => lv.flag && lv.flag.toLowerCase() !== 'normal') : labValues;
+  const filteredLabValues = showOnlyAlerts
+    ? labValues.filter((lv: any) => {
+        const status = getLabStatus(lv);
+        return status === 'HIGH' || status === 'LOW';
+      })
+    : labValues;
+
+  const hasDoctor = isKnown(extractedData.doctor_name);
+  const hasHospital = isKnown(extractedData.hospital_name);
 
   return (
     <SafeAreaView className="flex-1" edges={['top']}>
@@ -312,7 +659,7 @@ export default function RecordDetailsScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#004D36" />
         </TouchableOpacity>
         <Text className="text-[#004D36] text-lg font-display-bold tracking-tight">Report Details</Text>
-        <View className="flex-row gap-2 relative">
+        <View className="flex-row gap-2 items-center">
           <TouchableOpacity 
             className="w-10 h-10 rounded-full bg-white/40 items-center justify-center border border-white/50 shadow-sm"
             onPress={handleShare}
@@ -329,21 +676,48 @@ export default function RecordDetailsScreen() {
           >
             <MaterialCommunityIcons name="dots-vertical" size={24} color="#004D36" />
           </TouchableOpacity>
-          {showMenu && (
-            <View className="absolute top-12 right-0 bg-white rounded-xl shadow-lg border border-black/5 overflow-hidden z-50 w-48">
-              <TouchableOpacity 
-                className="flex-row items-center gap-3 px-4 py-3"
-                onPress={handleDelete}
-              >
-                <MaterialCommunityIcons name="delete-outline" size={20} color="#C62828" />
-                <Text className="text-[#C62828] font-display-medium text-[14px]">Delete Document</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       </BlurView>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      {/* More Options Dropdown Modal */}
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowMenu(false)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}
+        >
+          <View
+            style={{
+              position: 'absolute',
+              top: insets.top + 60,
+              right: 20,
+              width: 185,
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 10,
+            }}
+            className="bg-white rounded-2xl border border-[#E5E2DE] overflow-hidden"
+          >
+            <TouchableOpacity 
+              className="flex-row items-center gap-3 px-4 py-3.5 bg-white active:bg-[#FEE2E2]"
+              onPress={handleDelete}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="delete-outline" size={20} color="#C62828" />
+              <Text className="text-[#C62828] font-display-semibold text-[14px]">Delete Document</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 180 }}>
         <View className="px-6 pt-6 pb-8">
           
           {/* Document Preview Hero */}
@@ -364,19 +738,21 @@ export default function RecordDetailsScreen() {
                 <Animated.View style={{ flex: 1, width: '100%', height: '100%', opacity: fadeAnim }}>
                   {isPdf ? (
                     pdfImageUrl ? (
-                      <Image 
+                      <ExpoImage 
                         source={{ uri: pdfImageUrl }}
                         style={{ width: '100%', height: '100%' }}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        cachePolicy="disk"
                         onLoad={() => setPreviewLoaded(true)}
                         onError={() => setPreviewLoaded(true)}
                       />
                     ) : null
                   ) : (
-                    <Image 
-                      source={{ uri: b2Url }}
+                    <ExpoImage 
+                      source={{ uri: previewUrl }}
                       style={{ width: '100%', height: '100%' }}
-                      resizeMode="cover"
+                      contentFit="cover"
+                      cachePolicy="disk"
                       onLoad={() => setPreviewLoaded(true)}
                       onError={() => setPreviewLoaded(true)}
                     />
@@ -415,17 +791,29 @@ export default function RecordDetailsScreen() {
               {displayTitle}
             </Text>
             
-            <View className="flex-row items-center gap-4">
-              <View className="flex-row items-center gap-1.5">
-                <MaterialCommunityIcons name="account" size={18} color="#5C6E60" />
-                <Text className="text-sm text-[#404944] font-display-medium">{extractedData.doctor_name || 'Unknown'}</Text>
+            {(hasDoctor || hasHospital) && (
+              <View className="flex-row items-center gap-3 flex-wrap">
+                {hasDoctor && (
+                  <View className="flex-row items-center gap-1.5">
+                    <MaterialCommunityIcons name="account" size={18} color="#5C6E60" />
+                    <Text className="text-sm text-[#404944] font-display-medium">
+                      Dr. {extractedData.doctor_name.trim().replace(/^Dr\.\s*/i, '')}
+                    </Text>
+                  </View>
+                )}
+                {hasDoctor && hasHospital && (
+                  <View className="w-1 h-1 rounded-full bg-[#bfc9c2]" />
+                )}
+                {hasHospital && (
+                  <View className="flex-row items-center gap-1.5">
+                    <MaterialCommunityIcons name="hospital-building" size={18} color="#5C6E60" />
+                    <Text className="text-sm text-[#404944] font-display-medium" numberOfLines={1} style={{ maxWidth: 180 }}>
+                      {extractedData.hospital_name}
+                    </Text>
+                  </View>
+                )}
               </View>
-              <View className="w-1 h-1 rounded-full bg-[#bfc9c2]" />
-              <View className="flex-row items-center gap-1.5">
-                <MaterialCommunityIcons name="hospital-building" size={18} color="#5C6E60" />
-                <Text className="text-sm text-[#404944] font-display-medium" numberOfLines={1} style={{ maxWidth: 160 }}>{extractedData.hospital_name || 'Unknown'}</Text>
-              </View>
-            </View>
+            )}
           </View>
 
 
@@ -434,46 +822,30 @@ export default function RecordDetailsScreen() {
           {labValues.length > 0 && (
             <ExpandableSection title="Lab Results" icon="test-tube" defaultOpen>
               <View className="flex-row items-center justify-between mb-4 mt-1 px-1">
-                <Text className="text-[12px] font-display-medium text-[#819685]">{filteredLabValues.length} {filteredLabValues.length === 1 ? 'result' : 'results'}</Text>
-                <TouchableOpacity 
-                  className="flex-row items-center gap-2"
-                  onPress={() => setShowOnlyAlerts(!showOnlyAlerts)}
-                  activeOpacity={0.75}
-                >
-                  <MaterialCommunityIcons 
-                    name={showOnlyAlerts ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
-                    size={20} 
-                    color={showOnlyAlerts ? "#F57F17" : "#bfc9c2"} 
+                <Text className="text-[12px] font-display-medium text-[#819685]">
+                  {filteredLabValues.length} {filteredLabValues.length === 1 ? 'result' : 'results'}
+                </Text>
+                <View className="flex-row items-center gap-2.5">
+                  <Text className={`text-[12px] font-display-medium ${showOnlyAlerts ? 'text-[#004D36]' : 'text-[#819685]'}`}>
+                    Show Alerts Only
+                  </Text>
+                  <Switch
+                    value={showOnlyAlerts}
+                    onValueChange={setShowOnlyAlerts}
+                    trackColor={{ false: '#E5E2DE', true: '#004D36' }}
+                    thumbColor="white"
+                    ios_backgroundColor="#E5E2DE"
                   />
-                  <Text className={`text-[12px] font-display-medium ${showOnlyAlerts ? 'text-[#F57F17]' : 'text-[#819685]'}`}>Show Alerts Only</Text>
-                </TouchableOpacity>
+                </View>
               </View>
 
-              {filteredLabValues.map((lv: any, idx: number) => {
-                const flagColor = lv.flag?.toLowerCase() === 'high' ? '#C62828' : lv.flag?.toLowerCase() === 'low' ? '#F57F17' : '#004D36';
-                const flagBg = lv.flag?.toLowerCase() === 'high' ? 'bg-[#FFCDD2]' : lv.flag?.toLowerCase() === 'low' ? 'bg-[#FFF9C4]' : 'bg-[#C8E6C9]';
-                return (
-                  <View key={idx} className={`flex-col py-3 ${idx !== filteredLabValues.length - 1 ? 'border-b border-black/5' : ''}`}>
-                    <View className="flex-row justify-between items-start mb-1">
-                      <Text className="text-[14px] font-display-bold text-[#004D36] max-w-[60%]">{lv.test_name}</Text>
-                      {lv.flag && lv.flag.toLowerCase() !== 'normal' && (
-                        <View className={`rounded-full px-2 py-0.5 ${flagBg}`}>
-                          <Text className="text-[10px] font-display-bold tracking-wider uppercase" style={{ color: flagColor }}>{lv.flag}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View className="flex-row justify-between items-end">
-                      <View className="flex-row items-baseline gap-1">
-                        <Text className="text-[18px] font-display-bold" style={{ color: flagColor }}>{lv.value || '-'}</Text>
-                        {lv.unit && <Text className="text-[13px] font-display text-[#819685]">{lv.unit}</Text>}
-                      </View>
-                      {lv.reference_range && (
-                        <Text className="text-[12px] font-display text-[#819685]">Ref: {lv.reference_range}</Text>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
+              {filteredLabValues.map((lv: any, idx: number) => (
+                <LabResultRow
+                  key={idx}
+                  lv={lv}
+                  isLast={idx === filteredLabValues.length - 1}
+                />
+              ))}
               {filteredLabValues.length === 0 && showOnlyAlerts && (
                 <Text className="text-[13px] font-display text-[#819685] py-4 text-center">No abnormal results found.</Text>
               )}
@@ -484,20 +856,23 @@ export default function RecordDetailsScreen() {
           {extractedData.medications && extractedData.medications.length > 0 && (
             <ExpandableSection title="Medications" icon="pill" defaultOpen>
               <View className="flex-col gap-3 pt-2">
-                {extractedData.medications.map((med: any, idx: number) => {
-                  const details = [med.dose, med.frequency, med.duration].filter(Boolean).join(' · ');
-                  return (
-                    <View key={idx} className="bg-white/20 border border-white/50 rounded-2xl p-4 flex-row items-start gap-3">
-                      <Text className="text-lg">💊</Text>
-                      <View className="flex-1">
-                        <Text className="text-[14px] font-display-bold text-[#E65100]">{med.medicine_name}</Text>
-                        {details ? (
-                          <Text className="text-[13px] font-display text-[#404944] mt-1">{details}</Text>
-                        ) : null}
+                {extractedData.medications
+                  .filter((med: any) => isKnown(med.medicine_name || med.name))
+                  .map((med: any, idx: number) => {
+                    const medName = (med.medicine_name || med.name || '').trim();
+                    const details = [med.dose, med.frequency, med.duration].filter(isKnown).join(' · ');
+                    return (
+                      <View key={idx} className="bg-white/20 border border-white/50 rounded-2xl p-4 flex-row items-start gap-3">
+                        <Text className="text-lg">💊</Text>
+                        <View className="flex-1">
+                          <Text className="text-[14px] font-display-bold text-[#E65100]">{medName}</Text>
+                          {details ? (
+                            <Text className="text-[13px] font-display text-[#404944] mt-1">{details}</Text>
+                          ) : null}
+                        </View>
                       </View>
-                    </View>
-                  );
-                })}
+                    );
+                  })}
               </View>
             </ExpandableSection>
           )}
@@ -506,7 +881,7 @@ export default function RecordDetailsScreen() {
           {record.condition_terms_raw && record.condition_terms_raw.length > 0 && (
             <ExpandableSection title="Diagnoses" icon="stethoscope" defaultOpen>
               <View className="flex-row flex-wrap gap-2 pt-2">
-                {record.condition_terms_raw.map((term: string, idx: number) => (
+                {record.condition_terms_raw.filter(isKnown).map((term: string, idx: number) => (
                   <View key={idx} className="bg-[#d7e7d7]/50 border border-white/50 rounded-full px-3 py-1.5 flex-row items-center gap-1.5">
                     <MaterialCommunityIcons name="hospital-box-outline" size={14} color="#004D36" />
                     <Text className="text-[12px] font-display-medium text-[#004D36]">{term}</Text>

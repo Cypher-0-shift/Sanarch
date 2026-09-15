@@ -17,6 +17,13 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import Svg, { Polygon, Polyline, Rect } from 'react-native-svg';
 import { useAlertStore } from '../../store/alertStore';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+
+/**
+ * Phase D: max dimension for uploaded images (longest side).
+ * Sufficient for OCR/document extraction quality; meaningfully reduces
+ * upload payload for modern high-resolution camera sensors.
+ */
+const MAX_UPLOAD_DIM = 2048;
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -265,7 +272,11 @@ export default function DocumentAdjuster({
     try {
       const result = await ImageManipulator.manipulateAsync(
         pageUri,
-        [{ rotate: 90 }],
+        [
+          { rotate: 90 },
+          // Phase D: cap longest side after rotation (aspect ratio may swap).
+          { resize: { width: MAX_UPLOAD_DIM } },
+        ],
         { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
       );
       setHasEdited(true);
@@ -282,7 +293,11 @@ export default function DocumentAdjuster({
     try {
       const result = await ImageManipulator.manipulateAsync(
         pageUri,
-        [{ rotate: -90 }],
+        [
+          { rotate: -90 },
+          // Phase D: cap longest side after rotation.
+          { resize: { width: MAX_UPLOAD_DIM } },
+        ],
         { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
       );
       setHasEdited(true);
@@ -310,14 +325,20 @@ export default function DocumentAdjuster({
       
       const result = await ImageManipulator.manipulateAsync(
         pageUri,
-        [{
-          crop: {
-            originX: Math.round(cropBox.left * sx),
-            originY: Math.round(cropBox.top * sy),
-            width: Math.round(cropWidth),
-            height: Math.round(cropHeight),
+        [
+          {
+            crop: {
+              originX: Math.round(cropBox.left * sx),
+              originY: Math.round(cropBox.top * sy),
+              width: Math.round(cropWidth),
+              height: Math.round(cropHeight),
+            },
           },
-        }],
+          // Phase D: cap the cropped output to MAX_UPLOAD_DIM on the longest side.
+          // expo-image-manipulator preserves aspect ratio when only one dimension is given;
+          // images already within bounds are passed through unchanged.
+          { resize: { width: MAX_UPLOAD_DIM } },
+        ],
         { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
       );
       setMode('none');

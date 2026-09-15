@@ -195,6 +195,7 @@ export default function HomeScreen() {
   const familyMembers = useProfileStore((s) => s.familyMembers);
   const setActiveProfile = useProfileStore((s) => s.setActiveProfile);
   const documents = useDocumentsStore((s) => s.documents);
+  const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
 
   const readyDocuments = useMemo(() => {
     return (documents || []).filter((d) => d?.status === 'ready');
@@ -209,11 +210,12 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
+    fetchDocuments();
     const task = InteractionManager.runAfterInteractions(() => {
       setIsReady(true);
     });
     return () => task.cancel();
-  }, []);
+  }, [fetchDocuments]);
 
   // Only re-fetch timeline when ready documents change (prevents flickering during upload progress)
   const timelineDependency = useMemo(() => {

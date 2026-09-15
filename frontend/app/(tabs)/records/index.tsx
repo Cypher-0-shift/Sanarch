@@ -13,7 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -64,15 +64,27 @@ function normalizeProviderName(raw: string): string {
     .toLowerCase();
 }
 
+function isKnown(val?: string | null): boolean {
+  if (!val) return false;
+  const cleaned = val.trim().toLowerCase();
+  return (
+    cleaned.length > 0 &&
+    cleaned !== 'unknown' &&
+    cleaned !== 'null' &&
+    cleaned !== 'undefined' &&
+    cleaned !== 'none' &&
+    cleaned !== 'n/a' &&
+    cleaned !== 'na' &&
+    cleaned !== 'nil' &&
+    cleaned !== 'not available'
+  );
+}
+
 /**
  * Grouping key for one document.
  *
  * PRIMARY = hospital_name (facility).
  * FALLBACK = doctor_name when facility is absent.
- *
- * Rationale: facility is a stable shared identity across multiple doctors and
- * visits, producing fewer, larger, more useful groups. Doctor name is the
- * fallback so solo-doctor records still cluster across visits.
  */
 function getGroupKey(doc: DocumentRecord): {
   key: string;
@@ -80,14 +92,15 @@ function getGroupKey(doc: DocumentRecord): {
   isFacility: boolean;
 } {
   const facilityRaw = (doc.extracted_data?.hospital_name || '').trim();
-  if (facilityRaw) {
+  if (isKnown(facilityRaw)) {
     return { key: normalizeProviderName(facilityRaw), displayName: facilityRaw, isFacility: true };
   }
   const doctorRaw = (doc.extracted_data?.doctor_name || '').trim();
-  if (doctorRaw) {
-    return { key: normalizeProviderName(doctorRaw), displayName: doctorRaw, isFacility: false };
+  if (isKnown(doctorRaw)) {
+    const cleanDoc = doctorRaw.replace(HONORIFIC_RE, '').trim();
+    return { key: normalizeProviderName(cleanDoc), displayName: `Dr. ${cleanDoc}`, isFacility: false };
   }
-  return { key: '__unknown__', displayName: 'Unknown Provider', isFacility: false };
+  return { key: '__unassigned__', displayName: 'Other Records', isFacility: false };
 }
 
 function groupByFacility(docs: DocumentRecord[]): GroupData[] {
@@ -103,7 +116,13 @@ function groupByFacility(docs: DocumentRecord[]): GroupData[] {
     const d = doc.extracted_data?.document_date || doc.created_at || '';
     if (!g.latestDate || d > g.latestDate) g.latestDate = d;
   }
-  return Array.from(map.values()).sort((a, b) => b.latestDate.localeCompare(a.latestDate));
+  const allGroups = Array.from(map.values());
+  const namedGroups = allGroups.filter(g => g.key !== '__unassigned__').sort((a, b) => b.latestDate.localeCompare(a.latestDate));
+  const unassigned = allGroups.find(g => g.key === '__unassigned__');
+  if (unassigned) {
+    namedGroups.push(unassigned);
+  }
+  return namedGroups;
 }
 
 function groupByCondition(docs: DocumentRecord[]): GroupData[] {
@@ -305,8 +324,8 @@ function GroupCard({ group }: { group: GroupData }) {
     groupIcon = 'tag-outline';
     iconColor = '#E65100';
     iconBg = '#FFF3E0';
-  } else if (group.type === 'uncategorized') {
-    groupIcon = 'tag-off-outline';
+  } else if (group.type === 'uncategorized' || group.key === '__unassigned__') {
+    groupIcon = 'folder-outline';
     iconColor = '#7A8A7C';
     iconBg = '#F5F3F0';
     labelStyle = 'text-[#7A8A7C] font-display-medium'; // Muted
@@ -499,6 +518,12 @@ export default function RecordsScreen() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchDocuments();
+    }, [fetchDocuments])
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchDocuments();
@@ -579,9 +604,6 @@ export default function RecordsScreen() {
     <BlurView intensity={40} tint="light" className="px-5 pt-4 pb-3 border-b border-[#E5E2DE] z-10">
       <View className="flex-row justify-between items-center mb-3">
         <Text className="text-[28px] font-display-bold text-[#004D36]">Health Records</Text>
-        <TouchableOpacity onPress={() => setShowSortSheet(true)} activeOpacity={0.75} className="w-10 h-10 rounded-full items-center justify-center bg-white/70 border border-[#E5E2DE] shadow-sm">
-          <MaterialCommunityIcons name="filter-variant" size={22} color="#004D36" />
-        </TouchableOpacity>
       </View>
 
       {/* Search bar */}

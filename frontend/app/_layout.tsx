@@ -77,10 +77,13 @@ import { ErrorBoundary } from '../components/shared/ErrorBoundary';
 // ── App-level listeners (never unmounted during navigation) ──────
 function AppListeners() {
   const fetchDocuments = useDocumentsStore((s) => s.fetchDocuments);
+  const userId = useAuthStore((s) => s.user?.id);
 
   useEffect(() => {
-    fetchDocuments();
-  }, []);
+    if (userId) {
+      fetchDocuments();
+    }
+  }, [userId, fetchDocuments]);
 
   useActiveDocumentListeners();
 
